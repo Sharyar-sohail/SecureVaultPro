@@ -20,6 +20,34 @@ Blogger XML artifact, and the backup/checkpoint snapshots, which hold vault and 
 data. One stale 3.3.4 theme export under `release-site/` is left on disk but untracked because
 it embedded a Firebase `apiKey`; themes we ship carry a blank `var SEED` and no cloud config.
 
+## [3.4.2] — 2026-10-30 (versionCode 347)
+
+Found on the owner's first run of 3.4.1: the pre-login gate had drifted to four tiles, and
+starting a Google restore could grey the whole screen out with no way back.
+
+### Fixed — the welcome gate
+- **Back to exactly three ways in.** The BIP-39 work had added a fourth tile, "Recover with
+  your seed phrase", and the headline had been re-written to match it ("Your vault, four ways
+  in"). The tile is gone; seed recovery is now a tab inside the Import backup sheet, so it is
+  still one tap away and still works with no Google account and no network. The headline says
+  three again, and the ViewModel's own guarantee that the three options never freeze is true
+  once more.
+- **A restore can no longer pin the screen.** The watchdog that offers Cancel and then
+  auto-stops was keyed on the progress stream, so every Drive percent/detail update restarted
+  both timers. A restore that kept reporting but never finished — the case on the owner's
+  handset — therefore never revealed Cancel and never reached the auto-stop, leaving all three
+  tiles disabled behind an overlay with no exit. The clock now runs on wall time from the start
+  of the attempt: Cancel always arrives after 6 s, progress only buys patience on the 30 s
+  auto-stop, and the tiles are disabled only by this screen's own in-flight attempt.
+
+### Testing
+- 510 unit tests, 0 failures. New `WelcomeGateTest` pins the rule by reading the shipped
+  screen: exactly three tiles, headline matching, seed recovery reachable as a tab and not as
+  a tile, one uniform enable gate, a single wall-clock watchdog that cannot restart on
+  progress, and timer constants in a sane order.
+- Verification caveat: no emulator or adb here, so the hang is fixed by construction and by
+  these source-level pins; the on-device proof is the owner's next run.
+
 ## [3.4.1] — 2026-10-30 (versionCode 346)
 
 The owner's test of 3.4.0 found two blockers: the new layouts clipped and overlapped text,
