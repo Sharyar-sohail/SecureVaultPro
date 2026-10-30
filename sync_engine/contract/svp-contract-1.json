@@ -1,0 +1,35 @@
+{
+  "id": "svp-contract-1",
+  "note": "Synthetic known-answer vector. The two passphrases are public labels, not secrets: the fixture proves Node and the JVM implement the same PBKDF2/AES-256-GCM wire. Regenerate with `node tools/sync-probe/vector.js --write` only when the crypto contract changes.",
+  "algorithm": "AES-256-GCM",
+  "transformation": "AES/GCM/NoPadding",
+  "keyBytes": 32,
+  "ivBytes": 12,
+  "tagBits": 128,
+  "envelopeShape": "base64(iv).base64(ciphertext+tag)",
+  "pbkdf2": {
+    "prf": "HMAC-SHA256",
+    "digest": "sha256",
+    "iterations": 600000,
+    "saltBytes": 32,
+    "salt": "mYWn0K1vQ4c7ZEhL2pUaR1sXbN0yTqJ6dVgM3rCwPoI=",
+    "derivedKeyBytes": 32,
+    "passphraseLabel": "SVP-CONTRACT-1-KEK",
+    "kekFingerprint": "9f06ab4289d8a633"
+  },
+  "vaultKey": {
+    "label": "SVP-CONTRACT-1-VAULT-KEY",
+    "fingerprint": "bb61a95e42a8ea3f"
+  },
+  "keyring": {
+    "wrap": "WUDwcZSZXwuxlRTQ.o6ey/v/8KK3NJ9TYegsgzWZlaPhz/NXHFZzoTy6+BNe3wvG5PT/JkKluRw1rObcg",
+    "salt": "mYWn0K1vQ4c7ZEhL2pUaR1sXbN0yTqJ6dVgM3rCwPoI=",
+    "alg": "AES-256-GCM",
+    "iters": 600000
+  },
+  "record": {
+    "envelope": "kVAdOiAeuGiBMZxD.Lh6LBTkICLZY3aEocBQij63BNUGDybPm3rY2zPhL2QC7Juv4BMNfZkdQ4dtM/WFa5siGXVcLiGEtJkFJ8J7t9Lc5wf7wgC7Qp4jAgWOMXqr4/g5293Hqr15VdosQ4T5hJ9h8rnjdp9kBQIRFK3fWlWFjKRNv5D7U9KpIMDvIQV3O9CccM3q6cRmPQ0dIwuWB8LQftPDCMmjC/r/HIYqyknXtYA==",
+    "plain": "{\"id\":\"contract-1\",\"title\":\"Contrato de cifrado\",\"body\":\"Sealed by Node, opened by the APK — and the other way round.\",\"updatedAt\":1761724800000}"
+  },
+  "generatedAt": "2026-10-29"
+}

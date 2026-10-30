@@ -1,0 +1,55 @@
+<h2>Privacy Policy — Secure Wallet Pro</h2>
+<p><em>Effective 29 October 2026 · applies to app version 3.2.1 and later</em></p>
+
+<h3>The short version</h3>
+<p>Secure Wallet Pro has no server of its own. Everything you save is encrypted on your phone before it is written to disk. The app does not contain analytics, advertising or tracking code, and it does not send your data to us — we have no way to read it.</p>
+
+<h3>What is stored, and where</h3>
+<ul>
+  <li><strong>On your device.</strong> Passwords, cards, crypto wallets, notes, contacts, documents, scanned pages, voice memos and imported WhatsApp chats are kept in an encrypted on-device database (AES-256-GCM). The key is derived from the master passphrase you choose; it is never uploaded.</li>
+  <li><strong>On your own Google Drive, only if you sign in.</strong> Optional sync mirrors the already-encrypted vault to your personal Google Drive so a second device, or the web companion page, can restore it. That copy lives in your account, under your control, and is unreadable without your passphrase.</li>
+  <li><strong>Nothing else.</strong> No copy is kept on any server we operate, because we operate none.</li>
+</ul>
+
+<h3>Google account permissions we request</h3>
+<ul>
+  <li><code>profile</code> and <code>email</code> — to show which account is connected and to keep the connection stable.</li>
+  <li><code>https://www.googleapis.com/auth/drive.appdata</code> — the hidden app-folder area of your Drive, used for the encrypted vault copy.</li>
+  <li><code>https://www.googleapis.com/auth/drive.file</code> — files the app created, so it can read and replace its own backups, including the wipe-archive ZIP. We never list or open other Drive files.</li>
+</ul>
+<p>Google applies its own Privacy Policy and Terms to that account and to Drive storage.</p>
+
+<h3>Device permissions and why each one is needed</h3>
+<ul>
+  <li><strong>Camera</strong> — the document scanner captures pages you choose to scan.</li>
+  <li><strong>Microphone</strong> — the audio vault records voice memos you start yourself.</li>
+  <li><strong>Contacts</strong> — one-tap import of contacts you select into the encrypted address book. Nothing is read until you tap Import.</li>
+  <li><strong>Fingerprint / face (biometrics)</strong> — unlocks the vault on the device. Biometric data never leaves the handset and is never visible to this app.</li>
+  <li><strong>Autofill service</strong> — when you enable it, the app can offer saved credentials into apps and browsers at the moment you tap a field. It fills only what you ask it to fill.</li>
+  <li><strong>Files and media you pick</strong> — the picker grants access to exactly the file or folder you select, such as a WhatsApp chat export or a backup to restore.</li>
+</ul>
+
+<h3>WhatsApp imports</h3>
+<p>Choosing <em>Import a WhatsApp chat</em> opens your phone's own file picker. The selected <code>.txt</code> or <code>.zip</code> export is read directly from local storage, decrypted into your vault, and stays there. The app does not contact WhatsApp, does not read WhatsApp's database, and does not upload anything during an import.</p>
+
+<h3>The web companion and pairing</h3>
+<p>The companion page runs on Blogger and talks to nothing but your own Drive session. Pairing uses a link or QR code that carries a short session code; the code proves presence — it is not a credential and never unlocks the vault by itself.</p>
+
+<h3>Crash reports</h3>
+<p>If the app stops unexpectedly it writes a plain-text report to <code>Downloads/SecureVaultCrash.txt</code> on your device. That file is not transmitted anywhere. You may read it, delete it, or share it with us yourself.</p>
+
+<h3>Deleting your data</h3>
+<ul>
+  <li><em>Settings → Wipe all data</em> removes the local vault and, when connected, the Drive copies — the app archives the vault to a visible Drive ZIP first and aborts the erase if that archive fails.</li>
+  <li>Uninstalling removes everything stored on the phone.</li>
+  <li>To release Drive access at any time: Google account → Security → Third-party apps with account access → remove Secure Wallet Pro, or delete the app's files in Drive.</li>
+</ul>
+
+<h3>Children</h3>
+<p>This app is not directed at children and asks for no personal information from them.</p>
+
+<h3>Changes</h3>
+<p>If this policy changes, the revised version is published on this page with a new effective date, and the in-app build that ships with it is listed here.</p>
+
+<h3>Contact</h3>
+<p>Questions about this policy: <strong><a href="mailto:Sharyarsohail@gmail.com">Sharyarsohail@gmail.com</a></strong>. Requests to delete data held in a Google account can always be met by removing the data yourself as described above, or by emailing the same address.</p>

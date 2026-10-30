@@ -1,0 +1,7 @@
+<svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><!-- WarningAmber: regular/warning-hexagon -->
+  <path d="M2 12.277C1.901 12.106 1.901 11.894 2 11.723L6.76 3.478C6.859 3.307 7.042 3.201 7.24 3.201H16.76C16.958 3.201 17.141 3.307 17.24 3.478L22 11.723C22.099 11.894 22.099 12.106 22 12.277L17.24 20.522C17.141 20.693 16.958 20.799 16.76 20.799H7.24C7.042 20.799 6.859 20.693 6.76 20.522L2 12.277Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M12 8.305L12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M12 15.704L12.009 15.694" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M12 8.583V12.277" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M12 15.048H12.009" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

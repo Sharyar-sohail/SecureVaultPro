@@ -1,0 +1,3368 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE html>
+<html b:version='2' class='v2' expr:dir='data:blog.languageDirection' xmlns='http://www.w3.org/1999/xhtml' xmlns:b='http://www.google.com/2005/gml/b' xmlns:data='http://www.google.com/2005/gml/data' xmlns:expr='http://www.google.com/2005/gml/expr'>
+<head>
+<meta charset='UTF-8'/>
+<meta content='width=device-width, initial-scale=1' name='viewport'/>
+<meta content='noindex, nofollow' name='robots'/>
+<b:include data='blog' name='all-head-content'/>
+<title><data:blog.pageTitle/></title>
+<b:skin><![CDATA[
+:root{--bg:#05070d;--panel:rgba(17,23,37,.78);--panel2:rgba(24,32,50,.7);--line:rgba(122,180,255,.16);--cyan:#38e8ff;--mint:#3ef0b0;--indigo:#8b7bff;--amber:#ffc85c;--coral:#ff6b8a;--text:#eaf2ff;--muted:#8b9bb4}
+*{box-sizing:border-box}html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+body{min-height:100vh;background:radial-gradient(900px 500px at 12% -10%,rgba(56,232,255,.13),transparent 60%),radial-gradient(800px 520px at 88% 0,rgba(139,123,255,.14),transparent 55%),radial-gradient(700px 600px at 50% 110%,rgba(62,240,176,.08),transparent 60%),#05070d;background-attachment:fixed}
+a{color:var(--cyan)}.svp-wrap{max-width:1080px;margin:0 auto;padding:28px 18px 40px;position:relative;z-index:2}
+.svp-top{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:22px;flex-wrap:wrap}
+.svp-brand{display:flex;align-items:center;gap:12px}
+.svp-logo{width:44px;height:44px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:20px;color:#031018;background:linear-gradient(135deg,var(--cyan),var(--mint));box-shadow:0 10px 30px rgba(56,232,255,.25)}
+.svp-brand h1{font-size:20px;line-height:1.2;margin:0;letter-spacing:.2px}
+.svp-brand p{margin:2px 0 0;font-size:11px;color:var(--muted);letter-spacing:.14em;text-transform:uppercase}
+.svp-top-actions{display:flex;gap:8px;flex-wrap:wrap}
+.svp-card{background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:20px;backdrop-filter:blur(18px);box-shadow:0 24px 60px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.04)}
+.svp-lock{max-width:520px;margin:8vh auto 0;text-align:left;border-color:rgba(56,232,255,.26)}
+.svp-lock h2{margin:0 0 6px;font-size:22px}
+.svp-muted{color:var(--muted);font-size:13px;line-height:1.55;margin:0 0 14px}
+.svp-label{display:block;font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:14px 0 6px}
+.svp-passrow{display:flex;gap:8px}
+.svp-passrow input{flex:1}
+input,textarea,select{width:100%;background:rgba(6,10,18,.7);border:1px solid var(--line);border-radius:12px;color:var(--text);padding:11px 13px;font-size:14px;outline:none;font-family:inherit}
+input:focus,textarea:focus{border-color:rgba(56,232,255,.55);box-shadow:0 0 0 3px rgba(56,232,255,.12)}
+textarea{min-height:88px;resize:vertical}
+.svp-btn{border:1px solid var(--line);border-radius:12px;padding:10px 15px;font-size:13px;font-weight:600;cursor:pointer;background:rgba(255,255,255,.04);color:var(--text);font-family:inherit;transition:transform .12s ease,background .2s ease,border-color .2s ease}
+.svp-btn:hover{transform:translateY(-1px);border-color:rgba(56,232,255,.4)}
+.svp-btn:disabled{opacity:.55;cursor:not-allowed;transform:none}
+.svp-btn.primary{background:linear-gradient(135deg,var(--cyan),var(--mint));color:#031018;border:0;box-shadow:0 10px 26px rgba(56,232,255,.22)}
+.svp-btn.ghost{background:rgba(255,255,255,.03)}
+.svp-btn.icon{padding:10px 12px;min-width:52px}
+.svp-btn.danger{border-color:rgba(255,107,138,.35);color:var(--coral)}
+.svp-btn.wide{width:100%;margin-top:14px;padding:12px}
+.svp-err{color:var(--coral);font-size:13px;margin:12px 0 0;line-height:1.5}
+.svp-split{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+.svp-split .svp-btn{flex:1}
+.svp-stats{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin-bottom:16px}
+.svp-stat{background:var(--panel2);border:1px solid var(--line);border-radius:14px;padding:12px 10px;text-align:center}
+.svp-stat b{display:block;font-size:20px;letter-spacing:.4px}
+.svp-stat span{display:block;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-top:3px}
+.svp-toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+.svp-tabs{display:flex;gap:6px;flex-wrap:wrap;flex:1}
+.svp-tab{border:1px solid var(--line);background:rgba(255,255,255,.025);color:var(--muted);border-radius:999px;padding:7px 13px;font-size:12px;cursor:pointer;font-family:inherit}
+.svp-tab.active{color:#031018;background:linear-gradient(135deg,var(--cyan),var(--mint));border-color:transparent;font-weight:700}
+.svp-tab b{opacity:.75;font-weight:600;margin-left:4px}
+.svp-search{max-width:260px;flex:1 1 180px}
+.svp-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px}
+.svp-item{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:16px;display:flex;flex-direction:column;gap:10px;backdrop-filter:blur(14px)}
+.svp-item-head{display:flex;gap:10px;align-items:flex-start}
+.svp-avatar{width:38px;height:38px;flex:0 0 38px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;color:#031018;background:linear-gradient(135deg,var(--cyan),var(--indigo))}
+.svp-item-title{font-size:15px;font-weight:700;line-height:1.25;word-break:break-word;margin:0}
+.svp-item-sub{font-size:12px;color:var(--muted);margin:2px 0 0;word-break:break-word}
+.svp-tags{display:flex;gap:6px;flex-wrap:wrap}
+.svp-tag{font-size:9px;letter-spacing:.12em;text-transform:uppercase;padding:3px 8px;border-radius:999px;border:1px solid rgba(139,123,255,.35);color:var(--indigo);background:rgba(139,123,255,.09)}
+.svp-tag.fav{color:var(--amber);border-color:rgba(255,200,92,.4);background:rgba(255,200,92,.09)}
+.svp-secret{display:flex;align-items:center;gap:6px;background:rgba(6,10,18,.65);border:1px solid var(--line);border-radius:11px;padding:8px 10px}
+.svp-secret code{flex:1;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12.5px;word-break:break-all;color:var(--text)}
+.svp-secret .svp-btn{padding:5px 9px;font-size:10px;min-width:0}
+.svp-note{font-size:12px;color:var(--muted);white-space:pre-wrap;word-break:break-word;max-height:110px;overflow:auto;line-height:1.5}
+.svp-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:auto;padding-top:4px}
+.svp-actions .svp-btn{padding:6px 10px;font-size:11px}
+.svp-totp{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:22px;letter-spacing:.22em;color:var(--mint);font-weight:700}
+.svp-empty{grid-column:1/-1;text-align:center;padding:44px 18px;color:var(--muted);border:1px dashed var(--line);border-radius:18px;font-size:13px}
+.svp-savebar{margin-top:18px;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;background:var(--panel2);border:1px solid var(--line);border-radius:16px;padding:14px 16px}
+.svp-savebar .svp-btn{white-space:nowrap}
+.svp-dirty{color:var(--amber)!important}
+.svp-foot{text-align:center;color:var(--muted);font-size:10px;letter-spacing:.14em;text-transform:uppercase;margin-top:34px;opacity:.7}
+.svp-modal{position:fixed;inset:0;background:rgba(2,4,9,.78);backdrop-filter:blur(6px);z-index:50;display:flex;align-items:center;justify-content:center;padding:16px}
+.svp-modal-card{max-width:520px;width:100%;max-height:92vh;overflow:auto}
+.svp-modal h2{margin:0 0 12px;font-size:19px}
+.svp-field{margin-bottom:10px}
+.svp-field label{display:block;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:5px}
+.svp-modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
+.svp-drive-list{display:flex;flex-direction:column;gap:8px;margin-top:12px;max-height:300px;overflow:auto}
+.svp-drive-row{display:flex;gap:10px;align-items:center;border:1px solid var(--line);background:rgba(6,10,18,.55);border-radius:12px;padding:10px 12px}
+.svp-drive-row div{flex:1;min-width:0}
+.svp-drive-row b{display:block;font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.svp-drive-row span{display:block;font-size:10px;color:var(--muted);margin-top:2px}
+.svp-drive-row.app-only{opacity:.55}
+.svp-row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.svp-row h2{margin:0;font-size:18px}
+.svp-pairqr{display:flex;gap:16px;align-items:center;justify-content:center;flex-wrap:wrap;margin-top:12px}
+.svp-qr-frame{padding:10px;border-radius:14px;background:#fff;border:1px solid var(--line);line-height:0;width:min(260px,64vw);box-shadow:0 8px 26px rgba(0,0,0,.35)}
+.svp-qr-frame svg{display:block;width:100%;height:auto}
+.svp-qr-side{flex:1;min-width:170px;max-width:280px}
+.svp-qr-code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:22px;letter-spacing:.3em;color:var(--text);text-align:center;margin:0 0 6px}
+.svp-pairqr .svp-muted{font-size:11px;line-height:1.5;margin:0}
+.svp-chip{display:inline-flex;align-items:center;gap:6px;font-size:11px;letter-spacing:.06em;padding:7px 11px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.04);color:var(--muted);font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;white-space:nowrap}
+.svp-chip.on{color:var(--mint);border-color:rgba(62,240,176,.35);background:rgba(62,240,176,.10)}
+.svp-chip.warn{color:var(--amber);border-color:rgba(255,200,92,.35);background:rgba(255,200,92,.10)}
+.svp-livebox{border:1px solid rgba(56,232,255,.24);background:rgba(56,232,255,.05);border-radius:16px;padding:14px;margin-bottom:6px}
+.svp-livebox b{font-size:13px}
+.svp-gis{display:flex;justify-content:center;margin:10px 0 0;min-height:0}
+.svp-gis:empty{margin:0}
+.svp-div{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);border-top:1px solid var(--line);margin:16px 0 0;padding-top:12px}
+.svp-livebar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:var(--panel2);border:1px solid var(--line);border-radius:16px;padding:11px 14px;margin-bottom:14px;font-size:12px;color:var(--muted)}
+.svp-livebar .svp-btn{padding:6px 10px;font-size:11px}
+.svp-dot{width:9px;height:9px;border-radius:50%;background:var(--muted);flex:0 0 9px;box-shadow:0 0 0 3px rgba(139,155,180,.14)}
+.svp-dot.on{background:var(--mint);box-shadow:0 0 10px rgba(62,240,176,.75)}
+.svp-dot.off{background:var(--coral);box-shadow:0 0 10px rgba(255,107,138,.6)}
+.svp-lat{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--text);font-weight:700;padding:3px 9px;border-radius:9px;background:rgba(56,232,255,.10);border:1px solid rgba(56,232,255,.28);font-size:11.5px}
+.svp-lat.warn{color:var(--amber);background:rgba(255,200,92,.10);border-color:rgba(255,200,92,.3)}
+.svp-lat.bad{color:var(--coral);background:rgba(255,107,138,.10);border-color:rgba(255,107,138,.3)}
+.svp-log{width:100%;max-height:130px;overflow:auto;font-size:10.5px;line-height:1.55;background:rgba(6,10,18,.6);border:1px solid var(--line);border-radius:12px;padding:8px 10px;white-space:pre-wrap;word-break:break-word;margin:0;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--muted)}
+.svp-stamp{font-size:10px;color:var(--muted);letter-spacing:.08em;margin-top:auto;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.svp-viewer-body{margin-top:10px}
+.svp-viewer-body img{display:block;max-width:100%;height:auto;border-radius:12px;margin:0 auto}
+.svp-viewer-body iframe{display:block;width:100%;height:62vh;border:1px solid var(--line);border-radius:12px;background:#0a0f18}
+.svp-viewer-body pre{max-height:60vh;overflow:auto;font-size:11.5px;line-height:1.5;white-space:pre-wrap;word-break:break-word;background:rgba(6,10,18,.6);border:1px solid var(--line);border-radius:12px;padding:10px}
+.svp-viewer-body .svp-empty{padding:22px}
+[hidden]{display:none!important}
+@media(max-width:820px){.svp-stats{grid-template-columns:repeat(3,minmax(0,1fr))}.svp-search{max-width:none;width:100%}}
+@media(max-width:520px){.svp-wrap{padding:18px 12px 30px}.svp-lock{margin-top:3vh}.svp-list{grid-template-columns:1fr}.svp-brand h1{font-size:17px}.svp-top{gap:10px}.svp-toolbar{align-items:stretch}.svp-savebar{align-items:stretch}.svp-savebar>div{display:flex;gap:8px;flex-wrap:wrap}}
+]]></b:skin>
+</head>
+<body>
+<b:section id='svp-main-section' showaddelement='no'/>
+<script type='text/javascript'>
+//<![CDATA[
+(function () {
+  'use strict';
+  var ITERATIONS = 600000;
+  var DEFAULT_CLIENT_ID = '908900914248-pse5k128rl0hoqb07oebhsnngt1i80uj.apps.googleusercontent.com';
+  var TABS = [['entries', 'Logins'], ['cards', 'Cards'], ['totps', '2FA'], ['notes', 'Notes'], ['contacts', 'Contacts'], ['files', 'Files'], ['cryptoWallets', 'Crypto']];
+  /* SVP-1 realtime backend. generate.js rewrites this line from google-services.json
+     (project id, web client id, the project's public web API key and the derived
+     database URL). No credential of any kind is baked into the generator: an API key
+     and an OAuth client id are public client identifiers that authorise nothing on
+     their own - every database read still needs a signed-in session whose uid equals
+     the node path. An unbuilt theme can run live mode by typing the API key into
+     Google setup, which keeps it in localStorage only. */
+  var FB_VERSION = '10.12.2';
+  var FB_CFG = { apiKey: '', authDomain: 'vault-35423.firebaseapp.com', projectId: 'vault-35423', databaseURL: 'https://vault-35423-default-rtdb.asia-southeast1.firebasedatabase.app', webClientId: '908900914248-pse5k128rl0hoqb07oebhsnngt1i80uj.apps.googleusercontent.com' };
+  /* The frozen wire contract: RECORD-FORMAT-v1 sections 1-4. */
+  var LIVE_MODULES = ['notes', 'entries', 'cards', 'totps', 'contacts', 'cryptoWallets', 'files'];
+  var RECORD_KEYS = {
+    notes: ['id', 'title', 'content', 'isPinned', 'color', 'tagsJson', 'createdAt', 'updatedAt'],
+    entries: ['id', 'title', 'username', 'email', 'password', 'website', 'url', 'notes', 'category',
+      'customFieldsJson', 'tagsJson', 'isFavorite', 'hasTotp', 'totpSecret', 'createdAt', 'updatedAt',
+      'lastAccessedAt', 'expiresAt', 'strengthScore', 'deletedAt', 'isHiddenInTravel'],
+    cards: ['id', 'type', 'nickname', 'holderName', 'number', 'expiryMonth', 'expiryYear', 'cvv', 'pin',
+      'bankName', 'notes', 'colorGradientStart', 'colorGradientEnd', 'createdAt'],
+    totps: ['id', 'issuer', 'accountName', 'secret', 'algorithm', 'digits', 'period', 'createdAt'],
+    contacts: ['id', 'name', 'phone', 'email', 'address', 'notes', 'category', 'createdAt', 'updatedAt'],
+    cryptoWallets: ['id', 'label', 'kind', 'secret', 'addressesJson', 'balancesJson', 'totalUsd',
+      'lastSyncedAt', 'createdAt', 'updatedAt'],
+    files: ['id', 'name', 'size', 'mimeType', 'category', 'createdAt', 'uploadedAt', 'noteId', 'folder', 'driveId']
+  };
+  /* One imported WhatsApp conversation keeps its own directory in the file vault, `chats/<chat id>`,
+     and its own mark on the board below. The slot is FNV-1a over the id and must stay byte-for-byte
+     equal to WhatsAppChatUnit.iconSlot on the phone, so one chat wears one identity on both
+     frontends. */
+  var CHAT_ROOT = 'chats/';
+  var CHAT_MARKS = [
+    ['#25d366', '#0e8f52'], ['#38e8ff', '#1f6fd0'], ['#8b7bff', '#5a3fd0'], ['#ffb347', '#e07a1f'],
+    ['#ff6b8a', '#c2255c'], ['#7bf1a8', '#2f9e5a'], ['#ffd166', '#c98a12'], ['#6ee7ff', '#0f8fbf'],
+    ['#c792ff', '#7b3fd4'], ['#ff9f6e', '#d1531f'], ['#5eead4', '#0f766e'], ['#f472b6', '#be185d'],
+    ['#a3e635', '#4d7c0f'], ['#60a5fa', '#1d4ed8'], ['#f87171', '#b91c1c'], ['#e2e8f0', '#94a3b8']
+  ];
+
+  function chatSlot(id) {
+    var hash = 0x811c9dc5 | 0;
+    for (var i = 0; i < id.length; i += 1) {
+      hash ^= id.charCodeAt(i);
+      hash = Math.imul(hash, 0x01000193);
+    }
+    return (hash >>> 0) % CHAT_MARKS.length;
+  }
+
+  /** The conversation a file belongs to, or null when it is not inside a chat module. */
+  function chatOf(rec) {
+    var folder = String((rec && rec.folder) || '');
+    if (folder.indexOf(CHAT_ROOT) !== 0) return null;
+    var id = folder.slice(CHAT_ROOT.length).split('/')[0];
+    return /^[A-Za-z0-9_-]{1,64}$/.test(id) ? id : null;
+  }
+
+  function chatMark(id) {
+    return CHAT_MARKS[chatSlot(id)];
+  }
+
+  /** The conversation's own note carries its readable title; the file record only knows the id. */
+  function chatTitle(id) {
+    var notes = (S.payload && S.payload.notes) || [];
+    for (var i = 0; i < notes.length; i += 1) {
+      if (notes[i] && String(notes[i].id) === String(id)) return notes[i].title || notes[i].name || null;
+    }
+    return null;
+  }
+  var DOUBLE_ENCODED = ['tagsJson', 'customFieldsJson', 'addressesJson', 'balancesJson'];
+  var NODE_KEYS = ['e', 'u', 'r', 'd'];
+  // Blogger drops raw body markup inside widgets; build the UI at runtime instead.
+  var SEED = { salt: '', iv: '', ct: '', iters: 600000, clientId: '' };
+  var UI_MARKUP = `<div class='svp-wrap'>
+  <header class='svp-top'>
+    <div class='svp-brand'>
+      <div class='svp-logo'>&#9670;</div>
+      <div>
+        <h1 id='svp-title'>Secure Wallet Pro</h1>
+        <p>Encrypted web companion</p>
+      </div>
+    </div>
+    <div class='svp-top-actions'>
+      <span class='svp-chip' id='svp-chip' hidden='hidden'>offline</span>
+      <button class='svp-btn ghost' id='svp-drive-btn' type='button'>Connect Drive</button>
+      <button class='svp-btn ghost' id='svp-lock-btn' type='button' hidden='hidden'>Lock</button>
+    </div>
+  </header>
+
+  <section class='svp-card svp-lock' id='svp-lock'>
+    <h2>Unlock your vault</h2>
+    <div class='svp-livebox'>
+      <div class='svp-row'>
+        <b>Live vault &#183; same account as the app</b>
+        <span class='svp-chip' id='svp-auth-chip'>not connected</span>
+      </div>
+      <p class='svp-muted' style='margin:8px 0 0'>Sign in with the Google account that owns the vault, then type the vault passphrase you set in the app. Records stream straight from the database and decrypt in this tab only.</p>
+      <div class='svp-gis' id='svp-gis-btn'></div>
+      <p class='svp-muted' id='svp-live-hint' style='margin:8px 0 0;font-size:11px'>Realtime client: loading&#8230; if the button never appears, press Try again or use the sealed backup below.</p>
+      <div class='svp-passrow' id='svp-kpass-row' hidden='hidden'>
+        <input id='svp-kpass' type='password' autocomplete='off' spellcheck='false' placeholder='Vault passphrase (set in the app)'/>
+        <button class='svp-btn icon' id='svp-kpass-go' type='button'>Open</button>
+      </div>
+      <p class='svp-err' id='svp-live-err' hidden='hidden'></p>
+      <div class='svp-split' id='svp-live-actions' hidden='hidden'>
+        <button class='svp-btn ghost' id='svp-live-retry' type='button'>Try again</button>
+        <button class='svp-btn danger' id='svp-live-signout' type='button'>Sign out</button>
+      </div>
+    </div>
+    <p class='svp-div'>Offline &#183; sealed backup file</p>
+    <p class='svp-muted' id='svp-src'>No snapshot embedded. Open an encrypted backup or connect Google Drive.</p>
+    <label class='svp-label' for='svp-pass'>Backup password</label>
+    <div class='svp-passrow'>
+      <input id='svp-pass' type='password' autocomplete='current-password' placeholder='Password chosen when exporting'/>
+      <button class='svp-btn icon' id='svp-reveal-pass' type='button'>Show</button>
+    </div>
+    <button class='svp-btn primary wide' id='svp-unlock' type='button'>Unlock vault</button>
+    <p class='svp-muted' style='margin-top:8px;font-size:11px'>Offline path: use the password entered in Backup when exporting this file or theme. It matches your mobile master password only if you chose the same one. Google sign-in here grants Drive access for attachments; this viewer still needs the export password to decrypt a sealed file.</p>
+    <p class='svp-err' id='svp-err' hidden='hidden'></p>
+    <div class='svp-split'>
+      <button class='svp-btn ghost' id='svp-pick' type='button'>Open encrypted backup</button>
+      <input id='svp-file' type='file' accept='.enc,.json,application/json' hidden='hidden'/>
+    </div>
+    <p class='svp-muted' style='margin-top:14px;font-size:11px'>Decryption runs locally with WebCrypto (PBKDF2-SHA256, 600,000 iterations, AES-256-GCM). Nothing is sent to a server.</p>
+  </section>
+
+  <section id='svp-app' hidden='hidden'>
+    <div class='svp-livebar' id='svp-live' hidden='hidden'>
+      <span class='svp-dot' id='svp-conn-dot'></span>
+      <span id='svp-live-status'>connecting</span>
+      <span class='svp-lat' id='svp-latency'>measuring</span>
+      <span id='svp-lastwrite'>last write: none yet</span>
+      <button class='svp-btn ghost' id='svp-reconcile' type='button'>Reconcile</button>
+      <button class='svp-btn ghost' id='svp-log-btn' type='button'>Sync log</button>
+      <button class='svp-btn ghost' id='svp-stop' type='button'>Pause live</button>
+      <button class='svp-btn danger' id='svp-signout' type='button'>Sign out</button>
+      <pre class='svp-log' id='svp-log' hidden='hidden'></pre>
+    </div>
+    <div class='svp-stats' id='svp-stats'></div>
+    <div class='svp-toolbar'>
+      <div class='svp-tabs' id='svp-tabs'></div>
+      <input class='svp-search' id='svp-search' type='search' placeholder='Search vault'/>
+      <button class='svp-btn primary' id='svp-add' type='button'>+ Add</button>
+    </div>
+    <div class='svp-list' id='svp-list'></div>
+    <div class='svp-savebar'>
+      <span class='svp-muted' id='svp-dirty' style='margin:0;font-size:12px'>Changes stay in this tab until you seal them.</span>
+      <div>
+        <button class='svp-btn primary' id='svp-save' type='button'>Save encrypted copy</button>
+        <button class='svp-btn ghost' id='svp-drive-save' type='button' hidden='hidden'>Save to Drive</button>
+      </div>
+    </div>
+  </section>
+
+  <section class='svp-card' id='svp-drive' hidden='hidden' style='margin-top:16px'>
+    <div class='svp-row'>
+      <h2>Google Drive</h2>
+      <button class='svp-btn ghost' id='svp-drive-close' type='button'>Close</button>
+    </div>
+    <p class='svp-muted' style='margin-top:8px;font-size:12px'>Use the same Google account as the app. Automatic mobile backups use a different cloud key and cannot be opened by this viewer. Password-protected exports open with the password chosen during export.</p>
+    <div class='svp-passrow' style='margin-top:10px'>
+      <button class='svp-btn primary' id='svp-drive-signin' type='button'>Sign in with Google</button>
+      <button class='svp-btn ghost' id='svp-client-edit' type='button'>Google setup</button>
+    </div>
+    <div id='svp-client-box' hidden='hidden' style='margin-top:12px'>
+      <label class='svp-label' for='svp-client-id'>Google Web Client ID</label>
+      <div class='svp-passrow'>
+        <input id='svp-client-id' type='text' spellcheck='false' autocomplete='off' autocapitalize='off' placeholder='1234-abcd.apps.googleusercontent.com'/>
+        <button class='svp-btn icon' id='svp-client-save' type='button'>Save</button>
+      </div>
+      <p class='svp-muted' style='margin-top:6px;font-size:11px'>The app project's Web Client ID is included by default. In that Google Cloud project, enable Drive API and add this blog's exact origin under the Web client's Authorised JavaScript origins. Client IDs are public; never enter a client secret.</p>
+      <label class='svp-label' for='svp-api-key'>Firebase web API key (only if this theme was built without one)</label>
+      <div class='svp-passrow'>
+        <input id='svp-api-key' type='text' spellcheck='false' autocomplete='off' autocapitalize='off' placeholder='AIza…'/>
+        <button class='svp-btn icon' id='svp-api-save' type='button'>Save</button>
+      </div>
+      <p class='svp-muted' style='margin-top:6px;font-size:11px'>A Firebase web API key ships inside every public web app and authorises nothing by itself: the database rules only serve a signed-in session whose uid equals the node path. It is kept in this browser only. Never paste an OAuth client secret, a service account key or your vault passphrase here.</p>
+      <p class='svp-muted' id='svp-origin' style='margin-top:6px;font-size:11px'></p>
+    </div>
+    <div class='svp-drive-list' id='svp-drive-list'></div>
+    <p class='svp-muted' id='svp-drive-msg' style='margin-top:10px;font-size:11px'></p>
+  </section>
+
+  <section class='svp-card' id='svp-pair' style='margin-top:16px'>
+    <div class='svp-row'>
+      <h2>Pair with the app</h2>
+      <button class='svp-btn ghost' id='svp-pair-clear' type='button' hidden='hidden'>Unpair</button>
+    </div>
+    <p class='svp-muted' style='margin-top:8px;font-size:12px'>Scan the code below with Secure Wallet Pro: Settings &#8594; Pair browser mirror &#8594; Scan pairing code. The app can also pair the other way round &#8212; open its QR and type the six characters under the input below. The code only marks this browser as yours &#183; it is not a key and unlocks nothing without the export password.</p>
+    <div class='svp-pairqr' id='svp-pair-qr'>
+      <div class='svp-qr-frame' id='svp-qr-frame' aria-label='Pairing QR code'></div>
+      <div class='svp-qr-side'>
+        <p class='svp-qr-code' id='svp-qr-code'></p>
+        <p class='svp-muted' id='svp-qr-note'></p>
+        <button class='svp-btn ghost' id='svp-pair-new' type='button' style='margin-top:8px'>New code</button>
+      </div>
+    </div>
+    <div class='svp-passrow' style='margin-top:10px'>
+      <input id='svp-pair-code' type='text' maxlength='6' spellcheck='false' autocomplete='off' autocapitalize='characters' placeholder='ABC234'/>
+      <button class='svp-btn icon' id='svp-pair-save' type='button'>Pair</button>
+    </div>
+    <p class='svp-muted' id='svp-pair-status' style='margin-top:8px;font-size:11px'></p>
+    <p class='svp-muted' id='svp-pair-secure' style='margin-top:6px;font-size:11px'></p>
+  </section>
+
+  <div class='svp-modal' id='svp-modal' hidden='hidden'>
+    <div class='svp-card svp-modal-card'>
+      <h2 id='svp-modal-title'>Edit login</h2>
+      <div id='svp-fields'></div>
+      <div class='svp-modal-actions'>
+        <button class='svp-btn ghost' id='svp-cancel' type='button'>Cancel</button>
+        <button class='svp-btn primary' id='svp-save-item' type='button'>Save</button>
+      </div>
+    </div>
+  </div>
+
+  <div class='svp-modal' id='svp-viewer' hidden='hidden'>
+    <div class='svp-card svp-modal-card'>
+      <div class='svp-row'>
+        <h2 id='svp-viewer-title'>File</h2>
+        <button class='svp-btn ghost' id='svp-viewer-close' type='button'>Close</button>
+      </div>
+      <p class='svp-muted' id='svp-viewer-meta' style='margin:8px 0 0;font-size:11px'></p>
+      <div class='svp-viewer-body' id='svp-viewer-body'></div>
+      <div class='svp-modal-actions'>
+        <button class='svp-btn ghost' id='svp-viewer-open' type='button'>Open in Drive</button>
+        <button class='svp-btn primary' id='svp-viewer-download' type='button'>Download</button>
+      </div>
+    </div>
+  </div>
+
+  <div class='svp-foot'>Secure Wallet Pro &#183; zero-knowledge web companion</div>
+</div>`;
+  document.body.insertAdjacentHTML('afterbegin', UI_MARKUP);
+
+  var S = {
+    pass: '',
+    payload: null,
+    tab: 'entries',
+    filter: '',
+    envelope: null,
+    xmlSource: false,
+    dirty: false,
+    editing: null,
+    editModule: 'entries',
+    mode: 'offline',
+    clientId: storeGet('svp.webClientId') || SEED.clientId || DEFAULT_CLIENT_ID,
+    token: ''
+  };
+
+  /* Realtime session state. RT.key is a non-extractable CryptoKey: the 32-byte
+     VaultKey never leaves the crypto object and is never written anywhere. */
+  var RT = {
+    ns: null,
+    loading: null,
+    ready: null,
+    authed: false,
+    uid: '',
+    email: '',
+    root: 'svp1/users',
+    key: null,
+    maps: {},
+    meta: {},
+    dead: {},
+    mine: {},
+    unsub: [],
+    chain: {},
+    log: null,
+    busyTimer: 0,
+    pending: {},
+    latency: [],
+    acks: [],
+    sends: {},
+    last: null,
+    connected: null,
+    wasDisconnected: false,
+    renderTimer: 0,
+    decodeErrors: 0,
+    malformed: 0,
+    busy: false,
+    paused: false,
+    signedInAt: 0
+  };
+  (function seedRt() {
+    for (var i = 0; i < LIVE_MODULES.length; i += 1) {
+      RT.maps[LIVE_MODULES[i]] = {};
+      RT.meta[LIVE_MODULES[i]] = {};
+      RT.dead[LIVE_MODULES[i]] = {};
+    }
+  })();
+
+  var totpTargets = [];
+  var $ = function (id) { return document.getElementById(id); };
+
+  function storeGet(key) {
+    try { return window.localStorage.getItem(key) || ''; } catch (e) { return ''; }
+  }
+
+  function storeSet(key, value) {
+    try { window.localStorage.setItem(key, value); } catch (e) { /* private mode */ }
+  }
+
+  // These filenames identify mobile sync slots, not password-protected exports.
+  function appSyncFile(name) {
+    return /^vault_backup(?:\.xml|_\d{8}_\d{6})?\.enc$/i.test(String(name || ''));
+  }
+  var enc = new TextEncoder();
+  var dec = new TextDecoder();
+
+  function b64ToBytes(b64) {
+    var clean = String(b64 || '').replace(/\s+/g, '');
+    var bin = atob(clean);
+    var out = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i += 1) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+
+  function bytesToB64(bytes) {
+    var view = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+    var out = '';
+    var chunk = 0x8000;
+    for (var i = 0; i < view.length; i += chunk) {
+      out += String.fromCharCode.apply(null, view.subarray(i, Math.min(i + chunk, view.length)));
+    }
+    return btoa(out);
+  }
+
+  async function deriveKey(pass, salt, iterations) {
+    var material = await crypto.subtle.importKey('raw', enc.encode(pass), 'PBKDF2', false, ['deriveKey']);
+    return crypto.subtle.deriveKey(
+      { name: 'PBKDF2', salt: salt, iterations: iterations, hash: 'SHA-256' },
+      material,
+      { name: 'AES-GCM', length: 256 },
+      false,
+      ['encrypt', 'decrypt']
+    );
+  }
+
+  function normalizePayload(payload) {
+    var data = payload && typeof payload === 'object' ? payload : {};
+    var keys = ['entries', 'notes', 'cards', 'totps', 'contacts', 'files', 'cryptoWallets'];
+    for (var i = 0; i < keys.length; i += 1) {
+      var key = keys[i];
+      if (!Array.isArray(data[key])) {
+        if (key === 'totps' && Array.isArray(data.totpAccounts)) data[key] = data.totpAccounts;
+        else data[key] = [];
+      }
+    }
+    if (typeof data.version !== 'number') data.version = 3;
+    return data;
+  }
+
+  function numOrUndefined(value) {
+    if (value === undefined || value === null || value === '') return undefined;
+    var n = Number(value);
+    return isFinite(n) ? n : undefined;
+  }
+
+  function boolOrUndefined(value) {
+    if (value === undefined || value === null || value === '') return undefined;
+    if (typeof value === 'boolean') return value;
+    return String(value) === 'true';
+  }
+
+  function parseXmlPayload(text) {
+    var doc = new DOMParser().parseFromString(text, 'application/xml');
+    if (doc.getElementsByTagName('parsererror').length > 0) throw new Error('Invalid XML snapshot');
+    var root = doc.documentElement;
+    var payload = {
+      version: 3, entries: [], notes: [], cards: [], totps: [], contacts: [],
+      files: [], cryptoWallets: []
+    };
+    function attr(el, name) {
+      var value = el.getAttribute(name);
+      return value === null ? undefined : value;
+    }
+    function field(el, name) {
+      var nodes = el.getElementsByTagName(name);
+      if (!nodes.length) return undefined;
+      return nodes[0].textContent;
+    }
+    function each(section, tag, mapper) {
+      var parent = root.getElementsByTagName(section)[0];
+      if (!parent) return;
+      var nodes = parent.getElementsByTagName(tag);
+      for (var i = 0; i < nodes.length; i += 1) payload[section === 'totpAccounts' ? 'totps' : section].push(mapper(nodes[i]));
+    }
+    each('entries', 'entry', function (el) {
+      return {
+        id: attr(el, 'id'), title: attr(el, 'title'), username: attr(el, 'username'),
+        email: attr(el, 'email'), password: field(el, 'password'), website: attr(el, 'website'),
+        url: attr(el, 'url'), category: attr(el, 'category'),
+        isFavorite: boolOrUndefined(attr(el, 'favorite')),
+        hasTotp: boolOrUndefined(attr(el, 'hasTotp')),
+        totpSecret: field(el, 'totpSecret'),
+        notes: field(el, 'notes'),
+        customFieldsJson: field(el, 'customFields'),
+        tagsJson: field(el, 'tags'),
+        createdAt: numOrUndefined(attr(el, 'createdAt')),
+        updatedAt: numOrUndefined(attr(el, 'updatedAt')),
+        lastAccessedAt: numOrUndefined(attr(el, 'lastAccessedAt')),
+        expiresAt: numOrUndefined(attr(el, 'expiresAt')),
+        strengthScore: numOrUndefined(attr(el, 'strengthScore')),
+        isHiddenInTravel: boolOrUndefined(attr(el, 'hiddenInTravel'))
+      };
+    });
+    each('notes', 'note', function (el) {
+      return {
+        id: attr(el, 'id'), title: attr(el, 'title'), content: field(el, 'content'),
+        isPinned: boolOrUndefined(attr(el, 'pinned')), color: attr(el, 'color'),
+        tagsJson: field(el, 'tags'), attachmentsJson: field(el, 'attachments'),
+        createdAt: numOrUndefined(attr(el, 'createdAt')),
+        updatedAt: numOrUndefined(attr(el, 'updatedAt'))
+      };
+    });
+    each('cards', 'card', function (el) {
+      return {
+        id: attr(el, 'id'), type: attr(el, 'type'), nickname: attr(el, 'nickname'),
+        holderName: attr(el, 'holderName'), number: field(el, 'number'),
+        expiryMonth: numOrUndefined(attr(el, 'expiryMonth')),
+        expiryYear: numOrUndefined(attr(el, 'expiryYear')),
+        cvv: field(el, 'cvv'), pin: field(el, 'pin'), notes: field(el, 'notes'),
+        bankName: attr(el, 'bankName'),
+        colorGradientStart: attr(el, 'colorGradientStart'),
+        colorGradientEnd: attr(el, 'colorGradientEnd'),
+        createdAt: numOrUndefined(attr(el, 'createdAt'))
+      };
+    });
+    each('totpAccounts', 'account', function (el) {
+      return {
+        id: attr(el, 'id'), issuer: attr(el, 'issuer'), accountName: attr(el, 'accountName'),
+        secret: field(el, 'secret'), algorithm: attr(el, 'algorithm'),
+        digits: numOrUndefined(attr(el, 'digits')),
+        period: numOrUndefined(attr(el, 'period')),
+        createdAt: numOrUndefined(attr(el, 'createdAt'))
+      };
+    });
+    each('contacts', 'contact', function (el) {
+      return {
+        id: attr(el, 'id'), name: attr(el, 'name'), phone: field(el, 'phone'),
+        email: field(el, 'email'), address: field(el, 'address'), notes: field(el, 'notes'),
+        category: attr(el, 'category'),
+        createdAt: numOrUndefined(attr(el, 'createdAt')),
+        updatedAt: numOrUndefined(attr(el, 'updatedAt'))
+      };
+    });
+    each('files', 'file', function (el) {
+      return {
+        id: attr(el, 'id'), name: attr(el, 'name'),
+        size: numOrUndefined(attr(el, 'size')), type: attr(el, 'type'),
+        mimeType: attr(el, 'mimeType'), category: attr(el, 'category'),
+        data: field(el, 'data'),
+        createdAt: numOrUndefined(attr(el, 'createdAt')),
+        uploadedAt: numOrUndefined(attr(el, 'uploadedAt'))
+      };
+    });
+    each('cryptoWallets', 'wallet', function (el) {
+      return {
+        id: attr(el, 'id'), label: attr(el, 'label'), kind: attr(el, 'kind'),
+        // Kept verbatim so a re-sealed copy is never missing a wallet; the card
+        // below deliberately offers no way to reveal it on screen.
+        secret: field(el, 'secret'), balancesJson: field(el, 'balances'),
+        totalUsd: numOrUndefined(attr(el, 'totalUsd')),
+        lastSyncedAt: numOrUndefined(attr(el, 'lastSyncedAt')),
+        createdAt: numOrUndefined(attr(el, 'createdAt')),
+        updatedAt: numOrUndefined(attr(el, 'updatedAt'))
+      };
+    });
+    return payload;
+  }
+
+  async function decryptEnvelope(envelope, pass) {
+    if (!envelope || !envelope.salt || !envelope.data) throw new Error('Missing envelope');
+    var parts = String(envelope.data).split('.');
+    if (parts.length !== 2) throw new Error('Unsupported envelope');
+    var salt = b64ToBytes(envelope.salt);
+    var iv = b64ToBytes(parts[0]);
+    var ct = b64ToBytes(parts[1]);
+    var key = await deriveKey(pass, salt, ITERATIONS);
+    var plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: iv, tagLength: 128 }, key, ct);
+    var text = dec.decode(plain).trim();
+    if (!text) throw new Error('Empty payload');
+    if (text.charAt(0) === '<') {
+      S.xmlSource = true;
+      return parseXmlPayload(text);
+    }
+    S.xmlSource = false;
+    return normalizePayload(JSON.parse(text));
+  }
+
+  async function buildEnvelope() {
+    var salt = crypto.getRandomValues(new Uint8Array(16));
+    var iv = crypto.getRandomValues(new Uint8Array(12));
+    var key = await deriveKey(S.pass, salt, ITERATIONS);
+    var plain = enc.encode(JSON.stringify(S.payload));
+    var ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv, tagLength: 128 }, key, plain);
+    return { v: 3, salt: bytesToB64(salt), data: bytesToB64(iv) + '.' + bytesToB64(new Uint8Array(ct)) };
+  }
+
+  function error(message) {
+    var node = $('svp-err');
+    if (!node) return;
+    if (message) {
+      node.textContent = message;
+      node.hidden = false;
+    } else {
+      node.textContent = '';
+      node.hidden = true;
+    }
+  }
+
+  function sourceLabel(text) {
+    $('svp-src').textContent = text;
+  }
+
+  function setBusy(busy) {
+    $('svp-unlock').disabled = busy;
+    $('svp-unlock').textContent = busy ? 'Decrypting…' : 'Unlock vault';
+  }
+
+  async function unlock() {
+    var pass = $('svp-pass').value;
+    if (!pass) { error('Enter the password chosen when exporting this backup.'); return; }
+    if (!S.envelope) { error('Sign in with Google or open an encrypted backup first.'); return; }
+    error('');
+    setBusy(true);
+    try {
+      var payload = await decryptEnvelope(S.envelope, pass);
+      S.pass = pass;
+      S.payload = payload;
+      S.dirty = false;
+      $('svp-pass').value = '';
+      $('svp-lock').hidden = true;
+      $('svp-app').hidden = false;
+      $('svp-lock-btn').hidden = false;
+      $('svp-drive-save').hidden = !S.token;
+      renderAll();
+      if (S.xmlSource) {
+        var banner = $('svp-dirty');
+        banner.textContent = 'Opened the XML mirror snapshot. Saving writes a fresh JSON envelope v3.';
+        banner.className = 'svp-muted svp-dirty';
+      }
+    } catch (e) {
+      error('Could not decrypt. Use the password chosen when exporting this snapshot, not your Google password.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function lockVault() {
+    if (S.mode === 'live') {
+      exitLive('Vault locked and the key dropped from memory. Your Google session is still active - press Try again to re-enter the passphrase.');
+      return;
+    }
+    S.pass = '';
+    S.payload = null;
+    S.dirty = false;
+    totpTargets = [];
+    $('svp-app').hidden = true;
+    $('svp-lock').hidden = false;
+    $('svp-lock-btn').hidden = true;
+    $('svp-drive-save').hidden = true;
+    $('svp-list').textContent = '';
+    sourceLabel(S.envelope ? 'Sealed snapshot is loaded. Enter its export password to unlock.' : 'No snapshot embedded. Sign in with Google or open an encrypted backup.');
+  }
+
+  function tabLabel(tab) {
+    for (var i = 0; i < TABS.length; i += 1) if (TABS[i][0] === tab) return TABS[i][1];
+    return tab;
+  }
+
+  function itemText(item) {
+    return [item.title, item.username, item.email, item.url, item.website, item.notes, item.name, item.phone, item.content, item.issuer, item.accountName, item.nickname, item.holderName, item.bankName, item.label, item.category, item.message]
+      .filter(Boolean).join(' ').toLowerCase();
+  }
+
+  function renderStats() {
+    var host = $('svp-stats');
+    var data = S.payload || {};
+    host.textContent = '';
+    for (var i = 0; i < TABS.length; i += 1) {
+      var tab = TABS[i][0];
+      var count = (data[tab] || []).length;
+      var box = document.createElement('div');
+      box.className = 'svp-stat';
+      var strong = document.createElement('b');
+      strong.textContent = String(count);
+      var span = document.createElement('span');
+      span.textContent = tabLabel(tab);
+      box.appendChild(strong);
+      box.appendChild(span);
+      host.appendChild(box);
+    }
+  }
+
+  function renderTabs() {
+    var host = $('svp-tabs');
+    var data = S.payload || {};
+    host.textContent = '';
+    for (var i = 0; i < TABS.length; i += 1) {
+      var tab = TABS[i][0];
+      var button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'svp-tab' + (S.tab === tab ? ' active' : '');
+      button.textContent = TABS[i][1];
+      var badge = document.createElement('b');
+      badge.textContent = String((data[tab] || []).length);
+      button.appendChild(badge);
+      (function (target) {
+        button.addEventListener('click', function () {
+          S.tab = target;
+          renderTabs();
+          renderList();
+        });
+      })(tab);
+      host.appendChild(button);
+    }
+    var add = $('svp-add');
+    if (add) add.textContent = '+ Add ' + tabLabel(S.tab).toLowerCase();
+  }
+
+  function button(label, className, handler) {
+    var node = document.createElement('button');
+    node.type = 'button';
+    node.className = 'svp-btn ' + (className || 'ghost');
+    node.textContent = label;
+    if (handler) node.addEventListener('click', handler);
+    return node;
+  }
+
+  function secretRow(secret, label) {
+    var row = document.createElement('div');
+    row.className = 'svp-secret';
+    var code = document.createElement('code');
+    code.textContent = label || '••••••••••••';
+    row.appendChild(code);
+    var target = String(secret || '');
+    var visible = false;
+    var reveal = button('Show', 'ghost', function () {
+      if (!target) return;
+      visible = !visible;
+      code.textContent = visible ? target : (label || '••••••••••••');
+      reveal.textContent = visible ? 'Hide' : 'Show';
+    });
+    reveal.disabled = !target;
+    var copy = button('Copy', 'ghost', function () {
+      copyText(target, copy);
+    });
+    copy.disabled = !target;
+    row.appendChild(reveal);
+    row.appendChild(copy);
+    return row;
+  }
+
+  function copyText(text, node) {
+    var value = String(text || '');
+    function done() {
+      if (!node) return;
+      var previous = node.textContent;
+      node.textContent = 'Copied';
+      setTimeout(function () { node.textContent = previous; }, 1200);
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(value).then(done, function () { fallback(); });
+    } else {
+      fallback();
+    }
+    function fallback() {
+      var area = document.createElement('textarea');
+      area.value = value;
+      area.style.position = 'fixed';
+      area.style.opacity = '0';
+      document.body.appendChild(area);
+      area.select();
+      try { document.execCommand('copy'); done(); } catch (e) { /* ignore */ }
+      document.body.removeChild(area);
+    }
+  }
+
+  function totpCode(secret, digits, period, algorithm) {
+    return base32Bytes(secret).then(function (raw) {
+      var hash = algorithm === 'SHA256' ? 'SHA-256' : algorithm === 'SHA512' ? 'SHA-512' : 'SHA-1';
+      return crypto.subtle.importKey('raw', raw, { name: 'HMAC', hash: hash }, false, ['sign']);
+    }).then(function (key) {
+      var counter = Math.floor(Date.now() / 1000 / period);
+      var buffer = new ArrayBuffer(8);
+      new DataView(buffer).setUint32(4, counter);
+      return crypto.subtle.sign('HMAC', key, buffer);
+    }).then(function (signature) {
+      var bytes = new Uint8Array(signature);
+      var offset = bytes[bytes.length - 1] & 0x0f;
+      var binary = ((bytes[offset] & 0x7f) << 24) | (bytes[offset + 1] << 16) | (bytes[offset + 2] << 8) | bytes[offset + 3];
+      var code = String(binary % Math.pow(10, digits));
+      while (code.length < digits) code = '0' + code;
+      return code;
+    });
+  }
+
+  function base32Bytes(input) {
+    var alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+    var clean = String(input || '').toUpperCase().replace(/[^A-Z2-7]/g, '');
+    var bits = 0;
+    var value = 0;
+    var out = [];
+    for (var i = 0; i < clean.length; i += 1) {
+      value = (value << 5) | alphabet.indexOf(clean.charAt(i));
+      bits += 5;
+      if (bits >= 8) {
+        out.push((value >>> (bits - 8)) & 0xff);
+        bits -= 8;
+      }
+    }
+    return Promise.resolve(new Uint8Array(out));
+  }
+
+  function registerTotp(node, secret, digits, period, algorithm) {
+    if (!secret) return;
+    var target = {
+      node: node,
+      secret: secret,
+      digits: digits || 6,
+      period: period || 30,
+      algorithm: String(algorithm || 'SHA1').replace('-', '').toUpperCase()
+    };
+    totpTargets.push(target);
+    refreshTotp(target);
+  }
+
+  function refreshTotp(target) {
+    totpCode(target.secret, target.digits, target.period, target.algorithm).then(function (code) {
+      target.node.textContent = code.substring(0, Math.max(3, target.digits - 3)) + ' ' + code.substring(Math.max(3, target.digits - 3));
+    }, function () {
+      target.node.textContent = 'Invalid secret';
+    });
+  }
+
+  setInterval(function () {
+    for (var i = 0; i < totpTargets.length; i += 1) refreshTotp(totpTargets[i]);
+  }, 1000);
+
+  function itemShell(item, title, subtitle, accentTint) {
+    var card = document.createElement('article');
+    card.className = 'svp-item';
+    var head = document.createElement('div');
+    head.className = 'svp-item-head';
+    var avatar = document.createElement('div');
+    avatar.className = 'svp-avatar';
+    avatar.textContent = String(title || '?').trim().charAt(0).toUpperCase() || '?';
+    if (accentTint) avatar.style.background = accentTint;
+    var meta = document.createElement('div');
+    meta.style.minWidth = '0';
+    meta.style.flex = '1';
+    var h = document.createElement('p');
+    h.className = 'svp-item-title';
+    h.textContent = title || 'Untitled';
+    meta.appendChild(h);
+    if (subtitle) {
+      var sub = document.createElement('p');
+      sub.className = 'svp-item-sub';
+      sub.textContent = subtitle;
+      meta.appendChild(sub);
+    }
+    head.appendChild(avatar);
+    head.appendChild(meta);
+    card.appendChild(head);
+    var tags = document.createElement('div');
+    tags.className = 'svp-tags';
+    card.appendChild(tags);
+    return { card: card, tags: tags };
+  }
+
+  function addTag(host, text, extraClass) {
+    if (!text) return;
+    var tag = document.createElement('span');
+    tag.className = 'svp-tag' + (extraClass ? ' ' + extraClass : '');
+    tag.textContent = text;
+    host.appendChild(tag);
+  }
+
+  function addNote(card, text) {
+    if (!text) return;
+    var note = document.createElement('div');
+    note.className = 'svp-note';
+    note.textContent = text;
+    card.appendChild(note);
+  }
+
+  function addActions(card, actions) {
+    if (!actions || !actions.length) return;
+    var row = document.createElement('div');
+    row.className = 'svp-actions';
+    actions.forEach(function (action) {
+      if (!action) return;
+      row.appendChild(button(action.label, action.className, action.handler));
+    });
+    card.appendChild(row);
+  }
+
+  function removeItem(collection, id, label) {
+    var live = S.mode === 'live';
+    var warning = live
+      ? 'Delete "' + (label || 'this item') + '"? The app sees the tombstone immediately - this cannot be undone from the browser.'
+      : 'Delete "' + (label || 'this item') + '" from the vault? You can still discard the change by not saving.';
+    if (!window.confirm(warning)) return;
+    if (live) {
+      var entry = (RT.maps[collection] || {})[id];
+      var rec = entry && entry.rec ? entry.rec : normalizeRecord(collection, { id: id }, id);
+      persist(collection, rec, true);
+      return;
+    }
+    var list = S.payload[collection];
+    for (var i = 0; i < list.length; i += 1) {
+      if (list[i].id === id) {
+        list.splice(i, 1);
+        break;
+      }
+    }
+    markDirty();
+    renderAll();
+  }
+
+  function newId() {
+    if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+    return 'web-' + Date.now() + '-' + Math.random().toString(16).slice(2, 10);
+  }
+
+  function openEditor(module, entry) {
+    var name = module && EDITOR_FIELDS[module] ? module : 'entries';
+    var fields = EDITOR_FIELDS[name] || [];
+    var model = entry || blankRecord(name);
+    S.editModule = name;
+    S.editing = entry || null;
+    $('svp-modal-title').textContent = (entry ? 'Edit ' : 'Add ') + tabLabel(name).toLowerCase();
+    var host = $('svp-fields');
+    host.textContent = '';
+    for (var i = 0; i < fields.length; i += 1) {
+      var key = fields[i][0];
+      var label = fields[i][1];
+      var kind = bindField(key, name);
+      var wrap = document.createElement('div');
+      wrap.className = 'svp-field';
+      var text = document.createElement('label');
+      text.textContent = label;
+      text.setAttribute('for', 'svp-f-' + key);
+      wrap.appendChild(text);
+      var input = document.createElement(kind === 'textarea' ? 'textarea' : 'input');
+      if (kind !== 'textarea') {
+        input.type = kind === 'number' ? 'number' : 'text';
+        input.autocomplete = 'off';
+        input.spellcheck = false;
+      }
+      input.id = 'svp-f-' + key;
+      input.value = fieldValue(name, key, model);
+      wrap.appendChild(input);
+      host.appendChild(wrap);
+    }
+    $('svp-modal').hidden = false;
+    var first = $('svp-f-' + fields[0][0]);
+    if (first) first.focus();
+  }
+
+  function fieldValue(module, key, model) {
+    var value = model ? model[key] : null;
+    if (key === 'tagsJson') return parseJsonArray(value).map(tagText).filter(Boolean).join(', ');
+    if (value === null || value === undefined) {
+      if (key === 'algorithm') return 'SHA1';
+      if (key === 'digits') return '6';
+      if (key === 'period') return '30';
+      if (/Json$/.test(key)) return '[]';
+      return '';
+    }
+    return String(value);
+  }
+
+  function closeEditor() {
+    S.editing = null;
+    $('svp-modal').hidden = true;
+    $('svp-fields').textContent = '';
+  }
+
+  function saveEditor() {
+    var module = S.editModule || 'entries';
+    var fields = EDITOR_FIELDS[module] || [];
+    var isNew = !S.editing;
+    var rec = S.editing ? S.editing : blankRecord(module);
+    var rejected = [];
+    for (var i = 0; i < fields.length; i += 1) {
+      var field = fields[i];
+      var key = field[0];
+      var node = $('svp-f-' + key);
+      if (!node) continue;
+      var raw = node.value;
+      if (key === 'tagsJson') {
+        rec[key] = tagsToJsonString(raw);
+      } else if (/Json$/.test(key)) {
+        var text = String(raw || '').trim() || '[]';
+        try {
+          JSON.parse(text);
+          rec[key] = text;
+        } catch (e) {
+          rejected.push(field[1]);
+        }
+      } else if (bindField(key, module) === 'number') {
+        rec[key] = String(raw).trim() === '' ? null : Number(raw);
+      } else {
+        rec[key] = raw;
+      }
+    }
+    if (module === 'entries') {
+      if (!String(rec.title || '').trim()) rec.title = String(rec.username || rec.website || '').trim() || 'Untitled login';
+      rec.url = rec.website || rec.url || null;
+      rec.hasTotp = !!String(rec.totpSecret || '').trim();
+    }
+    if (module === 'totps') {
+      rec.algorithm = String(rec.algorithm || 'SHA1').toUpperCase().replace(/[^A-Z0-9]/g, '');
+      if (!rec.secret) rejected.push('Base32 secret');
+    }
+    if (module === 'files') rec.size = toInt(rec.size, null);
+    var stamp = Date.now();
+    rec.updatedAt = stamp;
+    if (!isNew && module === 'notes') rec.updatedAt = stamp;
+    if (module === 'cards' || module === 'totps') delete rec.updatedAt;
+    var normalized = normalizeRecord(module, rec, rec.id);
+    for (var k in normalized) {
+      if (Object.prototype.hasOwnProperty.call(normalized, k)) rec[k] = normalized[k];
+    }
+    if (rejected.length) window.alert('Left unchanged because it is not valid JSON or is empty: ' + rejected.join(', ') + '.');
+    closeEditor();
+    S.tab = module;
+    if (S.mode === 'live') {
+      if (!RT.maps[module]) RT.maps[module] = {};
+      if (!RT.meta[module]) RT.meta[module] = {};
+      var holder = RT.maps[module][rec.id];
+      var node2 = { e: holder ? holder.node.e : 'pending.pending', u: stamp, r: holder ? holder.node.r : 0, d: null };
+      RT.maps[module][rec.id] = { node: node2, rec: rec };
+      RT.meta[module][rec.id] = { u: stamp, r: node2.r, d: null };
+      syncPayload();
+      renderAll();
+      persist(module, rec, false);
+      return;
+    }
+    if (!S.payload) S.payload = emptyPayload();
+    if (isNew) {
+      S.payload[module] = S.payload[module] || [];
+      S.payload[module].unshift(rec);
+    }
+    markDirty();
+    renderAll();
+  }
+
+  function markDirty() {
+    if (S.mode === 'live') return;
+    S.dirty = true;
+    var node = $('svp-dirty');
+    node.textContent = 'Unsaved changes. Seal a new encrypted copy to keep them.';
+    node.className = 'svp-muted svp-dirty';
+  }
+
+  /* Double-encoded JSON strings (Room stores them as text) are parsed defensively. */
+
+  function parseJsonArray(value) {
+    if (Array.isArray(value)) return value;
+    var text = String(value === null || value === undefined ? "" : value).trim();
+    if (!text || (text.charAt(0) !== "[" && text.charAt(0) !== "{")) return [];
+    try {
+      var parsed = JSON.parse(text);
+      return Array.isArray(parsed) ? parsed : [parsed];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function tagText(tag) {
+    if (tag && typeof tag === "object") {
+      var text = tag.name || tag.label || tag.value || tag.symbol || tag.address || tag.text;
+      if (text) return String(text);
+      try { return JSON.stringify(tag); } catch (e) { return String(tag); }
+    }
+    return String(tag === null || tag === undefined ? "" : tag);
+  }
+
+
+  function formatSize(size) {
+    var value = Number(size);
+    if (!isFinite(value) || value <= 0) return '';
+    if (value < 1024) return value + ' B';
+    if (value < 1024 * 1024) return (value / 1024).toFixed(1) + ' KB';
+    return (value / (1024 * 1024)).toFixed(1) + ' MB';
+  }
+
+  function kindLabel(kind) {
+    var value = String(kind || '').toUpperCase();
+    if (value === 'PRIVATE_KEY') return 'Private key';
+    if (value === 'SEED_PHRASE') return 'Seed phrase';
+    return 'Wallet';
+  }
+
+  function parseBalances(json) {
+    var text = String(json || '').trim();
+    if (!text || text.charAt(0) !== '[') return [];
+    try {
+      var parsed = JSON.parse(text);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function trimAmount(amount) {
+    var value = Number(amount);
+    if (!isFinite(value)) return '0';
+    if (value === 0) return '0';
+    return value < 1 ? value.toFixed(6).replace(/0+$/, '').replace(/\.$/, '') : value.toFixed(4).replace(/0+$/, '').replace(/\.$/, '');
+  }
+
+  /** The stored total wins; a snapshot without one is summed from its own rows. */
+  function money(totalUsd, tokens) {
+    var value = Number(totalUsd);
+    if (!isFinite(value)) {
+      value = 0;
+      for (var i = 0; i < tokens.length; i += 1) {
+        var row = Number(tokens[i].amount) * Number(tokens[i].priceUsd);
+        if (isFinite(row)) value += row;
+      }
+    }
+    return '$' + value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  function renderList() {
+    var host = $('svp-list');
+    host.textContent = '';
+    totpTargets = [];
+    var data = S.payload || {};
+    var query = S.filter.trim().toLowerCase();
+    var items = data[S.tab] || [];
+    var shown = 0;
+    for (var i = 0; i < items.length; i += 1) {
+      var item = items[i];
+      if (query && itemText(item).indexOf(query) === -1) continue;
+      var card = renderItem(item, S.tab);
+      addStamp(card, S.tab, item);
+      host.appendChild(card);
+      shown += 1;
+    }
+    if (shown === 0) {
+      var empty = document.createElement('div');
+      empty.className = 'svp-empty';
+      empty.textContent = query
+        ? 'Nothing in ' + tabLabel(S.tab).toLowerCase() + ' matches "' + S.filter + '".'
+        : (S.mode === 'live'
+          ? 'No ' + tabLabel(S.tab).toLowerCase() + ' streamed yet. Anything you add on the phone appears here within a second, no reload.'
+          : 'This section is empty.');
+      host.appendChild(empty);
+    }
+    if (S.mode === 'live' && RT.decodeErrors) {
+      var warn = document.createElement('div');
+      warn.className = 'svp-empty';
+      warn.textContent = RT.decodeErrors + ' node(s) would not decrypt with this vault key - they are marked on the card.';
+      host.appendChild(warn);
+    }
+    if (S.mode === 'live' && RT.malformed) {
+      var bad = document.createElement('div');
+      bad.className = 'svp-empty';
+      bad.textContent = RT.malformed + ' node(s) ignored: a node must hold exactly e, u, r, d. See the sync log.';
+      host.appendChild(bad);
+    }
+  }
+
+  function renderAll() {
+    renderStats();
+    renderTabs();
+    renderList();
+  }
+
+  function downloadEnvelope(envelope, fileName) {
+    var json = JSON.stringify(envelope);
+    var blob = new Blob([json], { type: 'application/json' });
+    var url = URL.createObjectURL(blob);
+    var link = document.createElement('a');
+    link.href = url;
+    link.download = fileName || 'secure_wallet_web.enc';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 5000);
+    return json.length;
+  }
+
+  async function sealAndDownload() {
+    if (!S.payload || !S.pass) return;
+    var buttonNode = $('svp-save');
+    buttonNode.disabled = true;
+    buttonNode.textContent = 'Sealing…';
+    try {
+      var envelope = await buildEnvelope();
+      var size = downloadEnvelope(envelope, 'secure_wallet_web.enc');
+      S.dirty = false;
+      var note = $('svp-dirty');
+      note.textContent = 'Sealed ' + Math.round(size / 1024) + ' KB. Import it in the app under Backup → Import.';
+      note.className = 'svp-muted';
+    } catch (e) {
+      window.alert('Sealing failed: ' + (e && e.message ? e.message : 'unknown error'));
+    } finally {
+      buttonNode.disabled = false;
+      buttonNode.textContent = 'Save encrypted copy';
+    }
+  }
+
+  function driveMessage(text) {
+    $('svp-drive-msg').textContent = text || '';
+  }
+
+  function loadGis(callback) {
+    if (window.google && window.google.accounts && window.google.accounts.oauth2) {
+      callback();
+      return;
+    }
+    var script = document.createElement('script');
+    script.src = 'https://accounts.google.com/gsi/client';
+    script.async = true;
+    script.onload = callback;
+    script.onerror = function () { driveMessage('Google Identity Services could not be loaded.'); };
+    document.head.appendChild(script);
+  }
+
+  function showClientBox(show) {
+    $('svp-client-box').hidden = !show;
+    if (show) setTimeout(function () { $('svp-client-id').focus(); }, 40);
+  }
+
+  function saveClientId() {
+    var value = ($('svp-client-id').value || '').trim();
+    if (!/^\d+-[a-z0-9]+\.apps\.googleusercontent\.com$/i.test(value)) {
+      driveMessage('That does not look like a Google Web Client ID. It ends with .apps.googleusercontent.com.');
+      return;
+    }
+    S.clientId = value;
+    S.token = '';
+    $('svp-drive-save').hidden = true;
+    $('svp-drive-list').textContent = '';
+    $('svp-drive-signin').textContent = 'Sign in with Google';
+    storeSet('svp.webClientId', value);
+    showClientBox(false);
+    loadGis(function () { driveMessage('Client ID saved. Press Sign in with Google.'); });
+  }
+
+  function connectDrive() {
+    if (!S.clientId) {
+      showClientBox(true);
+      driveMessage('Add a Web Client ID from the same Google Cloud project as the app.');
+      return;
+    }
+    if (!(window.google && window.google.accounts && window.google.accounts.oauth2)) {
+      driveMessage('Loading Google sign-in…');
+      loadGis(function () { driveMessage('Google is ready. Press Sign in with Google again.'); });
+      return;
+    }
+    showClientBox(false);
+    driveMessage('Signing in with Google…');
+    try {
+      var client = window.google.accounts.oauth2.initTokenClient({
+        client_id: S.clientId,
+        scope: 'https://www.googleapis.com/auth/drive.appdata https://www.googleapis.com/auth/drive.file',
+        callback: function (response) {
+          if (response && !response.error && response.access_token) {
+            S.token = response.access_token;
+            $('svp-drive-save').hidden = !S.payload;
+            $('svp-drive-signin').textContent = 'Refresh list';
+            listDrive();
+          } else {
+            driveMessage('Google sign-in was not completed. Retry, or check the client and allowed origin in Google setup.');
+          }
+        },
+        error_callback: function (failure) {
+          driveMessage(failure && failure.type === 'popup_closed'
+            ? 'Google sign-in was closed. Press Sign in with Google to retry.'
+            : 'Google sign-in could not open. Allow pop-ups, then retry. Check Google setup if the client or origin is rejected.');
+        }
+      });
+      client.requestAccessToken({ prompt: '' });
+    } catch (e) {
+      driveMessage('Drive connection failed. Check Google setup: ' + (e && e.message ? e.message : 'unknown error'));
+    }
+  }
+
+  async function listDrive() {
+    if (!S.token) return;
+    var host = $('svp-drive-list');
+    host.textContent = '';
+    driveMessage('Listing sealed files…');
+    try {
+      var url = 'https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&pageSize=50&orderBy=modifiedTime%20desc&fields=files(id,name,size,modifiedTime)';
+      var response = await fetch(url, { headers: { Authorization: 'Bearer ' + S.token } });
+      if (response.status === 401) {
+        S.token = '';
+        $('svp-drive-save').hidden = true;
+        $('svp-drive-signin').textContent = 'Sign in with Google';
+        driveMessage('Session expired. Press Sign in with Google again.');
+        return;
+      }
+      if (!response.ok) throw new Error('HTTP ' + response.status);
+      var body = await response.json();
+      var files = (body.files || []).filter(function (file) { return /\.(enc|json)$/i.test(file.name || ''); });
+      if (!files.length) {
+        driveMessage('No encrypted backups found in this app folder. Check the Google account and Cloud project, or use Open encrypted backup for a local export.');
+        return;
+      }
+      var openable = [];
+      files.forEach(function (file) {
+        var appOnly = appSyncFile(file.name);
+        if (!appOnly) openable.push(file);
+        var row = document.createElement('div');
+        row.className = 'svp-drive-row' + (appOnly ? ' app-only' : '');
+        var column = document.createElement('div');
+        var name = document.createElement('b');
+        name.textContent = file.name;
+        var meta = document.createElement('span');
+        var date = file.modifiedTime ? new Date(file.modifiedTime).toLocaleString() : '';
+        meta.textContent = [formatSize(file.size), date, appOnly ? 'mobile cloud backup — restore in the app' : 'requires the export password']
+          .filter(Boolean).join(' · ');
+        column.appendChild(name);
+        column.appendChild(meta);
+        row.appendChild(column);
+        if (appOnly) {
+          var tag = document.createElement('b');
+          tag.textContent = 'App only';
+          row.appendChild(tag);
+        } else {
+          row.appendChild(button('Open', 'ghost', function () { openDriveFile(file); }));
+        }
+        host.appendChild(row);
+      });
+      if (openable.length) {
+        driveMessage('Pick a file to load it here. Only sealed envelopes ever leave Drive.');
+      } else {
+        driveMessage('These mobile sync backups use a different cloud key. Export a password-protected backup in the app, then select Open encrypted backup here.');
+      }
+    } catch (e) {
+      driveMessage('Drive listing failed: ' + (e && e.message ? e.message : 'unknown error'));
+    }
+  }
+
+  async function openDriveFile(file) {
+    driveMessage('Downloading ' + file.name + '…');
+    try {
+      var response = await fetch('https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(file.id) + '?alt=media', {
+        headers: { Authorization: 'Bearer ' + S.token }
+      });
+      if (!response.ok) throw new Error('HTTP ' + response.status);
+      var text = await response.text();
+      var envelope = JSON.parse(text);
+      if (!envelope || envelope.v !== 3 || !envelope.salt || !envelope.data) {
+        throw new Error('not a v3 envelope');
+      }
+      S.envelope = envelope;
+      S.payload = null;
+      S.pass = '';
+      S.dirty = false;
+      $('svp-app').hidden = true;
+      $('svp-lock').hidden = false;
+      $('svp-lock-btn').hidden = true;
+      $('svp-drive-save').hidden = true;
+      sourceLabel('Drive · ' + file.name + '. Enter its export password to unlock.');
+      driveMessage('Downloaded ' + file.name + '. Unlock it on the left.');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch (e) {
+      driveMessage('Could not open ' + file.name + ': ' + (e && e.message ? e.message : 'unknown error'));
+    }
+  }
+
+  async function saveToDrive() {
+    if (!S.payload || !S.pass) return;
+    if (!S.token) { driveMessage('Connect Google Drive first.'); return; }
+    var node = $('svp-drive-save');
+    node.disabled = true;
+    node.textContent = 'Sealing…';
+    try {
+      var envelope = await buildEnvelope();
+      var query = encodeURIComponent("name = 'secure_wallet_web.enc' and trashed = false");
+      var lookup = await fetch('https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&fields=files(id)&q=' + query, {
+        headers: { Authorization: 'Bearer ' + S.token }
+      });
+      var existing = null;
+      if (lookup.ok) {
+        var body = await lookup.json();
+        existing = body.files && body.files.length ? body.files[0] : null;
+      }
+      var payload = JSON.stringify(envelope);
+      if (existing) {
+        var patch = await fetch('https://www.googleapis.com/upload/drive/v3/files/' + encodeURIComponent(existing.id) + '?uploadType=media', {
+          method: 'PATCH',
+          headers: { Authorization: 'Bearer ' + S.token, 'Content-Type': 'application/json' },
+          body: payload
+        });
+        if (!patch.ok) throw new Error('HTTP ' + patch.status);
+      } else {
+        var boundary = 'svp' + Date.now();
+        var metadata = { name: 'secure_wallet_web.enc', mimeType: 'application/json', parents: ['appDataFolder'] };
+        var multipart = '--' + boundary + '\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n' + JSON.stringify(metadata) +
+          '\r\n--' + boundary + '\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n' + payload +
+          '\r\n--' + boundary + '--';
+        var created = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name', {
+          method: 'POST',
+          headers: { Authorization: 'Bearer ' + S.token, 'Content-Type': 'multipart/related; boundary=' + boundary },
+          body: multipart
+        });
+        if (!created.ok) throw new Error('HTTP ' + created.status);
+      }
+      S.dirty = false;
+      var note = $('svp-dirty');
+      note.textContent = 'Sealed copy saved to Drive as secure_wallet_web.enc.';
+      note.className = 'svp-muted';
+      driveMessage('Saved encrypted copy to the app hidden Drive folder.');
+      listDrive();
+    } catch (e) {
+      driveMessage('Save to Drive failed: ' + (e && e.message ? e.message : 'unknown error'));
+    } finally {
+      node.disabled = false;
+      node.textContent = 'Save to Drive';
+    }
+  }
+
+  /* ================= SVP-1 REALTIME CLIENT (Firebase, same uid, same nodes) ================= */
+
+  function toInt(value, fallback) {
+    if (value === null || value === undefined || value === '') return fallback;
+    var n = Number(value);
+    return isFinite(n) ? Math.round(n) : fallback;
+  }
+
+  function shortId(id) {
+    var text = String(id || '');
+    return text.length > 8 ? text.slice(0, 8) : text;
+  }
+
+  function clockText(ms) {
+    var value = Number(ms);
+    if (!isFinite(value) || value <= 0) return '-';
+    try { return new Date(value).toLocaleTimeString(); } catch (e) { return String(value); }
+  }
+
+  function withTimeout(promise, ms, label) {
+    var timer = null;
+    var guard = new Promise(function (resolve, reject) {
+      timer = setTimeout(function () { reject(new Error((label || 'Request') + ' timed out after ' + Math.round(ms / 1000) + 's.')); }, ms);
+    });
+    return Promise.race([Promise.resolve(promise), guard]).then(
+      function (value) { clearTimeout(timer); return value; },
+      function (err) { clearTimeout(timer); throw err; }
+    );
+  }
+
+  /* Dynamic import() is built through Function so a browser without ES modules
+     fails this one call instead of failing to parse the whole theme. */
+  function dynImport(url) {
+    try {
+      return window.Function('u', 'return import(u);')(url);
+    } catch (e) {
+      return Promise.reject(new Error('This browser cannot load the realtime client (no ES module support). The sealed backup path below still works.'));
+    }
+  }
+
+  function rtPath(suffix) {
+    return RT.root + '/' + RT.uid + '/' + suffix;
+  }
+
+  function rtRef(suffix) {
+    return RT.ns.dbNs.ref(RT.ns.db, rtPath(suffix));
+  }
+
+  /* Effective Firebase config: what the generator baked in, plus the optional
+     per-browser overrides typed into Google setup. Never a secret value. */
+  function fbConfig() {
+    var apiKey = storeGet('svp.fbApiKey') || FB_CFG.apiKey || '';
+    var projectId = FB_CFG.projectId || '';
+    var databaseURL = FB_CFG.databaseURL || (projectId ? 'https://' + projectId + '-default-rtdb.asia-southeast1.firebasedatabase.app' : '');
+    var authDomain = FB_CFG.authDomain || (projectId ? projectId + '.firebaseapp.com' : '');
+    return {
+      apiKey: apiKey,
+      authDomain: authDomain,
+      projectId: projectId,
+      databaseURL: databaseURL,
+      webClientId: FB_CFG.webClientId || S.clientId || DEFAULT_CLIENT_ID
+    };
+  }
+
+  function fbBlocked() {
+    var cfg = fbConfig();
+    if (!window.isSecureContext) return 'This page is not on a trusted https origin, so Google sign-in and WebCrypto are refused. Open the blog at its https:// address.';
+    if (!cfg.projectId || !cfg.databaseURL) return 'No Firebase project is configured in this theme.';
+    if (!cfg.apiKey) return 'No Firebase web API key in this theme. Regenerate it with generate.js (it reads the key from google-services.json), or type it into Google setup.';
+    return '';
+  }
+
+  function loadFirebase() {
+    if (RT.ns) return Promise.resolve(RT.ns);
+    if (RT.loading) return RT.loading;
+    var blocked = fbBlocked();
+    if (blocked) return Promise.reject(new Error(blocked));
+    var cfg = fbConfig();
+    var base = 'https://www.gstatic.com/firebasejs/' + FB_VERSION + '/';
+    RT.loading = withTimeout(
+      Promise.all([
+        dynImport(base + 'firebase-app.js'),
+        dynImport(base + 'firebase-auth.js'),
+        dynImport(base + 'firebase-database.js')
+      ]), 25000, 'Realtime client download'
+    ).then(function (parts) {
+      var appNs = parts[0], authNs = parts[1], dbNs = parts[2];
+      var app = appNs.initializeApp({
+        apiKey: cfg.apiKey,
+        authDomain: cfg.authDomain,
+        projectId: cfg.projectId,
+        databaseURL: cfg.databaseURL
+      });
+      try { appNs.setLogLevel('error'); } catch (e) { /* older builds */ }
+      RT.ns = {
+        appNs: appNs, authNs: authNs, dbNs: dbNs, app: app,
+        auth: authNs.getAuth(app), db: dbNs.getDatabase(app)
+      };
+      RT.loading = null;
+      return RT.ns;
+    }, function (err) {
+      RT.loading = null;
+      throw err;
+    });
+    return RT.loading;
+  }
+
+  function ensureFirebase() {
+    if (!RT.ready) {
+      RT.ready = loadFirebase().then(function (ns) {
+        ns.authNs.onAuthStateChanged(ns.auth, function (user) { onAuthState(user); });
+        return ns;
+      }, function (err) {
+        RT.ready = null;
+        throw err;
+      });
+    }
+    return RT.ready;
+  }
+
+  function liveErr(message) {
+    var node = $('svp-live-err');
+    if (!node) return;
+    if (message) {
+      node.textContent = message;
+      node.hidden = false;
+    } else {
+      node.textContent = '';
+      node.hidden = true;
+    }
+  }
+
+  function liveHint(message) {
+    var node = $('svp-live-hint');
+    if (node) node.textContent = message;
+  }
+
+  function showLiveActions(show) {
+    var node = $('svp-live-actions');
+    if (node) node.hidden = !show;
+  }
+
+  function setAuthChip(text, tone) {
+    var node = $('svp-auth-chip');
+    if (!node) return;
+    node.textContent = text;
+    node.className = 'svp-chip' + (tone === 'on' ? ' on' : tone === 'warn' ? ' warn' : '');
+  }
+
+  function setLiveBusy(busy, label) {
+    RT.busy = !!busy;
+    var host = $('svp-gis-btn');
+    if (host) {
+      if (busy) { host.textContent = ''; var note = document.createElement('span'); note.className = 'svp-muted'; note.textContent = (label || 'Working') + '…'; host.appendChild(note); }
+    }
+    var go = $('svp-kpass-go');
+    if (go) go.disabled = !!busy;
+    if (busy) {
+      RT.busyTimer = setTimeout(function () {
+        if (RT.busy) {
+          liveErr('Still ' + (label || 'working') + ' after 45s. The network or Google may be unreachable. Press Try again, Sign out, or use the sealed backup below.');
+          showLiveActions(true);
+        }
+      }, 45000);
+    } else if (RT.busyTimer) {
+      clearTimeout(RT.busyTimer);
+      RT.busyTimer = 0;
+    }
+  }
+
+  function onGoogleCredential(credential) {
+    if (!credential) { liveErr('Google returned no credential. Press Try again.'); showLiveActions(true); return; }
+    setLiveBusy(true, 'Signing in');
+    liveErr('');
+    ensureFirebase().then(function (ns) {
+      return withTimeout(
+        ns.authNs.signInWithCredential(ns.auth, ns.authNs.GoogleAuthProvider.credential(credential)),
+        25000, 'Firebase sign-in'
+      );
+    }).then(function (result) {
+      var user = (result && result.user) || (RT.ns.auth.currentUser);
+      if (!user || !user.uid) throw new Error('Firebase accepted the credential but returned no user.');
+      RT.uid = user.uid;
+      RT.email = user.email || '';
+      RT.authed = true;
+      RT.signedInAt = Date.now();
+      storeSet('svp.liveUid', user.uid);
+      setAuthChip('signed in', 'on');
+      logSync({ evt: 'auth', uid: user.uid, email: RT.email });
+      showKeyStep('Signed in as ' + (RT.email || user.uid) + '. Enter the vault passphrase you set in the app.');
+    }, function (err) {
+      liveFail(err, 'Sign-in did not complete.');
+    }).then(function () {
+      setLiveBusy(false);
+    });
+  }
+
+  function liveFail(err, prefix) {
+    var message = err && err.message ? err.message : String(err);
+    liveErr((prefix ? prefix + ' ' : '') + message);
+    showLiveActions(true);
+    setAuthChip('error', 'warn');
+  }
+
+  function showKeyStep(message) {
+    var row = $('svp-kpass-row');
+    if (row) row.hidden = false;
+    liveHint(message);
+    showLiveActions(true);
+    var input = $('svp-kpass');
+    if (input) setTimeout(function () { input.focus(); }, 60);
+  }
+
+  function hideKeyStep() {
+    var row = $('svp-kpass-row');
+    if (row) row.hidden = true;
+    showLiveActions(false);
+  }
+
+  function onAuthState(user) {
+    if (user && user.uid) {
+      if (RT.uid && RT.uid !== user.uid) resetLiveData();
+      RT.uid = user.uid;
+      RT.email = user.email || '';
+      RT.authed = true;
+      storeSet('svp.liveUid', user.uid);
+      setAuthChip('signed in', 'on');
+      if (RT.key) {
+        if (S.mode !== 'live') enterLive();
+      } else {
+        showKeyStep('Signed in as ' + (RT.email || user.uid) + '. Enter the vault passphrase.');
+      }
+      return;
+    }
+    RT.authed = false;
+    if (S.mode === 'live') exitLive('The Google session ended, so live mode stopped. Nothing was lost.');
+    setAuthChip('not connected');
+    hideKeyStep();
+  }
+
+  function coerceIters(value) {
+    var n = Number(value);
+    if (!isFinite(n) || n < 1000) return 600000;
+    return Math.round(n);
+  }
+
+  /* A1's recipe: read keyring, refuse anything that is not AES-256-GCM, derive the
+     wrapping key with PBKDF2-SHA256 over the node salt/iters, then unwrap the
+     32-byte VaultKey. The key stays as a non-extractable CryptoKey in memory. */
+  function readKeyring(uid) {
+    var ns = RT.ns;
+    var paths = ['svp1/users/' + uid + '/keyring', 'svp1/' + uid + '/keyring'];
+    var index = 0;
+    function step() {
+      if (index >= paths.length) return Promise.resolve(null);
+      var path = paths[index];
+      index += 1;
+      return withTimeout(ns.dbNs.get(ns.dbNs.ref(ns.db, path)), 20000, 'Keyring read').then(function (snap) {
+        var value = snap.val();
+        if (value && typeof value === 'object' && value.wrap) {
+          RT.root = path.slice(0, path.length - '/keyring'.length);
+          return value;
+        }
+        return step();
+      });
+    }
+    RT.root = 'svp1/users';
+    return step();
+  }
+
+  function unwrapVaultKey(kr, passphrase) {
+    if (!kr || typeof kr !== 'object') {
+      return Promise.reject(new Error('No keyring published for this account. In the app: Settings, Realtime vault key, Publish - then come back.'));
+    }
+    if (String(kr.alg || '').toUpperCase() !== 'AES-256-GCM') {
+      return Promise.reject(new Error('Keyring says "' + kr.alg + '" - this client only opens AES-256-GCM and will not guess an algorithm.'));
+    }
+    if (!kr.wrap || !kr.salt) return Promise.reject(new Error('Keyring node is missing wrap or salt.'));
+    var parts = String(kr.wrap).split('.');
+    if (parts.length !== 2) return Promise.reject(new Error('Keyring wrap is not "<iv>.<ciphertext>". Nothing was unlocked.'));
+    var salt, iv, ct;
+    try {
+      salt = b64ToBytes(kr.salt);
+      iv = b64ToBytes(parts[0]);
+      ct = b64ToBytes(parts[1]);
+    } catch (e) {
+      return Promise.reject(new Error('Keyring is not valid base64 - it was not written by this protocol.'));
+    }
+    var iterations = coerceIters(kr.iters);
+    liveHint('Deriving the wrapping key (' + iterations.toLocaleString() + ' PBKDF2 rounds)…');
+    return crypto.subtle.importKey('raw', enc.encode(String(passphrase || '')), 'PBKDF2', false, ['deriveKey'])
+      .then(function (material) {
+        return crypto.subtle.deriveKey(
+          { name: 'PBKDF2', salt: salt, iterations: iterations, hash: 'SHA-256' },
+          material,
+          { name: 'AES-GCM', length: 256 },
+          false,
+          ['encrypt', 'decrypt']
+        );
+      })
+      .then(function (derived) {
+        return crypto.subtle.decrypt({ name: 'AES-GCM', iv: iv, tagLength: 128 }, derived, ct).then(
+          function (plain) { return plain; },
+          function () {
+            /* Only a GCM authentication failure reaches here, and that has exactly one
+               meaning: the passphrase did not open the wrap. A wrong key is reported as a
+               wrong key - never as a vault holding nothing. */
+            throw new Error('wrong passphrase - nothing was unlocked.');
+          }
+        );
+      })
+      .then(function (plain) {
+        var bytes = new Uint8Array(plain);
+        if (bytes.length !== 32) throw new Error('Unwrapped key is ' + bytes.length + ' bytes, expected 32.');
+        return crypto.subtle.importKey('raw', bytes, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt'])
+          .then(function (key) {
+            bytes.fill(0);
+            RT.key = key;
+            logSync({ evt: 'keyring', uid: RT.uid, alg: 'AES-256-GCM', iters: iterations, root: RT.root });
+            return key;
+          });
+      });
+  }
+
+  function unlockLive() {
+    var pass = $('svp-kpass') ? $('svp-kpass').value : '';
+    if (!pass) { liveErr('Type the vault passphrase you set in the app.'); return; }
+    if (!RT.uid) { liveErr('No Google session yet - press the Google button first.'); return; }
+    liveErr('');
+    setLiveBusy(true, 'Unwrapping the vault key');
+    ensureFirebase().then(function () {
+      return readKeyring(RT.uid);
+    }).then(function (kr) {
+      return unwrapVaultKey(kr, pass);
+    }).then(function () {
+      if ($('svp-kpass')) $('svp-kpass').value = '';
+      hideKeyStep();
+      return enterLive();
+    }, function (err) {
+      RT.key = null;
+      var message = err && err.message ? err.message : String(err);
+      if (/wrong passphrase/i.test(message)) liveErr('Wrong passphrase for this vault. Press Try again, Sign out, or use the sealed backup below.');
+      else { liveErr(message); showLiveActions(true); }
+    }).then(function () {
+      setLiveBusy(false);
+    });
+  }
+
+  /* ---- record crypto + wire shape ---- */
+
+  function sealJson(json) {
+    var iv = crypto.getRandomValues(new Uint8Array(12));
+    return crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv, tagLength: 128 }, RT.key, enc.encode(JSON.stringify(json)))
+      .then(function (ct) { return bytesToB64(iv) + '.' + bytesToB64(new Uint8Array(ct)); });
+  }
+
+  function openJson(e) {
+    var parts = String(e || '').split('.');
+    if (parts.length !== 2) return Promise.reject(new Error('record e is not "<iv>.<ciphertext>"'));
+    var iv, ct;
+    try { iv = b64ToBytes(parts[0]); ct = b64ToBytes(parts[1]); } catch (err) { return Promise.reject(new Error('record e is not base64')); }
+    return crypto.subtle.decrypt({ name: 'AES-GCM', iv: iv, tagLength: 128 }, RT.key, ct)
+      .then(function (plain) { return JSON.parse(dec.decode(plain)); });
+  }
+
+  function nodeShape(value) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+    var keys = Object.keys(value);
+    for (var i = 0; i < keys.length; i += 1) if (NODE_KEYS.indexOf(keys[i]) === -1) return null;
+    if (typeof value.e !== 'string' || !value.e) return null;
+    var d = value.d === null || value.d === undefined ? null : toInt(value.d, null);
+    return { e: value.e, u: toInt(value.u, 0), r: toInt(value.r, 0), d: d };
+  }
+
+  /* RECORD-FORMAT-v1 section 4: higher u, ties by tombstone-then-r. */
+  function better(cand, cur) {
+    if (!cur) return true;
+    if (cand.u !== cur.u) return cand.u > cur.u;
+    var candDead = cand.d !== null && cand.d !== undefined;
+    var curDead = cur.d !== null && cur.d !== undefined;
+    if (candDead !== curDead) return candDead;
+    return cand.r > cur.r;
+  }
+
+  function boolValue(value) {
+    if (typeof value === 'boolean') return value;
+    if (value === null || value === undefined) return false;
+    return String(value).toLowerCase() === 'true' || String(value) === '1';
+  }
+
+  function tagsToJsonString(value) {
+    if (value === null || value === undefined) return '[]';
+    if (typeof value === 'object') return JSON.stringify(value);
+    var text = String(value).trim();
+    if (!text) return '[]';
+    if (text.charAt(0) === '[' || text.charAt(0) === '{') {
+      try { JSON.parse(text); return text; } catch (e) { /* fall through to list */ }
+    }
+    var list = text.split(',').map(function (part) { return part.trim(); }).filter(Boolean);
+    return JSON.stringify(list);
+  }
+
+  function normalizeRecord(module, rec, id) {
+    var table = RECORD_KEYS[module] || [];
+    var src = rec && typeof rec === 'object' ? rec : {};
+    var out = {};
+    for (var i = 0; i < table.length; i += 1) {
+      var key = table[i];
+      var value = src[key];
+      if (key === 'id') out.id = String(value || id || newId());
+      else if (DOUBLE_ENCODED.indexOf(key) !== -1) out[key] = value === null || value === undefined ? '[]' : (typeof value === 'object' ? JSON.stringify(value) : String(value));
+      else if (key === 'isPinned' || key === 'isFavorite' || key === 'hasTotp' || key === 'isHiddenInTravel') out[key] = boolValue(value);
+      else if (key === 'size' || key === 'digits' || key === 'period' || key === 'expiryMonth' || key === 'expiryYear' || key === 'strengthScore') out[key] = toInt(value, null);
+      else if (key === 'createdAt' || key === 'updatedAt' || key === 'uploadedAt' || key === 'lastAccessedAt' ||
+               key === 'expiresAt' || key === 'lastSyncedAt' || key === 'deletedAt' || key === 'totalUsd') out[key] = value === null || value === undefined || value === '' ? null : Number(value);
+      else out[key] = value === null || value === undefined ? null : String(value);
+    }
+    for (var k in src) {
+      if (Object.prototype.hasOwnProperty.call(src, k) && table.indexOf(k) === -1 && String(k).indexOf('__') !== 0) out[k] = src[k];
+    }
+    return out;
+  }
+
+  function blankRecord(module) {
+    var rec = { id: newId(), createdAt: Date.now(), updatedAt: Date.now() };
+    if (module === 'cards' || module === 'totps') delete rec.updatedAt;
+    if (module === 'files') { rec.uploadedAt = Date.now(); rec.noteId = null; rec.driveId = null; }
+    if (module === 'totps') { rec.algorithm = 'SHA1'; rec.digits = 6; rec.period = 30; }
+    if (module === 'entries') { rec.isFavorite = false; rec.hasTotp = false; rec.isHiddenInTravel = false; }
+    if (module === 'notes') rec.isPinned = false;
+    if (module === 'cryptoWallets') rec.totalUsd = 0;
+    return normalizeRecord(module, rec, rec.id);
+  }
+
+  /* ---- live state ---- */
+
+  function resetLiveData() {
+    detachListeners();
+    RT.maps = {};
+    RT.meta = {};
+    RT.dead = {};
+    RT.mine = {};
+    RT.chain = {};
+    RT.latency = [];
+    RT.acks = [];
+    for (var i = 0; i < LIVE_MODULES.length; i += 1) {
+      RT.maps[LIVE_MODULES[i]] = {};
+      RT.meta[LIVE_MODULES[i]] = {};
+      RT.dead[LIVE_MODULES[i]] = {};
+    }
+    RT.key = null;
+    RT.uid = '';
+    RT.decodeErrors = 0;
+    RT.malformed = 0;
+    RT.last = null;
+  }
+
+  function metaFor(module, id) {
+    var map = RT.meta[module] || {};
+    return map[id] || null;
+  }
+
+  function acceptNode(module, id, node) {
+    var held = RT.maps[module][id] ? RT.maps[module][id].node : null;
+    var dead = RT.dead[module][id] || null;
+    var cur = held;
+    if (dead && better(dead, cur)) cur = dead;
+    if (better(node, cur)) return true;
+    logSync({
+      evt: 'conflict', module: module, id: id,
+      in_u: node.u, in_r: node.r, held_u: cur.u, held_r: cur.r,
+      winner: node === cur ? 'in' : 'held'
+    });
+    return false;
+  }
+
+  function decodeEntry(module, id, entry) {
+    if (!RT.key || !entry || entry.rec) return;
+    var captured = entry.node.e;
+    RT.chain[module] = (RT.chain[module] || Promise.resolve()).then(function () {
+      if (RT.maps[module][id] !== entry) return null;
+      return openJson(captured).then(function (rec) {
+        if (RT.maps[module][id] !== entry) return null;
+        entry.rec = normalizeRecord(module, rec, id);
+        scheduleRender();
+      }, function (err) {
+        if (RT.maps[module][id] !== entry) return null;
+        RT.decodeErrors += 1;
+        entry.rec = {
+          id: id,
+          title: 'Unreadable record',
+          notes: 'This node did not decrypt with your vault key (' + (err && err.message ? err.message : 'parse error') + ').',
+          locked: true
+        };
+        logSync({ evt: 'decode-error', module: module, id: id, err: String(err && err.message || err) });
+        scheduleRender();
+      });
+    });
+  }
+
+  function noteLatency(module, id, node, remote, tReceive) {
+    var delta = tReceive - node.u;
+    if (remote) {
+      RT.latency.push(delta);
+      if (RT.latency.length > 60) RT.latency.shift();
+    } else {
+      RT.acks.push(delta);
+      if (RT.acks.length > 20) RT.acks.shift();
+    }
+    RT.last = { module: module, id: id, u: node.u, r: node.r, d: node.d, delta: delta, remote: remote, at: tReceive };
+  }
+
+  function onChild(module, snap, kind) {
+    var id = snap.key;
+    var raw = snap.val();
+    if (kind === 'rem') {
+      var prior = RT.maps[module][id];
+      var stamp = Date.now();
+      if (prior) {
+        RT.dead[module][id] = { u: prior.node.u, r: prior.node.r, d: stamp };
+        logSync({ evt: 'removed', module: module, id: id, u: prior.node.u, r: prior.node.r, delta: stamp - prior.node.u });
+      } else {
+        logSync({ evt: 'removed', module: module, id: id });
+      }
+      delete RT.maps[module][id];
+      RT.meta[module][id] = { u: stamp, r: 0, d: stamp };
+      scheduleRender();
+      return;
+    }
+    var node = nodeShape(raw);
+    if (!node) {
+      RT.malformed += 1;
+      logSync({ evt: 'malformed', module: module, id: id, keys: raw && typeof raw === 'object' ? Object.keys(raw).join(',') : typeof raw });
+      scheduleRender();
+      return;
+    }
+    var tReceive = Date.now();
+    var key = module + '|' + id;
+    var isMine = RT.mine[key] === node.u;
+    if (!acceptNode(module, id, node)) { renderLog(); return; }
+    RT.meta[module][id] = { u: node.u, r: node.r, d: node.d };
+    if (node.d !== null) {
+      RT.dead[module][id] = { u: node.u, r: node.r, d: node.d };
+      delete RT.maps[module][id];
+      logSync({ evt: isMine ? 'ack-delete' : 'tombstone', module: module, id: id, u: node.u, r: node.r, delta: tReceive - node.u });
+    } else {
+      var entry = { node: node, rec: null };
+      RT.maps[module][id] = entry;
+      delete RT.dead[module][id];
+      if (isMine) {
+        delete RT.mine[key];
+        logSync({ evt: 'ack', module: module, id: id, u: node.u, r: node.r, roundTrip: tReceive - node.u });
+      } else {
+        logSync({ evt: 'recv', module: module, id: id, u: node.u, r: node.r, delta: tReceive - node.u, deleted: 0 });
+      }
+      decodeEntry(module, id, entry);
+    }
+    noteLatency(module, id, node, !isMine, tReceive);
+    updateChip();
+    renderLog();
+    scheduleRender();
+  }
+
+  function attachListeners() {
+    detachListeners();
+    if (!RT.ns || !RT.uid) return;
+    var dbNs = RT.ns.dbNs;
+    LIVE_MODULES.forEach(function (module) {
+      var target = dbNs.ref(RT.ns.db, rtPath('data/' + module));
+      var offs = [];
+      offs.push(dbNs.onChildAdded(target, function (snap) { onChild(module, snap, 'add'); }, function (err) {
+        liveStatus('listen ' + module + ' failed: ' + (err && err.message ? err.message : 'permission denied'));
+        logSync({ evt: 'listen-error', module: module, err: String(err && err.message || err) });
+      }));
+      offs.push(dbNs.onChildChanged(target, function (snap) { onChild(module, snap, 'chg'); }));
+      offs.push(dbNs.onChildRemoved(target, function (snap) { onChild(module, snap, 'rem'); }));
+      RT.unsub.push(function () {
+        for (var i = 0; i < offs.length; i += 1) { try { offs[i](); } catch (e) { /* already gone */ } }
+      });
+    });
+    var conn = dbNs.ref(RT.ns.db, '.info/connected');
+    var off = dbNs.onValue(conn, function (snap) {
+      var up = !!snap.val();
+      var was = RT.connected;
+      RT.connected = up;
+      setConnected(up);
+      if (up && was === false && S.mode === 'live') {
+        liveStatus('reconnected - reconciling all modules');
+        reconcile();
+      }
+    }, function () { setConnected(false); });
+    RT.unsub.push(off);
+  }
+
+  function detachListeners() {
+    for (var i = 0; i < RT.unsub.length; i += 1) { try { RT.unsub[i](); } catch (e) { /* ignore */ } }
+    RT.unsub = [];
+  }
+
+  function setConnected(up) {
+    var dot = $('svp-conn-dot');
+    if (dot) dot.className = 'svp-dot ' + (up ? 'on' : 'off');
+    if (S.mode === 'live') liveStatus(up ? 'connected · streaming 7 modules' : 'offline · waiting for the socket');
+    updateChip();
+  }
+
+  function reconcile() {
+    if (!RT.ns || !RT.uid) return Promise.resolve();
+    var dbNs = RT.ns.dbNs;
+    var started = Date.now();
+    var jobs = LIVE_MODULES.map(function (module) {
+      return withTimeout(dbNs.get(dbNs.ref(RT.ns.db, rtPath('data/' + module))), 25000, 'Reconcile ' + module).then(function (snap) {
+        var value = snap.val() || {};
+        var ids = Object.keys(value);
+        for (var i = 0; i < ids.length; i += 1) {
+          var node = nodeShape(value[ids[i]]);
+          if (!node) { RT.malformed += 1; continue; }
+          var existing = RT.maps[module][ids[i]];
+          if (existing && existing.node.u === node.u && existing.node.r === node.r && existing.node.d === node.d) continue;
+          onChild(module, { key: ids[i], val: function () { return value[ids[i]]; } }, 'chg');
+        }
+        return ids.length;
+      }, function (err) {
+        logSync({ evt: 'reconcile-error', module: module, err: String(err && err.message || err) });
+        return 0;
+      });
+    });
+    return Promise.all(jobs).then(function (counts) {
+      var total = counts.reduce(function (a, b) { return a + b; }, 0);
+      liveStatus('reconciled ' + total + ' nodes in ' + (Date.now() - started) + ' ms');
+      logSync({ evt: 'reconcile', nodes: total, ms: Date.now() - started });
+      scheduleRender();
+    });
+  }
+
+  function emptyPayload() {
+    return { version: 3, entries: [], notes: [], cards: [], totps: [], contacts: [], files: [], cryptoWallets: [] };
+  }
+
+  function syncPayload() {
+    var payload = emptyPayload();
+    LIVE_MODULES.forEach(function (module) {
+      var map = RT.maps[module] || {};
+      var ids = Object.keys(map);
+      var rows = [];
+      for (var i = 0; i < ids.length; i += 1) {
+        var entry = map[ids[i]];
+        if (entry && entry.node.d === null && entry.rec) rows.push(entry.rec);
+      }
+      rows.sort(function (a, b) {
+        var ma = metaFor(module, a.id) || { u: 0 };
+        var mb = metaFor(module, b.id) || { u: 0 };
+        return mb.u - ma.u;
+      });
+      payload[module] = rows;
+    });
+    S.payload = payload;
+  }
+
+  function scheduleRender() {
+    if (S.mode !== 'live') return;
+    if (RT.renderTimer) return;
+    RT.renderTimer = setTimeout(function () {
+      RT.renderTimer = 0;
+      syncPayload();
+      renderAll();
+      updateChip();
+    }, 120);
+  }
+
+  function liveStatus(text, tone) {
+    var node = $('svp-live-status');
+    if (node) node.textContent = text;
+    if (tone) {
+      var dot = $('svp-conn-dot');
+      if (dot) dot.className = 'svp-dot ' + (tone === 'bad' ? 'off' : tone === 'warn' ? '' : 'on');
+    }
+  }
+
+  function medianOf(list) {
+    if (!list.length) return null;
+    var copy = list.slice().sort(function (a, b) { return a - b; });
+    var mid = Math.floor(copy.length / 2);
+    return copy.length % 2 ? copy[mid] : Math.round((copy[mid - 1] + copy[mid]) / 2);
+  }
+
+  function updateChip() {
+    var chip = $('svp-chip');
+    var lat = $('svp-latency');
+    if (chip) {
+      chip.hidden = false;
+      if (S.mode !== 'live') {
+        chip.textContent = RT.key ? 'key loaded' : 'offline';
+        chip.className = 'svp-chip';
+      } else if (RT.connected === false) {
+        chip.textContent = 'reconnecting';
+        chip.className = 'svp-chip warn';
+      } else {
+        var med = medianOf(RT.latency);
+        chip.textContent = 'live' + (med === null ? '' : ' ' + med + ' ms');
+        chip.className = 'svp-chip on';
+      }
+    }
+    if (lat) {
+      var last = RT.last;
+      var median = medianOf(RT.latency);
+      var ack = medianOf(RT.acks);
+      if (S.mode !== 'live') lat.textContent = 'offline';
+      else if (!last) lat.textContent = 'listening · no remote change yet';
+      else {
+        lat.textContent = (last.remote ? 'recv ' : 'echo ') + last.delta + ' ms · median ' +
+          (median === null ? '-' : median) + ' ms · n ' + RT.latency.length +
+          (ack === null ? '' : ' · write ack ' + ack + ' ms');
+        lat.className = 'svp-lat' + (Math.abs(last.delta) > 1000 ? ' warn' : '') + (Math.abs(last.delta) > 4000 ? ' bad' : '');
+        if (last.delta < 0) lat.className = 'svp-lat warn';
+      }
+    }
+    var lw = $('svp-lastwrite');
+    if (lw) {
+      if (!RT.last) lw.textContent = 'last write: none seen yet';
+      else {
+        lw.textContent = 'last ' + RT.last.module + '/' + shortId(RT.last.id) +
+          ' · u ' + clockText(RT.last.u) + ' · r ' + RT.last.r +
+          (RT.last.d === null ? ' · live' : ' · deleted') +
+          (RT.last.remote ? ' · from another device' : ' · from this tab');
+      }
+    }
+  }
+
+  /* §6 latency log: measured, capped, and never asserted. */
+  function logSync(entry) {
+    try {
+      entry.at = entry.at || Date.now();
+      var list = readSyncLog();
+      list.push(entry);
+      if (list.length > 200) list = list.slice(list.length - 200);
+      storeSet('svp-sync-log', JSON.stringify(list));
+      RT.log = list;
+    } catch (e) { /* private mode */ }
+  }
+
+  function readSyncLog() {
+    if (RT.log) return RT.log;
+    var text = storeGet('svp-sync-log');
+    if (!text) { RT.log = []; return RT.log; }
+    try {
+      var parsed = JSON.parse(text);
+      RT.log = Array.isArray(parsed) ? parsed : [];
+    } catch (e) { RT.log = []; }
+    return RT.log;
+  }
+
+  function logLine(entry) {
+    var bits = [clockText(entry.at), entry.evt || '-'];
+    if (entry.module) bits.push(entry.module + '/' + shortId(entry.id));
+    if (entry.delta !== undefined && entry.delta !== null) bits.push('Δ' + entry.delta + 'ms');
+    if (entry.roundTrip !== undefined && entry.roundTrip !== null) bits.push('rt' + entry.roundTrip + 'ms');
+    if (entry.u) bits.push('u' + clockText(entry.u));
+    if (entry.r !== undefined && entry.r !== null) bits.push('r' + entry.r);
+    if (entry.held_u) bits.push('held u' + clockText(entry.held_u) + ' r' + entry.held_r);
+    if (entry.err) bits.push(entry.err);
+    return bits.join(' ');
+  }
+
+  function renderLog() {
+    var node = $('svp-log');
+    if (!node || node.hidden) return;
+    var list = readSyncLog();
+    var tail = list.slice(-25).map(logLine);
+    node.textContent = tail.join('\n') || 'no events yet';
+  }
+
+  /* ---- write path ---- */
+
+  function writeNode(module, id, rec, deleted) {
+    if (!RT.key || !RT.uid) return Promise.reject(new Error('Live mode is not unlocked.'));
+    var json = normalizeRecord(module, rec, id);
+    var ns = RT.ns;
+    var tWrite = Date.now();
+    var node = { e: '', u: tWrite, r: 0, d: deleted ? tWrite : null };
+    return sealJson(json).then(function (e) {
+      node.e = e;
+      var key = module + '|' + id;
+      RT.mine[key] = node.u;
+      var conflict = null;
+      var target = ns.dbNs.ref(ns.db, rtPath('data/' + module + '/' + id));
+      return withTimeout(ns.dbNs.transaction(target, function (current) {
+        var held = nodeShape(current);
+        if (held && !better(node, held)) {
+          conflict = { held_u: held.u, held_r: held.r };
+          return;
+        }
+        node.r = ns.dbNs.serverValue();
+        return node;
+      }), 25000, 'Write ' + module).then(function (result) {
+        if (!result || result.committed === false) {
+          delete RT.mine[key];
+          logSync({ evt: 'conflict-send', module: module, id: id, u: node.u, held_u: conflict ? conflict.held_u : null, held_r: conflict ? conflict.held_r : null });
+          throw new Error('A newer copy already exists on the server (its u is ' + (conflict ? clockText(conflict.held_u) : 'unknown') +
+            ', r ' + (conflict ? conflict.held_r : '?') + '). Your write was aborted - press Reconcile, then edit again.');
+        }
+        var tAck = Date.now();
+        RT.meta[module][id] = { u: node.u, r: toInt(node.r, 0), d: node.d };
+        if (deleted) {
+          RT.dead[module][id] = { u: node.u, r: toInt(node.r, 0), d: node.u };
+          delete RT.maps[module][id];
+        } else {
+          RT.maps[module][id] = { node: { e: node.e, u: node.u, r: toInt(node.r, 0), d: null }, rec: json };
+          delete RT.dead[module][id];
+        }
+        logSync({ evt: deleted ? 'send-delete' : 'send', module: module, id: id, u: node.u, tWrite: tWrite, tAck: tAck - tWrite });
+        liveStatus((deleted ? 'deleted ' : 'saved ') + module + '/' + shortId(id) + ' · ack ' + (tAck - tWrite) + ' ms · awaiting server revision');
+        bumpMeta();
+        scheduleRender();
+        return true;
+      });
+    });
+  }
+
+  function bumpMeta() {
+    if (!RT.ns || !RT.uid) return;
+    var ns = RT.ns;
+    try {
+      ns.dbNs.transaction(ns.dbNs.ref(ns.db, rtPath('meta')), function (current) {
+        var meta = current && typeof current === 'object' ? current : {};
+        meta.rev = ns.dbNs.serverValue();
+        meta.updatedAt = Date.now();
+        meta.lastDevice = 'web';
+        return meta;
+      }).catch(function () { liveStatus('meta revision bump failed (records are still saved)'); });
+    } catch (e) { /* ignore */ }
+  }
+
+  function persist(module, rec, deleted) {
+    if (S.mode !== 'live') { markDirty(); return; }
+    writeNode(module, rec.id, rec, deleted).catch(function (err) {
+      var message = err && err.message ? err.message : String(err);
+      liveStatus('write failed: ' + message, 'bad');
+      window.alert(message);
+    });
+  }
+
+  /* ---- enter / leave live mode ---- */
+
+  function enterLive() {
+    if (!RT.key) return Promise.reject(new Error('No vault key in memory - unlock with the passphrase first.'));
+    S.mode = 'live';
+    S.dirty = false;
+    $('svp-lock').hidden = true;
+    $('svp-app').hidden = false;
+    $('svp-lock-btn').hidden = false;
+    $('svp-live').hidden = false;
+    $('svp-save').hidden = true;
+    $('svp-drive-save').hidden = true;
+    var note = $('svp-dirty');
+    note.className = 'svp-muted';
+    note.textContent = 'Live: edits are sealed with your vault key and written to the same nodes the app reads.';
+    liveStatus('subscribing to 7 modules', 'warn');
+    setLiveBusy(false);
+    attachListeners();
+    return reconcile().then(function () {
+      syncPayload();
+      renderAll();
+      updateChip();
+      logSync({ evt: 'live-on', uid: RT.uid, root: RT.root });
+    });
+  }
+
+  function exitLive(message) {
+    detachListeners();
+    resetLiveData();
+    S.mode = 'offline';
+    S.payload = null;
+    RT.paused = false;
+    $('svp-live').hidden = true;
+    $('svp-app').hidden = true;
+    $('svp-lock').hidden = false;
+    $('svp-lock-btn').hidden = true;
+    $('svp-save').hidden = false;
+    $('svp-drive-save').hidden = !S.token;
+    $('svp-list').textContent = '';
+    var chip = $('svp-chip');
+    if (chip) { chip.textContent = 'offline'; chip.className = 'svp-chip'; chip.hidden = false; }
+    if (message) liveErr(message);
+    showLiveActions(true);
+    hideKeyStep();
+    if (RT.ns) showGoogleButton();
+  }
+
+  function signOutLive() {
+    detachListeners();
+    if (RT.ns && RT.ns.auth) {
+      try { RT.ns.authNs.signOut(RT.ns.auth); } catch (e) { /* already signed out */ }
+    }
+    RT.authed = false;
+    RT.uid = '';
+    RT.email = '';
+    try { window.localStorage.removeItem('svp.liveUid'); } catch (e) { /* private mode */ }
+    exitLive('Signed out of the live vault. The sealed backup path below still works.');
+  }
+
+  function showGoogleButton() {
+    var host = $('svp-gis-btn');
+    if (!host) return;
+    var blocked = fbBlocked();
+    var cfg = fbConfig();
+    if (blocked) {
+      host.textContent = '';
+      liveHint(blocked + ' The sealed backup path below still works.');
+      return;
+    }
+    if (!window.google || !window.google.accounts || !window.google.accounts.id) {
+      liveHint('Loading Google sign-in…');
+      loadGis(function () { showGoogleButton(); });
+      return;
+    }
+    try {
+      window.google.accounts.id.initialize({
+        client_id: cfg.webClientId,
+        auto_select: false,
+        cancel_on_tap_outside: false,
+        callback: function (response) { onGoogleCredential(response && response.credential ? response.credential : null); }
+      });
+      host.textContent = '';
+      window.google.accounts.id.renderButton(host, { theme: 'outline', size: 'large', text: 'signin_with', shape: 'pill', width: 300 });
+      liveHint('Project ' + cfg.projectId + ' · Realtime Database in asia-southeast1. Same Google account as the app means the same vault.');
+    } catch (e) {
+      liveHint('Google sign-in button failed: ' + (e && e.message ? e.message : 'unknown error') + '. Add the origin in Google setup, or use the sealed backup below.');
+    }
+  }
+
+  function retryLive() {
+    liveErr('');
+    showLiveActions(false);
+    RT.ready = null;
+    RT.loading = null;
+    setLiveBusy(true, 'Reconnecting');
+    ensureFirebase().then(function () {
+      setLiveBusy(false);
+      if (RT.key) return enterLive();
+      showGoogleButton();
+      liveHint('Ready again. Press the Google button.');
+    }, function (err) {
+      setLiveBusy(false);
+      liveFail(err, 'Retry failed.');
+    });
+  }
+
+  function initLiveMode() {
+    var blocked = fbBlocked();
+    if (blocked) {
+      liveHint(blocked + ' The sealed backup path below still works.');
+      return;
+    }
+    liveHint('Realtime client: preparing (' + fbConfig().projectId + ')…');
+    loadGis(function () {
+      ensureFirebase().then(function () {
+        showGoogleButton();
+        var remembered = storeGet('svp.liveUid');
+        if (remembered) liveHint('Google session restored for ' + (RT.email || remembered) + '. Enter the vault passphrase.');
+      }, function (err) {
+        liveHint('Realtime client unavailable here: ' + (err && err.message ? err.message : 'unknown error') + '. The sealed backup path below still works.');
+        liveErr('');
+        showLiveActions(true);
+      });
+    });
+  }
+
+  /* ---- files: metadata only, bytes fetched from Drive on demand ---- */
+
+  var fileCache = {};
+  var viewer = { url: '', id: '', name: '', mime: '' };
+
+  function driveBytes(driveId) {
+    if (driveId && fileCache[driveId]) return Promise.resolve(fileCache[driveId]);
+    if (!driveId) return Promise.reject(new Error('This record has no driveId, so nothing is stored in Drive yet.'));
+    if (!S.token) return Promise.reject(new Error('Connect Drive with the same Google account, then press View again.'));
+    return withTimeout(
+      fetch('https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(driveId) + '?alt=media', {
+        headers: { Authorization: 'Bearer ' + S.token }
+      }), 90000, 'Drive download'
+    ).then(function (response) {
+      if (response.status === 401) {
+        S.token = '';
+        $('svp-drive-save').hidden = true;
+        $('svp-drive-signin').textContent = 'Sign in with Google';
+        throw new Error('The Drive session expired. Open the Drive panel and sign in again.');
+      }
+      if (!response.ok) throw new Error('Drive returned HTTP ' + response.status);
+      return response.blob();
+    }).then(function (blob) {
+      fileCache[driveId] = blob;
+      return blob;
+    });
+  }
+
+  function closeViewer() {
+    $('svp-viewer').hidden = true;
+    var body = $('svp-viewer-body');
+    body.textContent = '';
+    if (viewer.url) {
+      var url = viewer.url;
+      viewer.url = '';
+      setTimeout(function () { try { URL.revokeObjectURL(url); } catch (e) { /* ignore */ } }, 1000);
+    }
+    viewer.id = '';
+    viewer.name = '';
+    viewer.mime = '';
+  }
+
+  function openViewer(rec) {
+    var body = $('svp-viewer-body');
+    body.textContent = '';
+    $('svp-viewer-title').textContent = rec.name || 'File';
+    $('svp-viewer-meta').textContent = 'Bytes live in Google Drive, never in the database · ' + (rec.mimeType || 'unknown type') + ' · ' + (formatSize(rec.size) || 'size unknown') + (rec.driveId ? ' · driveId ' + shortId(rec.driveId) : '');
+    $('svp-viewer').hidden = false;
+    viewer.id = rec.driveId || '';
+    viewer.name = rec.name || 'secure-wallet-file';
+    viewer.mime = rec.mimeType || rec.type || 'application/octet-stream';
+    $('svp-viewer-open').hidden = !rec.driveId;
+    var note = document.createElement('p');
+    note.className = 'svp-muted';
+    note.textContent = 'Fetching from Drive…';
+    body.appendChild(note);
+    driveBytes(rec.driveId).then(function (blob) {
+      body.textContent = '';
+      var mime = blob.type || viewer.mime;
+      var url = URL.createObjectURL(blob);
+      viewer.url = url;
+      if (/^image\//i.test(mime)) {
+        var img = document.createElement('img');
+        img.src = url;
+        img.alt = viewer.name;
+        body.appendChild(img);
+      } else if (mime === 'application/pdf') {
+        var frame = document.createElement('iframe');
+        frame.src = url;
+        frame.title = viewer.name;
+        body.appendChild(frame);
+      } else if (/^text\//i.test(mime) || /\.(txt|md|json|csv|log)$/i.test(viewer.name)) {
+        var reader = new FileReader();
+        reader.onload = function () {
+          var text = String(reader.result || '');
+          var pre = document.createElement('pre');
+          pre.textContent = text.length > 200000 ? text.slice(0, 200000) + '\n\n… first 200k characters only, download for the rest.' : text;
+          body.appendChild(pre);
+        };
+        reader.onerror = function () {
+          var bad = document.createElement('div');
+          bad.className = 'svp-empty';
+          bad.textContent = 'The file could not be read as text. Use Download.';
+          body.appendChild(bad);
+        };
+        reader.readAsText(blob.slice(0, 400000));
+      } else {
+        var hint = document.createElement('div');
+        hint.className = 'svp-empty';
+        hint.textContent = 'No inline preview for ' + mime + '. Use Download.';
+        body.appendChild(hint);
+      }
+    }, function (err) {
+      body.textContent = '';
+      var bad = document.createElement('div');
+      bad.className = 'svp-empty';
+      bad.textContent = (err && err.message ? err.message : 'Could not load the bytes.');
+      body.appendChild(bad);
+    });
+  }
+
+  /* ---- per-module field editors ---- */
+
+  var EDITOR_FIELDS = {
+    entries: [['title', 'Title'], ['username', 'Username'], ['email', 'Email'], ['password', 'Password'], ['website', 'Website'], ['category', 'Category'], ['tagsJson', 'Tags (comma separated)'], ['totpSecret', 'TOTP secret (optional)'], ['notes', 'Notes']],
+    notes: [['title', 'Title'], ['color', 'Colour'], ['tagsJson', 'Tags (comma separated)'], ['content', 'Content']],
+    cards: [['nickname', 'Nickname'], ['type', 'Type'], ['holderName', 'Holder'], ['number', 'Card number'], ['expiryMonth', 'Expiry month'], ['expiryYear', 'Expiry year'], ['cvv', 'CVV'], ['pin', 'PIN'], ['bankName', 'Bank'], ['notes', 'Notes']],
+    totps: [['issuer', 'Issuer'], ['accountName', 'Account'], ['secret', 'Base32 secret'], ['algorithm', 'Algorithm'], ['digits', 'Digits'], ['period', 'Period (s)']],
+    contacts: [['name', 'Name'], ['phone', 'Phone'], ['email', 'Email'], ['address', 'Address'], ['category', 'Category'], ['notes', 'Notes']],
+    cryptoWallets: [['label', 'Label'], ['kind', 'Kind'], ['secret', 'Secret (never shown on the card)'], ['addressesJson', 'Addresses (JSON)'], ['balancesJson', 'Balances (JSON)'], ['totalUsd', 'Total USD']],
+    files: [['name', 'Name'], ['mimeType', 'MIME type'], ['category', 'Category'], ['driveId', 'Drive file id'], ['size', 'Size (bytes)'], ['noteId', 'Linked note id'], ['folder', 'Chat module folder (chats/<chat id>)']]
+  };
+
+  function bindField(key, module) {
+    if (key === 'notes' || key === 'content' || key === 'secret' && module === 'cryptoWallets') return 'textarea';
+    if (/Json$/.test(key)) return 'json';
+    if (key === 'tagsJson') return 'tags';
+    if (key === 'isPinned' || key === 'isFavorite') return 'bool';
+    if (/^(size|digits|period|expiryMonth|expiryYear|totalUsd)$/.test(key)) return 'number';
+    return 'text';
+  }
+
+  /* ---- module renderers (shared by the live stream and sealed backups) ---- */
+
+  function entriesText(item) {
+    return [item.title, item.username, item.email, item.url || item.website, item.notes, item.category].filter(Boolean).join(' ').toLowerCase();
+  }
+
+  function renderEntry(item) {
+    var shell = itemShell(item, item.title || 'Untitled login', [item.username, item.email, item.url || item.website].filter(Boolean).join(' · '));
+    addTag(shell.tags, item.category || 'Login');
+    if (item.isFavorite) addTag(shell.tags, 'Favourite', 'fav');
+    parseJsonArray(item.tagsJson).forEach(function (tag) { addTag(shell.tags, tagText(tag)); });
+    shell.card.appendChild(secretRow(item.password, '••••••••••••'));
+    if (item.hasTotp || item.totpSecret) {
+      var code = document.createElement('div');
+      code.className = 'svp-totp';
+      code.textContent = '------';
+      shell.card.appendChild(code);
+      registerTotp(code, item.totpSecret, 6, 30, 'SHA1');
+    }
+    var custom = parseJsonArray(item.customFieldsJson);
+    if (custom.length) {
+      var field = document.createElement('div');
+      field.className = 'svp-item-sub';
+      field.textContent = custom.map(function (row) { return String(row && row.label ? row.label : row); }).join(' · ');
+      shell.card.appendChild(field);
+    }
+    addNote(shell.card, item.notes);
+    if (item.expiresAt) addNote(shell.card, 'Expires ' + new Date(Number(item.expiresAt)).toLocaleString());
+    addActions(shell.card, [
+      { label: 'Copy password', handler: function () { copyText(item.password); } },
+      { label: 'Edit', handler: function () { openEditor('entries', item); } },
+      { label: 'Delete', className: 'danger', handler: function () { removeItem('entries', item.id, item.title); } }
+    ]);
+    return shell.card;
+  }
+
+  function renderCardItem(item) {
+    var title = item.nickname || item.bankName || 'Card';
+    var shell = itemShell(item, title, [item.holderName, item.type, item.bankName].filter(Boolean).join(' · '), 'linear-gradient(135deg,#8b7bff,#38e8ff)');
+    addTag(shell.tags, item.type || 'Card');
+    if (item.expiryMonth || item.expiryYear) {
+      addTag(shell.tags, 'Exp ' + String(item.expiryMonth || '--') + '/' + String(item.expiryYear || '--'));
+    }
+    shell.card.appendChild(secretRow(item.number, '•••• •••• •••• ' + String(item.number || '').slice(-4)));
+    if (item.cvv || item.pin) {
+      var label = document.createElement('div');
+      label.className = 'svp-item-sub';
+      label.textContent = 'CVV / PIN';
+      shell.card.appendChild(label);
+      shell.card.appendChild(secretRow(item.cvv || item.pin, '•••'));
+    }
+    addNote(shell.card, item.notes);
+    addActions(shell.card, [
+      { label: 'Copy number', handler: function () { copyText(item.number); } },
+      { label: 'Edit', handler: function () { openEditor('cards', item); } },
+      { label: 'Delete', className: 'danger', handler: function () { removeItem('cards', item.id, title); } }
+    ]);
+    return shell.card;
+  }
+
+  function renderTotpItem(item) {
+    var title = item.issuer || item.accountName || 'Authenticator';
+    var shell = itemShell(item, title, item.accountName || '', 'linear-gradient(135deg,#3ef0b0,#38e8ff)');
+    var totp = document.createElement('div');
+    totp.className = 'svp-totp';
+    totp.textContent = '------';
+    shell.card.appendChild(totp);
+    registerTotp(totp, item.secret, item.digits || 6, item.period || 30, item.algorithm || 'SHA1');
+    addTag(shell.tags, String(item.algorithm || 'SHA1').toUpperCase());
+    addTag(shell.tags, (item.digits || 6) + ' digits / ' + (item.period || 30) + 's');
+    addActions(shell.card, [
+      { label: 'Copy secret', handler: function () { copyText(item.secret); } },
+      { label: 'Edit', handler: function () { openEditor('totps', item); } },
+      { label: 'Delete', className: 'danger', handler: function () { removeItem('totps', item.id, title); } }
+    ]);
+    return shell.card;
+  }
+
+  function renderNoteItem(item) {
+    var shell = itemShell(item, item.title || 'Note', item.isPinned ? 'Pinned' : '', 'linear-gradient(135deg,#ffc85c,#ff6b8a)');
+    if (item.isPinned) addTag(shell.tags, 'Pinned', 'fav');
+    parseJsonArray(item.tagsJson).forEach(function (tag) { addTag(shell.tags, tagText(tag)); });
+    addNote(shell.card, item.content);
+    addActions(shell.card, [
+      { label: 'Copy note', handler: function () { copyText(item.content); } },
+      { label: 'Edit', handler: function () { openEditor('notes', item); } },
+      { label: 'Delete', className: 'danger', handler: function () { removeItem('notes', item.id, item.title); } }
+    ]);
+    return shell.card;
+  }
+
+  function renderContactItem(item) {
+    var shell = itemShell(item, item.name || 'Contact', [item.phone, item.email].filter(Boolean).join(' · '), 'linear-gradient(135deg,#8b7bff,#ff6b8a)');
+    addTag(shell.tags, item.category || 'Contact');
+    addNote(shell.card, [item.address, item.notes].filter(Boolean).join('\n'));
+    addActions(shell.card, [
+      item.phone ? { label: 'Copy phone', handler: function () { copyText(item.phone); } } : null,
+      item.email ? { label: 'Copy email', handler: function () { copyText(item.email); } } : null,
+      { label: 'Edit', handler: function () { openEditor('contacts', item); } },
+      { label: 'Delete', className: 'danger', handler: function () { removeItem('contacts', item.id, item.name); } }
+    ]);
+    return shell.card;
+  }
+
+  function renderWalletItem(item) {
+    var title = item.label || 'Crypto wallet';
+    var shell = itemShell(item, title, kindLabel(item.kind), 'linear-gradient(135deg,#ffd166,#3ef0b0)');
+    addTag(shell.tags, kindLabel(item.kind));
+    var tokens = parseBalances(item.balancesJson);
+    var value = document.createElement('div');
+    value.className = 'svp-totp';
+    value.textContent = money(item.totalUsd, tokens);
+    shell.card.appendChild(value);
+    for (var t = 0; t < tokens.length && t < 6; t += 1) {
+      var line = document.createElement('div');
+      line.className = 'svp-item-sub';
+      line.textContent = tokens[t].symbol + ' · ' + trimAmount(tokens[t].amount) + (tokens[t].available === false ? ' · offline' : '');
+      shell.card.appendChild(line);
+    }
+    var addresses = parseJsonArray(item.addressesJson);
+    if (addresses.length) {
+      var addr = document.createElement('div');
+      addr.className = 'svp-item-sub';
+      addr.textContent = addresses.length + ' address' + (addresses.length === 1 ? '' : 'es') + ' on file';
+      shell.card.appendChild(addr);
+    }
+    if (item.lastSyncedAt) {
+      var stamp = document.createElement('div');
+      stamp.className = 'svp-item-sub';
+      stamp.textContent = 'Balances checked ' + new Date(Number(item.lastSyncedAt)).toLocaleString();
+      shell.card.appendChild(stamp);
+    }
+    addActions(shell.card, [
+      addresses.length ? { label: 'Copy address', handler: function () { copyText(tagText(addresses[0])); } } : null,
+      { label: 'Edit', handler: function () { openEditor('cryptoWallets', item); } },
+      { label: 'Delete', className: 'danger', handler: function () { removeItem('cryptoWallets', item.id, title); } }
+    ]);
+    return shell.card;
+  }
+
+  function renderDriveFile(item) {
+    var bits = [item.category, item.mimeType, formatSize(item.size)].filter(Boolean);
+    var chat = chatOf(item);
+    var mark = chat ? chatMark(chat) : null;
+    var shell = itemShell(
+      item,
+      item.name || 'File',
+      bits.join(' · '),
+      mark
+        ? 'linear-gradient(135deg,' + mark[0] + ',' + mark[1] + ')'
+        : 'linear-gradient(135deg,#38e8ff,#8b7bff)'
+    );
+    addTag(shell.tags, item.driveId ? 'In Drive' : 'No Drive copy');
+    if (chat) {
+      addTag(shell.tags, 'Chat · ' + (chatTitle(chat) || chat.slice(0, 8)));
+      var seal = document.createElement('div');
+      seal.className = 'svp-item-sub';
+      seal.textContent = 'Sealed in this conversation\'s own directory — its files never share a folder with another chat.';
+      shell.card.appendChild(seal);
+    }
+    var note = document.createElement('div');
+    note.className = 'svp-note';
+    note.textContent = item.driveId
+      ? 'Metadata only in the database. The bytes are fetched from your own Drive session when you press View.'
+      : 'This record has no driveId, so there is nothing to fetch. Attach the file from the app first.';
+    shell.card.appendChild(note);
+    addActions(shell.card, [
+      {
+        label: 'View',
+        className: 'primary',
+        handler: function () {
+          if (!item.driveId) { window.alert(note.textContent); return; }
+          openViewer(item);
+        }
+      },
+      {
+        label: 'Download',
+        handler: function () {
+          if (!item.driveId) { window.alert(note.textContent); return; }
+          driveBytes(item.driveId).then(function (blob) {
+            var url = URL.createObjectURL(blob);
+            var link = document.createElement('a');
+            link.href = url;
+            link.download = item.name || 'secure-wallet-file';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+          }, function (err) { window.alert(err && err.message ? err.message : 'Could not fetch from Drive.'); });
+        }
+      },
+      { label: 'Edit', handler: function () { openEditor('files', item); } },
+      { label: 'Delete', className: 'danger', handler: function () { removeItem('files', item.id, item.name); } }
+    ]);
+    return shell.card;
+  }
+
+  /* Legacy sealed-backup path: bytes are embedded in the envelope itself.
+     Realtime mode never takes this branch - a files node is metadata only. */
+  function renderFile(item) {
+    if (S.mode === 'live' || item.driveId) return renderDriveFile(item);
+    var bits = [item.category, item.mimeType || item.type, formatSize(item.size)];
+    var shell = itemShell(item, item.name || 'File', bits.filter(Boolean).join(' · '));
+    addNote(shell.card, 'Encrypted attachment stored inside the vault envelope.');
+    addActions(shell.card, [{
+      label: 'Download',
+      className: 'primary',
+      handler: function () {
+        try {
+          var raw = b64ToBytes(item.data || '');
+          var blob = new Blob([raw], { type: item.mimeType || item.type || 'application/octet-stream' });
+          var url = URL.createObjectURL(blob);
+          var link = document.createElement('a');
+          link.href = url;
+          link.download = item.name || 'secure-wallet-file';
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+        } catch (e) {
+          window.alert('This attachment could not be decoded.');
+        }
+      }
+    }]);
+    return shell.card;
+  }
+
+  var MODULE_RENDERERS = {
+    entries: renderEntry,
+    notes: renderNoteItem,
+    cards: renderCardItem,
+    totps: renderTotpItem,
+    contacts: renderContactItem,
+    cryptoWallets: renderWalletItem,
+    files: renderFile
+  };
+
+  function renderItem(raw, module) {
+    var item = raw || {};
+    var name = module || S.tab;
+    if (item.locked) {
+      var shell = itemShell(item, item.title || 'Unreadable record', item.id || '', 'linear-gradient(135deg,#8b9bb4,#38e8ff)');
+      addNote(shell.card, item.notes || 'This node did not decrypt.');
+      addActions(shell.card, [{ label: 'Delete anyway', className: 'danger', handler: function () { removeItem(name, item.id, 'unreadable record'); } }]);
+      return shell.card;
+    }
+    var renderer = MODULE_RENDERERS[name];
+    if (renderer) return renderer(item);
+    return itemShell(item, item.title || item.name || 'Record', '').card;
+  }
+
+  function addStamp(card, module, item) {
+    if (S.mode !== 'live') return;
+    var meta = metaFor(module, item.id);
+    if (!meta) return;
+    var node = document.createElement('div');
+    node.className = 'svp-stamp';
+    node.textContent = 'u ' + clockText(meta.u) + ' · r ' + meta.r + (meta.d === null || meta.d === undefined ? ' · live' : ' · deleted');
+    card.appendChild(node);
+  }
+
+  function saveApiKey() {
+    var value = String($('svp-api-key').value || '').trim();
+    if (!/^AIza[0-9A-Za-z_-]{20,}$/.test(value)) {
+      driveMessage('That is not a Firebase web API key (it starts with AIza and is 39 characters).');
+      return;
+    }
+    storeSet('svp.fbApiKey', value);
+    driveMessage('Key kept in this browser only. Live mode is loading it now.');
+    $('svp-api-key').value = '';
+    initLiveMode();
+    retryLive();
+  }
+
+  function bind() {
+    $('svp-unlock').addEventListener('click', unlock);
+    $('svp-pass').addEventListener('keydown', function (event) {
+      if (event.key === 'Enter') unlock();
+    });
+    $('svp-reveal-pass').addEventListener('click', function () {
+      var input = $('svp-pass');
+      var showing = input.type === 'text';
+      input.type = showing ? 'password' : 'text';
+      this.textContent = showing ? 'Show' : 'Hide';
+    });
+    $('svp-pick').addEventListener('click', function () { $('svp-file').click(); });
+    $('svp-file').addEventListener('change', function () {
+      var file = this.files && this.files[0];
+      if (!file) return;
+      var reader = new FileReader();
+      reader.onload = function () {
+        try {
+          var envelope = JSON.parse(String(reader.result));
+          if (!envelope || envelope.v !== 3 || !envelope.salt || !envelope.data) {
+            throw new Error('unsupported envelope');
+          }
+          S.envelope = envelope;
+          sourceLabel(file.name + ' · ' + Math.round(file.size / 1024) + ' KB · envelope v3');
+          error('');
+          $('svp-pass').focus();
+        } catch (e) {
+          error('That file is not a Secure Wallet v3 envelope.');
+        }
+      };
+      reader.onerror = function () { error('The selected file could not be read.'); };
+      reader.readAsText(file);
+    });
+    $('svp-search').addEventListener('input', function () {
+      S.filter = this.value || '';
+      renderList();
+    });
+    $('svp-add').addEventListener('click', function () { openEditor(S.tab, null); });
+    $('svp-save').addEventListener('click', sealAndDownload);
+    $('svp-cancel').addEventListener('click', closeEditor);
+    $('svp-save-item').addEventListener('click', saveEditor);
+    $('svp-modal').addEventListener('click', function (event) {
+      if (event.target === this) closeEditor();
+    });
+    $('svp-lock-btn').addEventListener('click', lockVault);
+    $('svp-drive-btn').addEventListener('click', function () {
+      var panel = $('svp-drive');
+      if (!panel.hidden) {
+        panel.hidden = true;
+        return;
+      }
+      panel.hidden = false;
+      if (S.token) listDrive();
+    });
+    $('svp-drive-signin').addEventListener('click', function () {
+      if (S.token) listDrive();
+      else connectDrive();
+    });
+    $('svp-drive-close').addEventListener('click', function () { $('svp-drive').hidden = true; });
+    $('svp-drive-save').addEventListener('click', saveToDrive);
+    $('svp-client-save').addEventListener('click', saveClientId);
+    $('svp-client-edit').addEventListener('click', function () { showClientBox(true); });
+    $('svp-client-id').addEventListener('keydown', function (event) {
+      if (event.key === 'Enter') saveClientId();
+    });
+    $('svp-pair-save').addEventListener('click', savePairCode);
+    $('svp-pair-clear').addEventListener('click', clearPairCode);
+    $('svp-pair-code').addEventListener('keydown', function (event) {
+      if (event.key === 'Enter') savePairCode();
+    });
+    $('svp-pair-new').addEventListener('click', rotatePairQr);
+    $('svp-kpass-go').addEventListener('click', unlockLive);
+    $('svp-kpass').addEventListener('keydown', function (event) {
+      if (event.key === 'Enter') unlockLive();
+    });
+    $('svp-live-retry').addEventListener('click', retryLive);
+    $('svp-live-signout').addEventListener('click', signOutLive);
+    $('svp-signout').addEventListener('click', signOutLive);
+    $('svp-reconcile').addEventListener('click', function () {
+      logSync({ evt: 'manual-reconcile' });
+      reconcile();
+    });
+    $('svp-log-btn').addEventListener('click', function () {
+      var node = $('svp-log');
+      node.hidden = !node.hidden;
+      this.textContent = node.hidden ? 'Sync log' : 'Hide log';
+      RT.log = null;
+      renderLog();
+    });
+    $('svp-stop').addEventListener('click', function () {
+      if (RT.paused) {
+        RT.paused = false;
+        this.textContent = 'Pause live';
+        attachListeners();
+        liveStatus('resumed - listeners reattached');
+        scheduleRender();
+      } else {
+        RT.paused = true;
+        detachListeners();
+        this.textContent = 'Resume live';
+        liveStatus('paused: detached. Press Resume or Reconcile.', 'warn');
+        logSync({ evt: 'paused' });
+      }
+    });
+    $('svp-viewer-close').addEventListener('click', closeViewer);
+    $('svp-viewer').addEventListener('click', function (event) {
+      if (event.target === this) closeViewer();
+    });
+    $('svp-viewer-open').addEventListener('click', function () {
+      if (viewer.id) window.open('https://drive.google.com/file/d/' + encodeURIComponent(viewer.id) + '/view', '_blank', 'noopener');
+    });
+    $('svp-viewer-download').addEventListener('click', function () {
+      if (!viewer.id) {
+        if (viewer.url) triggerDownload(viewer.url, viewer.name);
+        return;
+      }
+      driveBytes(viewer.id).then(function (blob) {
+        var url = URL.createObjectURL(blob);
+        triggerDownload(url, viewer.name);
+        setTimeout(function () { try { URL.revokeObjectURL(url); } catch (e) { /* ignore */ } }, 4000);
+      }, function (err) {
+        window.alert(err && err.message ? err.message : 'Could not fetch the bytes from Drive.');
+      });
+    });
+    $('svp-api-save').addEventListener('click', saveApiKey);
+    $('svp-api-key').addEventListener('keydown', function (event) {
+      if (event.key === 'Enter') saveApiKey();
+    });
+  }
+
+  function triggerDownload(url, name) {
+    var link = document.createElement('a');
+    link.href = url;
+    link.download = name || 'secure-wallet-file';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+
+  /* -- QR ENCODER BEGIN -- */
+  /* Compact QR encoder: byte mode, error correction level M, versions 1-12.
+     Written by hand so pairing never depends on a third-party image service. */
+  var QR_SPECS = [
+    [26, 10, [[1, 16]]], [44, 16, [[1, 28]]], [70, 26, [[1, 44]]], [100, 18, [[2, 32]]],
+    [134, 24, [[2, 43]]], [172, 16, [[4, 27]]], [196, 18, [[4, 31]]], [242, 22, [[2, 38], [2, 39]]],
+    [292, 22, [[3, 36], [2, 37]]], [346, 26, [[4, 43], [1, 44]]], [404, 30, [[1, 50], [4, 51]]],
+    [466, 22, [[6, 36], [2, 37]]]
+  ];
+  var QR_ALIGN = [[], [6, 18], [6, 22], [6, 26], [6, 30], [6, 34], [6, 22, 38],
+    [6, 24, 42], [6, 26, 46], [6, 28, 50], [6, 30, 54], [6, 32, 58]];
+
+  function qrUtf8(text) {
+    var out = [];
+    for (var i = 0; i < text.length; i += 1) {
+      var cp = text.charCodeAt(i);
+      if (cp >= 0xd800 && cp <= 0xdbff && i + 1 < text.length) {
+        var next = text.charCodeAt(i + 1);
+        if (next >= 0xdc00 && next <= 0xdfff) { cp = 0x10000 + ((cp - 0xd800) << 10) + (next - 0xdc00); i += 1; }
+      }
+      if (cp < 0x80) out.push(cp);
+      else if (cp < 0x800) out.push(0xc0 | (cp >> 6), 0x80 | (cp & 63));
+      else if (cp < 0x10000) out.push(0xe0 | (cp >> 12), 0x80 | ((cp >> 6) & 63), 0x80 | (cp & 63));
+      else out.push(0xf0 | (cp >> 18), 0x80 | ((cp >> 12) & 63), 0x80 | ((cp >> 6) & 63), 0x80 | (cp & 63));
+    }
+    return out;
+  }
+
+  function qrGfMul(x, y) {
+    var z = 0;
+    for (var i = 7; i >= 0; i -= 1) {
+      z = (z << 1) ^ ((z >>> 7) * 0x11d);
+      z ^= ((y >>> i) & 1) * x;
+    }
+    return z & 0xff;
+  }
+
+  function qrRsDivisor(degree) {
+    var result = [];
+    for (var i = 0; i < degree - 1; i += 1) result.push(0);
+    result.push(1);
+    var root = 1;
+    for (var i = 0; i < degree; i += 1) {
+      for (var j = 0; j < result.length; j += 1) {
+        result[j] = qrGfMul(result[j], root);
+        if (j + 1 < result.length) result[j] ^= result[j + 1];
+      }
+      root = qrGfMul(root, 2);
+    }
+    return result;
+  }
+
+  function qrRsRemainder(data, divisor) {
+    var result = [];
+    for (var i = 0; i < divisor.length; i += 1) result.push(0);
+    for (var k = 0; k < data.length; k += 1) {
+      var factor = data[k] ^ result.shift();
+      result.push(0);
+      for (var j = 0; j < divisor.length; j += 1) result[j] ^= qrGfMul(divisor[j], factor);
+    }
+    return result;
+  }
+
+  function qrBch(value, generator, width) {
+    var rem = value;
+    for (var i = 0; i < width; i += 1) rem = (rem << 1) ^ ((rem >>> (width - 1)) * generator);
+    return (value << width) | (rem & ((1 << width) - 1));
+  }
+
+  function qrGrid(size) {
+    var g = [];
+    for (var i = 0; i < size; i += 1) {
+      var row = [];
+      for (var j = 0; j < size; j += 1) row.push(false);
+      g.push(row);
+    }
+    return g;
+  }
+
+  function qrRawModules(version) {
+    var result = (16 * version + 128) * version + 64 - 1;
+    var numAlign = Math.floor(version / 7) + 2;
+    result -= (25 * numAlign - 10) * numAlign - 55;
+    if (version >= 7) result -= 36;
+    return result;
+  }
+
+  function qrEncode(text) {
+    var bytes = qrUtf8(String(text));
+    var version = 0, spec = null, dataCap = 0;
+    for (var v = 1; v <= QR_SPECS.length; v += 1) {
+      var s = QR_SPECS[v - 1], cap = 0;
+      for (var g = 0; g < s[2].length; g += 1) cap += s[2][g][0] * s[2][g][1];
+      if (4 + (v <= 9 ? 8 : 16) + bytes.length * 8 <= cap * 8) { version = v; spec = s; dataCap = cap; break; }
+    }
+    if (!version) return null;
+
+    var bits = [];
+    function pushBits(value, length) {
+      for (var i = length - 1; i >= 0; i -= 1) bits.push(((value >>> i) & 1) === 1);
+    }
+    pushBits(4, 4);
+    pushBits(bytes.length, version <= 9 ? 8 : 16);
+    for (var i = 0; i < bytes.length; i += 1) pushBits(bytes[i], 8);
+    pushBits(0, Math.min(4, dataCap * 8 - bits.length));
+    while (bits.length % 8 !== 0) bits.push(false);
+    for (var pad = 0; bits.length < dataCap * 8; pad += 1) pushBits(pad % 2 === 0 ? 0xec : 0x11, 8);
+
+    var cw = [];
+    for (var i = 0; i < bits.length; i += 8) {
+      var b = 0;
+      for (var j = 0; j < 8; j += 1) b = (b << 1) | (bits[i + j] ? 1 : 0);
+      cw.push(b);
+    }
+    var total = spec[0], eccLen = spec[1], blocks = [], pos = 0;
+    spec[2].forEach(function (group) {
+      for (var n = 0; n < group[0]; n += 1) { blocks.push(cw.slice(pos, pos + group[1])); pos += group[1]; }
+    });
+    var divisor = qrRsDivisor(eccLen);
+    var ecBlocks = blocks.map(function (block) { return qrRsRemainder(block, divisor); });
+    var maxData = blocks.reduce(function (m, block) { return Math.max(m, block.length); }, 0);
+    var interleaved = [];
+    for (var i = 0; i < maxData; i += 1) blocks.forEach(function (block) { if (i < block.length) interleaved.push(block[i]); });
+    for (var i = 0; i < eccLen; i += 1) ecBlocks.forEach(function (block) { interleaved.push(block[i]); });
+
+    var tail = [];
+    for (var i = 0; i < total * 8; i += 1) tail.push(((interleaved[i >>> 3] >>> (7 - (i & 7))) & 1) === 1);
+    while (tail.length < qrRawModules(version)) tail.push(false);
+
+    var size = version * 4 + 17;
+    var isFunc = qrGrid(size), base = qrGrid(size);
+    function reserve(x, y) { if (x >= 0 && x < size && y >= 0 && y < size) isFunc[y][x] = true; }
+    function drawFinder(cx, cy) {
+      for (var dy = -4; dy <= 4; dy += 1) for (var dx = -4; dx <= 4; dx += 1) {
+        var x = cx + dx, y = cy + dy;
+        if (x < 0 || x >= size || y < 0 || y >= size) continue;
+        var d = Math.max(Math.abs(dx), Math.abs(dy));
+        base[y][x] = d !== 2 && d !== 4;
+        reserve(x, y);
+      }
+    }
+    drawFinder(3, 3); drawFinder(size - 4, 3); drawFinder(3, size - 4);
+    for (var i = 8; i < size - 8; i += 1) {
+      base[6][i] = i % 2 === 0; reserve(i, 6);
+      base[i][6] = i % 2 === 0; reserve(6, i);
+    }
+    var centres = QR_ALIGN[version - 1];
+    for (var a = 0; a < centres.length; a += 1) for (var c = 0; c < centres.length; c += 1) {
+      if ((a === 0 && c === 0) || (a === 0 && c === centres.length - 1) || (a === centres.length - 1 && c === 0)) continue;
+      for (var dy = -2; dy <= 2; dy += 1) for (var dx = -2; dx <= 2; dx += 1) {
+        base[centres[c] + dy][centres[a] + dx] = Math.max(Math.abs(dx), Math.abs(dy)) !== 1;
+        reserve(centres[a] + dx, centres[c] + dy);
+      }
+    }
+    for (var i = 0; i < 9; i += 1) { reserve(8, i); reserve(i, 8); }
+    for (var i = 0; i < 8; i += 1) { reserve(size - 1 - i, 8); reserve(8, size - 1 - i); }
+    base[size - 8][8] = true;
+    if (version >= 7) {
+      var versionBits = qrBch(version, 0x1f25, 12);
+      for (var i = 0; i < 18; i += 1) {
+        var bit = ((versionBits >>> i) & 1) === 1;
+        var row = Math.floor(i / 3), col = size - 11 + (i % 3);
+        base[col][row] = bit; reserve(row, col);
+        base[row][col] = bit; reserve(col, row);
+      }
+    }
+
+    var cursor = 0;
+    for (var right = size - 1; right >= 1; right -= 2) {
+      if (right === 6) right = 5;
+      for (var vert = 0; vert < size; vert += 1) {
+        for (var j = 0; j < 2; j += 1) {
+          var x = right - j;
+          var upward = ((right + 1) & 2) === 0;
+          var y = upward ? size - 1 - vert : vert;
+          if (!isFunc[y][x] && cursor < tail.length) { base[y][x] = tail[cursor]; cursor += 1; }
+        }
+      }
+    }
+
+    function maskFn(mask, x, y) {
+      switch (mask) {
+        case 0: return (x + y) % 2 === 0;
+        case 1: return y % 2 === 0;
+        case 2: return x % 3 === 0;
+        case 3: return (x + y) % 3 === 0;
+        case 4: return (Math.floor(x / 3) + Math.floor(y / 2)) % 2 === 0;
+        case 5: return ((x * y) % 2) + ((x * y) % 3) === 0;
+        case 6: return (((x * y) % 2) + ((x * y) % 3)) % 2 === 0;
+        default: return (((x + y) % 2) + ((x * y) % 3)) % 2 === 0;
+      }
+    }
+
+    function withMask(mask) {
+      var grid = base.map(function (row) { return row.slice(); });
+      for (var y = 0; y < size; y += 1) for (var x = 0; x < size; x += 1) {
+        if (!isFunc[y][x] && maskFn(mask, x, y)) grid[y][x] = !grid[y][x];
+      }
+      var format = qrBch(mask, 0x537, 10) ^ 0x5412;
+      function bitAt(i) { return ((format >>> i) & 1) === 1; }
+      for (var i = 0; i <= 5; i += 1) grid[i][8] = bitAt(i);
+      grid[7][8] = bitAt(6);
+      grid[8][8] = bitAt(7);
+      grid[8][7] = bitAt(8);
+      for (var i = 9; i < 15; i += 1) grid[8][14 - i] = bitAt(i);
+      for (var i = 0; i < 8; i += 1) grid[8][size - 1 - i] = bitAt(i);
+      for (var i = 8; i < 15; i += 1) grid[size - 15 + i][8] = bitAt(i);
+      grid[size - 8][8] = true;
+      return grid;
+    }
+
+    function penalty(grid) {
+      var score = 0, dark = 0, n = grid.length;
+      function runs(line) {
+        var run = 1;
+        for (var i = 1; i <= line.length; i += 1) {
+          if (i < line.length && line[i] === line[i - 1]) { run += 1; continue; }
+          if (run >= 5) score += 3 + (run - 5);
+          run = 1;
+        }
+      }
+      function finderLike(line) {
+        for (var i = 0; i + 11 <= line.length; i += 1) {
+          var head = true, after = true;
+          for (var j = 0; j < 7; j += 1) {
+            var expected = j !== 1 && j !== 5;
+            if (line[i + j] !== expected) head = false;
+            if (line[i + 4 + j] !== expected) after = false;
+          }
+          for (var j = 0; j < 4; j += 1) {
+            if (line[i + 7 + j]) after = false;
+            if (line[i + j]) head = false;
+          }
+          if (head || after) score += 40;
+        }
+      }
+      for (var y = 0; y < n; y += 1) {
+        var row = grid[y], col = [];
+        for (var x = 0; x < n; x += 1) {
+          col.push(grid[x][y]);
+          if (grid[y][x]) dark += 1;
+          if (x + 1 < n && y + 1 < n) {
+            var value = grid[y][x];
+            if (value === grid[y][x + 1] && value === grid[y + 1][x] && value === grid[y + 1][x + 1]) score += 3;
+          }
+        }
+        runs(row); runs(col); finderLike(row); finderLike(col);
+      }
+      score += Math.floor(Math.abs((dark * 100) / (n * n) - 50) / 5) * 10;
+      return score;
+    }
+
+    var best = null, bestScore = -1;
+    for (var mask = 0; mask < 8; mask += 1) {
+      var grid = withMask(mask), p = penalty(grid);
+      if (best === null || p < bestScore) { bestScore = p; best = grid; }
+    }
+    return { version: version, size: size, modules: best };
+  }
+
+  function qrSvg(qr) {
+    var quiet = 2, n = qr.size + quiet * 2, d = '';
+    for (var y = 0; y < qr.size; y += 1) {
+      for (var x = 0; x < qr.size;) {
+        if (!qr.modules[y][x]) { x += 1; continue; }
+        var run = 1;
+        while (x + run < qr.size && qr.modules[y][x + run]) run += 1;
+        d += 'M' + (x + quiet) + ' ' + (y + quiet) + 'h' + run + 'v1h' + (-run) + 'z';
+        x += run;
+      }
+    }
+    return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + n + ' ' + n +
+      '" shape-rendering="crispEdges" role="img" aria-label="Pairing QR code">' +
+      '<rect width="' + n + '" height="' + n + '" fill="#ffffff"/>' +
+      '<path d="' + d + '" fill="#04070d"/></svg>';
+  }
+  /* -- QR ENCODER END -- */
+
+  var PAIR_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+  function randomPairCode() {
+    var bytes = null;
+    if (window.crypto && window.crypto.getRandomValues) {
+      try { bytes = new Uint8Array(6); window.crypto.getRandomValues(bytes); } catch (e) { bytes = null; }
+    }
+    var code = '';
+    for (var i = 0; i < 6; i += 1) {
+      var value = bytes ? bytes[i] : Math.floor(Math.random() * 256);
+      code += PAIR_ALPHABET.charAt(value % PAIR_ALPHABET.length);
+    }
+    return code;
+  }
+
+  function pageOrigin() {
+    var origin = window.location.origin;
+    if (!origin || origin === 'null') origin = window.location.protocol + '//' + window.location.host;
+    return origin;
+  }
+
+  /**
+   * A plain link with the code in the fragment - the same shape the app prints, so a
+   * camera on either device opens the other. A custom securewallet:// scheme was
+   * useless outside the app: nothing on a phone claims it, so the scan did nothing.
+   */
+  function pairPayload(code) {
+    return pageOrigin() + '#pair=' + code;
+  }
+
+  function renderPairQr() {
+    var code = storeGet('svp.pairIssue');
+    if (!/^[A-HJ-NP-Z2-9]{6}$/.test(code)) {
+      code = randomPairCode();
+      storeSet('svp.pairIssue', code);
+    }
+    $('svp-qr-code').textContent = code;
+    var frame = $('svp-qr-frame'), note = $('svp-qr-note');
+    var qr = qrEncode(pairPayload(code));
+    if (!qr) {
+      frame.innerHTML = '';
+      note.textContent = 'This address is too long for a QR code. Type these six characters into the app instead.';
+      return;
+    }
+    frame.innerHTML = qrSvg(qr);
+    note.textContent = 'Carries ' + pageOrigin() + ' plus these six characters - no password, no key, no record.';
+  }
+
+  function rotatePairQr() {
+    storeSet('svp.pairIssue', randomPairCode());
+    renderPairQr();
+  }
+
+  function pairCodeFromLink() {
+    var hash = String(window.location.hash || '');
+    var match = hash.match(/(?:^|[#&])pair=([A-HJ-NP-Z2-9]{6})(?:[#&]|$)/i);
+    return match ? match[1].toUpperCase() : '';
+  }
+
+  function renderPairState() {
+    var code = storeGet('svp.pairCode');
+    var when = Number(storeGet('svp.pairTime') || '0');
+    var status = $('svp-pair-status');
+    $('svp-pair-clear').hidden = !code;
+    if (!code) {
+      status.textContent = 'Not paired yet. Scan the QR above with the app, or type the six characters shown by the app here.';
+      return;
+    }
+    status.textContent = 'Paired with code ' + code +
+      (when ? ' · ' + new Date(when).toLocaleString() : '') +
+      ' · change the code in the app to invalidate this one.';
+  }
+
+  function savePairCode() {
+    var raw = String($('svp-pair-code').value || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (!/^[A-HJ-NP-Z2-9]{6}$/.test(raw)) {
+      $('svp-pair-status').textContent = 'Codes are six characters from the app (no I, O or 0).';
+      return;
+    }
+    storeSet('svp.pairCode', raw);
+    storeSet('svp.pairTime', String(Date.now()));
+    $('svp-pair-code').value = raw;
+    renderPairState();
+  }
+
+  function clearPairCode() {
+    try {
+      window.localStorage.removeItem('svp.pairCode');
+      window.localStorage.removeItem('svp.pairTime');
+      window.localStorage.removeItem('svp.pairIssue');
+    } catch (e) { /* private mode */ }
+    $('svp-pair-code').value = '';
+    renderPairState();
+    renderPairQr();
+  }
+
+  function init() {
+    bind();
+    var salt = SEED.salt;
+    var iv = SEED.iv;
+    var ct = SEED.ct;
+    var iterations = Number(SEED.iters);
+    if (isFinite(iterations) && iterations >= 10000) ITERATIONS = iterations;
+    if (salt && iv && ct) {
+      S.envelope = { v: 3, salt: salt, data: iv + '.' + ct };
+      sourceLabel('Sealed snapshot built in · unlock with the password chosen during export');
+    } else {
+      sourceLabel('No snapshot built in. Sign in with Google or open an encrypted backup.');
+    }
+    $('svp-client-id').value = S.clientId;
+    $('svp-origin').textContent = 'Authorised JavaScript origin for this page: ' + window.location.origin;
+    var linked = pairCodeFromLink();
+    if (linked) { storeSet('svp.pairCode', linked); storeSet('svp.pairTime', String(Date.now())); }
+    $('svp-pair-code').value = storeGet('svp.pairCode');
+    renderPairState();
+    renderPairQr();
+    var secure = $('svp-pair-secure');
+    if (window.location.protocol === 'https:') {
+      secure.textContent = 'Served over ' + window.location.origin + ' with a valid TLS certificate — Google sign-in and WebCrypto are enabled here.';
+    } else if (window.isSecureContext) {
+      secure.textContent = 'This is a local preview (' + window.location.origin + '). Publish the blog on its https:// address for Google sign-in to work.';
+    } else {
+      secure.textContent = 'This page is not served over a trusted https certificate, so Google sign-in and WebCrypto refuse it. Open the blog at its https:// address.';
+      secure.style.color = 'var(--coral)';
+    }
+    // Load Google Identity Services up front so the sign-in click stays a real user gesture.
+    if (S.clientId) loadGis(function () {});
+    $('svp-pass').focus();
+    var logNode = $('svp-log');
+    if (logNode) logNode.hidden = true;
+    initLiveMode();
+    updateChip();
+  }
+
+  init();
+})();
+//]]>
+</script>
+</body>
+</html>

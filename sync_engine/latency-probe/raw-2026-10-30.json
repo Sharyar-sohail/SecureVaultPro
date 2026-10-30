@@ -1,0 +1,507 @@
+{
+  "captured": "2026-10-29T19:15:36.593Z",
+  "host": "vault-35423-default-rtdb.asia-southeast1.firebasedatabase.app",
+  "node": "v24.18.0",
+  "samples": 15,
+  "dns": {
+    "lookup": [
+      {
+        "ms": 151.05,
+        "meta": {
+          "address": "35.186.236.207"
+        }
+      },
+      {
+        "ms": 1.84,
+        "meta": {
+          "address": "35.186.236.207"
+        }
+      },
+      {
+        "ms": 0.45,
+        "meta": {
+          "address": "35.186.236.207"
+        }
+      },
+      {
+        "ms": 0.4,
+        "meta": {
+          "address": "35.186.236.207"
+        }
+      },
+      {
+        "ms": 0.38,
+        "meta": {
+          "address": "35.186.236.207"
+        }
+      },
+      {
+        "ms": 0.38,
+        "meta": {
+          "address": "35.186.236.207"
+        }
+      },
+      {
+        "ms": 0.44,
+        "meta": {
+          "address": "35.186.236.207"
+        }
+      },
+      {
+        "ms": 0.38,
+        "meta": {
+          "address": "35.186.236.207"
+        }
+      },
+      {
+        "ms": 0.42,
+        "meta": {
+          "address": "35.186.236.207"
+        }
+      },
+      {
+        "ms": 0.51,
+        "meta": {
+          "address": "35.186.236.207"
+        }
+      },
+      {
+        "ms": 0.37,
+        "meta": {
+          "address": "35.186.236.207"
+        }
+      },
+      {
+        "ms": 0.38,
+        "meta": {
+          "address": "35.186.236.207"
+        }
+      },
+      {
+        "ms": 0.38,
+        "meta": {
+          "address": "35.186.236.207"
+        }
+      },
+      {
+        "ms": 0.35,
+        "meta": {
+          "address": "35.186.236.207"
+        }
+      },
+      {
+        "ms": 0.41,
+        "meta": {
+          "address": "35.186.236.207"
+        }
+      }
+    ],
+    "resolve": [
+      {
+        "ms": 1.52,
+        "meta": {}
+      },
+      {
+        "ms": 4.54,
+        "meta": {}
+      },
+      {
+        "ms": 4.34,
+        "meta": {}
+      },
+      {
+        "ms": 4.4,
+        "meta": {}
+      },
+      {
+        "ms": 4.23,
+        "meta": {}
+      },
+      {
+        "ms": 4.44,
+        "meta": {}
+      },
+      {
+        "ms": 4.34,
+        "meta": {}
+      },
+      {
+        "ms": 4.29,
+        "meta": {}
+      },
+      {
+        "ms": 4.39,
+        "meta": {}
+      },
+      {
+        "ms": 4.45,
+        "meta": {}
+      },
+      {
+        "ms": 4.3,
+        "meta": {}
+      },
+      {
+        "ms": 4.1,
+        "meta": {}
+      },
+      {
+        "ms": 4.21,
+        "meta": {}
+      },
+      {
+        "ms": 4.2,
+        "meta": {}
+      },
+      {
+        "ms": 4.55,
+        "meta": {}
+      }
+    ]
+  },
+  "tcp": [
+    {
+      "ms": 125.62,
+      "meta": {}
+    },
+    {
+      "ms": 121.86,
+      "meta": {}
+    },
+    {
+      "ms": 119.59,
+      "meta": {}
+    },
+    {
+      "ms": 119.85,
+      "meta": {}
+    },
+    {
+      "ms": 121.7,
+      "meta": {}
+    },
+    {
+      "ms": 121.23,
+      "meta": {}
+    },
+    {
+      "ms": 119.31,
+      "meta": {}
+    },
+    {
+      "ms": 122.41,
+      "meta": {}
+    },
+    {
+      "ms": 119.38,
+      "meta": {}
+    },
+    {
+      "ms": 122.77,
+      "meta": {}
+    },
+    {
+      "ms": 118.84,
+      "meta": {}
+    },
+    {
+      "ms": 118.9,
+      "meta": {}
+    },
+    {
+      "ms": 122.8,
+      "meta": {}
+    },
+    {
+      "ms": 123.17,
+      "meta": {}
+    },
+    {
+      "ms": 121.72,
+      "meta": {}
+    }
+  ],
+  "tls": {
+    "versions": {
+      "TLSv1.3": 15
+    },
+    "full": [
+      {
+        "ms": 665.67,
+        "meta": {}
+      },
+      {
+        "ms": 585.55,
+        "meta": {}
+      },
+      {
+        "ms": 592.39,
+        "meta": {}
+      },
+      {
+        "ms": 593.13,
+        "meta": {}
+      },
+      {
+        "ms": 581.92,
+        "meta": {}
+      },
+      {
+        "ms": 581.34,
+        "meta": {}
+      },
+      {
+        "ms": 580.8,
+        "meta": {}
+      },
+      {
+        "ms": 582.65,
+        "meta": {}
+      },
+      {
+        "ms": 587.93,
+        "meta": {}
+      },
+      {
+        "ms": 592.42,
+        "meta": {}
+      },
+      {
+        "ms": 585.3,
+        "meta": {}
+      },
+      {
+        "ms": 588.3,
+        "meta": {}
+      },
+      {
+        "ms": 1030.2,
+        "meta": {}
+      },
+      {
+        "ms": 591.36,
+        "meta": {}
+      },
+      {
+        "ms": 584.85,
+        "meta": {}
+      }
+    ],
+    "resume": {
+      "ms": 617.85,
+      "reused": false,
+      "version": "TLSv1.3"
+    }
+  },
+  "ws": [
+    {
+      "path": "/.ws",
+      "status": 101,
+      "upgradeMs": 458.72,
+      "firstFrameMs": 460.03,
+      "opcode": 1,
+      "len": 103,
+      "acceptOk": true,
+      "err": null
+    },
+    {
+      "path": "/svp1/.ws",
+      "status": 101,
+      "upgradeMs": 453.09,
+      "firstFrameMs": 453.93,
+      "opcode": 1,
+      "len": 103,
+      "acceptOk": true,
+      "err": null
+    },
+    {
+      "path": "/.ws",
+      "status": 101,
+      "upgradeMs": 453.66,
+      "firstFrameMs": 454.04,
+      "opcode": 1,
+      "len": 103,
+      "acceptOk": true,
+      "err": null
+    },
+    {
+      "path": "/svp1/.ws",
+      "status": 101,
+      "upgradeMs": 460.61,
+      "firstFrameMs": 462.05,
+      "opcode": 1,
+      "len": 103,
+      "acceptOk": true,
+      "err": null
+    },
+    {
+      "path": "/.ws",
+      "status": 101,
+      "upgradeMs": 459.22,
+      "firstFrameMs": 459.59,
+      "opcode": 1,
+      "len": 103,
+      "acceptOk": true,
+      "err": null
+    },
+    {
+      "path": "/svp1/.ws",
+      "status": 101,
+      "upgradeMs": 457.03,
+      "firstFrameMs": 457.4,
+      "opcode": 1,
+      "len": 103,
+      "acceptOk": true,
+      "err": null
+    },
+    {
+      "path": "/.ws",
+      "status": 101,
+      "upgradeMs": 462.97,
+      "firstFrameMs": 463.31,
+      "opcode": 1,
+      "len": 103,
+      "acceptOk": true,
+      "err": null
+    },
+    {
+      "path": "/svp1/.ws",
+      "status": 101,
+      "upgradeMs": 458.41,
+      "firstFrameMs": 459.5,
+      "opcode": 1,
+      "len": 103,
+      "acceptOk": true,
+      "err": null
+    },
+    {
+      "path": "/.ws",
+      "status": 101,
+      "upgradeMs": 456.68,
+      "firstFrameMs": 457.04,
+      "opcode": 1,
+      "len": 103,
+      "acceptOk": true,
+      "err": null
+    },
+    {
+      "path": "/svp1/.ws",
+      "status": 101,
+      "upgradeMs": 454.5,
+      "firstFrameMs": 454.88,
+      "opcode": 1,
+      "len": 103,
+      "acceptOk": true,
+      "err": null
+    },
+    {
+      "path": "/.ws",
+      "status": 101,
+      "upgradeMs": 461.18,
+      "firstFrameMs": 461.86,
+      "opcode": 1,
+      "len": 103,
+      "acceptOk": true,
+      "err": null
+    },
+    {
+      "path": "/svp1/.ws",
+      "status": 101,
+      "upgradeMs": 456.29,
+      "firstFrameMs": 456.87,
+      "opcode": 1,
+      "len": 103,
+      "acceptOk": true,
+      "err": null
+    }
+  ],
+  "sse": [
+    {
+      "status": 401,
+      "ttfbMs": 455.46,
+      "err": null
+    },
+    {
+      "status": 401,
+      "ttfbMs": 452.23,
+      "err": null
+    },
+    {
+      "status": 401,
+      "ttfbMs": 457.21,
+      "err": null
+    },
+    {
+      "status": 401,
+      "ttfbMs": 458,
+      "err": null
+    },
+    {
+      "status": 401,
+      "ttfbMs": 453.62,
+      "err": null
+    }
+  ],
+  "summary": [
+    {
+      "name": "dns lookup (cached)",
+      "s": {
+        "n": 15,
+        "min": 0.35,
+        "median": 0.4,
+        "p95": 1.84,
+        "max": 151.05
+      }
+    },
+    {
+      "name": "tcp connect",
+      "s": {
+        "n": 15,
+        "min": 118.84,
+        "median": 121.7,
+        "p95": 123.17,
+        "max": 125.62
+      }
+    },
+    {
+      "name": "tcp+tls full connect",
+      "s": {
+        "n": 15,
+        "min": 580.8,
+        "median": 587.93,
+        "p95": 665.67,
+        "max": 1030.2
+      }
+    },
+    {
+      "name": "ws upgrade->response",
+      "s": {
+        "n": 12,
+        "min": 453.09,
+        "median": 457.03,
+        "p95": 461.18,
+        "max": 462.97
+      }
+    },
+    {
+      "name": "ws -> first server frame",
+      "s": {
+        "n": 12,
+        "min": 453.93,
+        "median": 457.4,
+        "p95": 462.05,
+        "max": 463.31
+      }
+    },
+    {
+      "name": "http event-stream TTFB",
+      "s": {
+        "n": 5,
+        "min": 452.23,
+        "median": 455.46,
+        "p95": 457.21,
+        "max": 458
+      }
+    }
+  ]
+}

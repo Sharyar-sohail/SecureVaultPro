@@ -1,0 +1,6 @@
+<svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><!-- BrokenImage: regular/media-image-xmark -->
+  <path d="M2.939 15.939L9.939 12.939L13.939 14.758" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M15.939 9.939C14.835 9.939 13.939 9.044 13.939 7.939C13.939 6.835 14.835 5.939 15.939 5.939C17.044 5.939 17.939 6.835 17.939 7.939C17.939 9.044 17.044 9.939 15.939 9.939Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M16.818 21.061L18.939 18.939M21.061 16.818L18.939 18.939M18.939 18.939L16.818 16.818M18.939 18.939L21.061 21.061" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M12.939 20.939H3.539C3.208 20.939 2.939 20.671 2.939 20.339V3.539C2.939 3.208 3.208 2.939 3.539 2.939H20.339C20.671 2.939 20.939 3.208 20.939 3.539V12.939" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

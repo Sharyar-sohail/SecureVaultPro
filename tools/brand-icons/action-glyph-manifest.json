@@ -1,0 +1,1121 @@
+{
+  "generatedBy": "build-actions.mjs",
+  "grid": {
+    "box": 24,
+    "liveArea": 20,
+    "steadyWeight": 2,
+    "detailWeight": 1.7,
+    "terminals": "round/round",
+    "detailPathThreshold": 8
+  },
+  "glyphCount": 107,
+  "dock": [
+    {
+      "id": "minimal_bar",
+      "label": "Minimal bar",
+      "w": 360,
+      "h": 64,
+      "blurb": "Edge-to-edge plate with a hairline top rule and no float — the bar is the theme."
+    },
+    {
+      "id": "soft_floating",
+      "label": "Soft floating",
+      "w": 360,
+      "h": 76,
+      "blurb": "Bar lifted off both edges, 20dp corner, with a cast shadow lip under it."
+    },
+    {
+      "id": "pill_frosted",
+      "label": "Pill frosted",
+      "w": 300,
+      "h": 72,
+      "blurb": "Frosted capsule: full round, inner rim, and a sheen raked across the glass."
+    },
+    {
+      "id": "comfort_panel",
+      "label": "Comfort panel",
+      "w": 360,
+      "h": 92,
+      "blurb": "Tall roomy panel, 26dp corner, with four wells cut for the item labels."
+    },
+    {
+      "id": "flat_plate",
+      "label": "Flat plate",
+      "w": 360,
+      "h": 68,
+      "blurb": "Square-cut plate fused to the bottom edge: chamfered top corners, heavy rule."
+    }
+  ],
+  "glyphs": [
+    {
+      "semantic": "AccountBalance",
+      "asset": "ic_a_account_balance",
+      "entry": "accountBalance",
+      "provenance": "regular/bank",
+      "source": "iconoir:regular:bank",
+      "strokes": 7,
+      "weight": 2,
+      "note": ""
+    },
+    {
+      "semantic": "Add",
+      "asset": "ic_a_add",
+      "entry": "add",
+      "provenance": "regular/plus",
+      "source": "iconoir:regular:plus",
+      "strokes": 1,
+      "weight": 2,
+      "note": ""
+    },
+    {
+      "semantic": "ArrowBack",
+      "asset": "ic_a_arrow_back",
+      "entry": "arrowBack",
+      "provenance": "regular/arrow-left",
+      "source": "iconoir:regular:arrow-left",
+      "strokes": 1,
+      "weight": 2,
+      "note": "straight shank, not Material’s tailed back arrow"
+    },
+    {
+      "semantic": "ArrowForward",
+      "asset": "ic_a_arrow_forward",
+      "entry": "arrowForward",
+      "provenance": "regular/arrow-right",
+      "source": "iconoir:regular:arrow-right",
+      "strokes": 1,
+      "weight": 2,
+      "note": ""
+    },
+    {
+      "semantic": "ArrowUpward",
+      "asset": "ic_a_arrow_upward",
+      "entry": "arrowUpward",
+      "provenance": "regular/arrow-up",
+      "source": "iconoir:regular:arrow-up",
+      "strokes": 1,
+      "weight": 2,
+      "note": ""
+    },
+    {
+      "semantic": "AttachFile",
+      "asset": "ic_a_attach_file",
+      "entry": "attachFile",
+      "provenance": "regular/attachment",
+      "source": "iconoir:regular:attachment",
+      "strokes": 1,
+      "weight": 2,
+      "note": ""
+    },
+    {
+      "semantic": "AutoAwesome",
+      "asset": "ic_a_auto_awesome",
+      "entry": "autoAwesome",
+      "provenance": "regular/spark",
+      "source": "iconoir:regular:spark",
+      "strokes": 1,
+      "weight": 2,
+      "note": "four-point sparkle, kept apart from the wand"
+    },
+    {
+      "semantic": "AutoFixHigh",
+      "asset": "ic_a_auto_fix_high",
+      "entry": "autoFixHigh",
+      "provenance": "regular/magic-wand",
+      "source": "iconoir:regular:magic-wand",
+      "strokes": 3,
+      "weight": 2,
+      "note": ""
+    },
+    {
+      "semantic": "Backspace",
+      "asset": "ic_a_backspace",
+      "entry": "backspace",
+      "provenance": "backspace",
+      "source": "house:backspace",
+      "strokes": 3,
+      "weight": 2,
+      "note": "no pack delete-key; left tag with a crossbar"
+    },
+    {
+      "semantic": "Badge",
+      "asset": "ic_a_badge",
+      "entry": "badge",
+      "provenance": "regular/user-badge-check",
+      "source": "iconoir:regular:user-badge-check",
+      "strokes": 4,
+      "weight": 2,
+      "note": ""
+    },
+    {
+      "semantic": "Bolt",
+      "asset": "ic_a_bolt",
+      "entry": "bolt",
+      "provenance": "regular/flash",
+      "source": "iconoir:regular:flash",
+      "strokes": 1,
+      "weight": 2,
+      "note": "bare bolt; FlashOn adds the rays"
+    },
+    {
+      "semantic": "BrokenImage",
+      "asset": "ic_a_broken_image",
+      "entry": "brokenImage",
+      "provenance": "regular/media-image-xmark",
+      "source": "iconoir:regular:media-image-xmark",
+      "strokes": 4,
+      "weight": 2,
+      "note": ""
+    },
+    {
+      "semantic": "CalendarToday",
+      "asset": "ic_a_calendar_today",
+      "entry": "calendarToday",
+      "provenance": "regular/calendar",
+      "source": "iconoir:regular:calendar",
+      "strokes": 4,
+      "weight": 2,
+      "note": ""
+    },
+    {
+      "semantic": "Call",
+      "asset": "ic_a_call",
+      "entry": "call",
+      "provenance": "regular/phone",
+      "source": "iconoir:regular:phone",
+      "strokes": 1,
+      "weight": 2,
+      "note": "the handset; Phone takes the dial pad"
+    },
+    {
+      "semantic": "CameraAlt",
+      "asset": "ic_a_camera_alt",
+      "entry": "cameraAlt",
+      "provenance": "regular/camera",
+      "source": "iconoir:regular:camera",
+      "strokes": 2,
+      "weight": 2,
+      "note": ""
+    },
+    {
+      "semantic": "Chat",
+      "asset": "ic_a_chat",
+      "entry": "chat",
+      "provenance": "regular/chat-bubble",
+      "source": "iconoir:regular:chat-bubble",
+      "strokes": 4,
+      "weight": 2,
+      "note": "empty bubble; Message is the ruled one"
+    },
+    {
+      "semantic": "Check",
+      "asset": "ic_a_check",
+      "entry": "check",
+      "provenance": "regular/check",
+      "source": "iconoir:regular:check",
+      "strokes": 1,
+      "weight": 2,
+      "note": ""
+    },
+    {
+      "semantic": "CheckCircle",
+      "asset": "ic_a_check_circle",
+      "entry": "checkCircle",
+      "provenance": "regular/check-circle",
+      "source": "iconoir:regular:check-circle",
+      "strokes": 2,
+      "weight": 2,
+      "note": ""
+    },
+    {
+      "semantic": "ChevronLeft",
+      "asset": "ic_a_chevron_left",
+      "entry": "chevronLeft",
+      "provenance": "regular/nav-arrow-left",
+      "source": "iconoir:regular:nav-arrow-left",
+      "strokes": 1,
+      "weight": 2,
+      "note": ""
+    },
+    {
+      "semantic": "ChevronRight",
+      "asset": "ic_a_chevron_right",
+      "entry": "chevronRight",
+      "provenance": "regular/nav-arrow-right",
+      "source": "iconoir:regular:nav-arrow-right",
+      "strokes": 1,
+      "weight": 2,
+      "note": ""
+    },
+    {
+      "semantic": "Close",
+      "asset": "ic_a_close",
+      "entry": "close",
+      "provenance": "regular/xmark",
+      "source": "iconoir:regular:xmark",
+      "strokes": 1,
+      "weight": 2,
+      "note": ""
+    },
+    {
+      "semantic": "Cloud",
+      "asset": "ic_a_cloud",
+      "entry": "cloud",
+      "provenance": "regular/cloud",
+      "source": "iconoir:regular:cloud",
+      "strokes": 1,
+      "weight": 2,
+      "note": ""
+    },
+    {
+      "semantic": "CloudDone",
+      "asset": "ic_a_cloud_done",
+      "entry": "cloudDone",
+      "provenance": "regular/cloud-check",
+      "source": "iconoir:regular:cloud-check",
+      "strokes": 2,
+      "weight": 2,
+      "note": ""
+    },
+    {
+      "semantic": "CloudDownload",
+      "asset": "ic_a_cloud_download",
+      "entry": "cloudDownload",
+      "provenance": "regular/cloud-download",
+      "source": "iconoir:regular:cloud-download",
+      "strokes": 2,
+      "weight": 2,
+      "note": ""
+    },
+    {
+      "semantic": "CloudOff",
+      "asset": "ic_a_cloud_off",
+      "entry": "cloudOff",
+      "provenance": "regular/cloud-xmark",
+      "source": "iconoir:regular:cloud-xmark",
+      "strokes": 2,
+      "weight": 2,
+      "note": ""
+    },
+    {
+      "semantic": "CloudUpload",
+      "asset": "ic_a_cloud_upload",
+      "entry": "cloudUpload",
+      "provenance": "regular/cloud-upload",
+      "source": "iconoir:regular:cloud-upload",
+      "strokes": 2,
+      "weight": 2,
+      "note": ""
+    },
+    {
+      "semantic": "Contactless",
+      "asset": "ic_a_contactless",
+      "entry": "contactless",
+      "provenance": "regular/contactless",
+      "source": "iconoir:regular:contactless",
+      "strokes": 4,
+      "weight": 2,
+      "note": ""
+    },
+    {
+      "semantic": "Contacts",
+      "asset": "ic_a_contacts",
+      "entry": "contacts",
+      "provenance": "regular/user-circle",
+      "source": "iconoir:regular:user-circle",
+      "strokes": 2,
+      "weight": 2,
+      "note": "ringed head; Person is the bare one"
+    },
+    {
+      "semantic": "ContentCopy",
+      "asset": "ic_a_content_copy",
+      "entry": "contentCopy",
+      "provenance": "regular/copy",
+      "source": "iconoir:regular:copy",
+      "strokes": 2,
+      "weight": 2,
+      "note": ""
+    },
+    {
+      "semantic": "ContentPaste",
+      "asset": "ic_a_content_paste",
+      "entry": "contentPaste",
+      "provenance": "regular/paste-clipboard",
+      "source": "iconoir:regular:paste-clipboard",
+      "strokes": 2,
+      "weight": 2,
+      "note": ""
+    },
+    {
+      "semantic": "CreditCard",
+      "asset": "ic_a_credit_card",
+      "entry": "creditCard",
+      "provenance": "regular/credit-card",
+      "source": "iconoir:regular:credit-card",
+      "strokes": 1,
+      "weight": 2,
+      "note": ""
+    },
+    {
+      "semantic": "CropFree",
+      "asset": "ic_a_crop_free",
+      "entry": "cropFree",
+      "provenance": "regular/crop",
+      "source": "iconoir:regular:crop",
+      "strokes": 2,
+      "weight": 2,
+      "note": "free crop brackets, no guide lines"
+    },
+    {
+      "semantic": "CurrencyBitcoin",
+      "asset": "ic_a_currency_bitcoin",
+      "entry": "currencyBitcoin",
+      "provenance": "regular/bitcoin-circle",
+      "source": "iconoir:regular:bitcoin-circle",
+      "strokes": 4,
+      "weight": 2,
+      "note": ""
+    },
+    {
+      "semantic": "DarkMode",
+      "asset": "ic_a_dark_mode",
+      "entry": "darkMode",
+      "provenance": "regular/half-moon",
+      "source": "iconoir:regular:half-moon",
+      "strokes": 1,
+      "weight": 2,
+      "note": ""
+    },
+    {
+      "semantic": "Delete",
+      "asset": "ic_a_delete",
+      "entry": "delete",
+      "provenance": "regular/trash",
+      "source": "iconoir:regular:trash",
+      "strokes": 2,
+      "weight": 2,
+      "note": ""
+    },
+    {
+      "semantic": "Description",
+      "asset": "ic_a_description",
+      "entry": "description",
+      "provenance": "regular/page",
+      "source": "iconoir:regular:page",
+      "strokes": 5,
+      "weight": 2,
+      "note": "ruled document; InsertDriveFile is the blank one"
+    },
+    {
+      "semantic": "DirectionsCar",
+      "asset": "ic_a_directions_car",
+      "entry": "directionsCar",
+      "provenance": "regular/car",
+      "source": "iconoir:regular:car",
+      "strokes": 4,
+      "weight": 2,
+      "note": ""
+    },
+    {
+      "semantic": "DocumentScanner",
+      "asset": "ic_a_document_scanner",
+      "entry": "documentScanner",
+      "provenance": "regular/scanning",
+      "source": "iconoir:regular:scanning",
+      "strokes": 9,
+      "weight": 1.7,
+      "note": "frame with the scan bar mid-travel"
+    },
+    {
+      "semantic": "DoneAll",
+      "asset": "ic_a_done_all",
+      "entry": "doneAll",
+      "provenance": "regular/double-check",
+      "source": "iconoir:regular:double-check",
+      "strokes": 3,
+      "weight": 2,
+      "note": ""
+    },
+    {
+      "semantic": "Download",
+      "asset": "ic_a_download",
+      "entry": "download",
+      "provenance": "regular/download",
+      "source": "iconoir:regular:download",
+      "strokes": 2,
+      "weight": 2,
+      "note": "arrow to the rule; the file members add a tray"
+    },
+    {
+      "semantic": "Edit",
+      "asset": "ic_a_edit",
+      "entry": "edit",
+      "provenance": "regular/edit-pencil",
+      "source": "iconoir:regular:edit-pencil",
+      "strokes": 1,
+      "weight": 2,
+      "note": ""
+    },
+    {
+      "semantic": "Email",
+      "asset": "ic_a_email",
+      "entry": "email",
+      "provenance": "regular/mail",
+      "source": "iconoir:regular:mail",
+      "strokes": 2,
+      "weight": 2,
+      "note": ""
+    },
+    {
+      "semantic": "ErrorOutline",
+      "asset": "ic_a_error_outline",
+      "entry": "errorOutline",
+      "provenance": "regular/xmark-circle",
+      "source": "iconoir:regular:xmark-circle",
+      "strokes": 4,
+      "weight": 2,
+      "note": "ring plus the cross, Material ErrorOutline semantics"
+    },
+    {
+      "semantic": "ExpandLess",
+      "asset": "ic_a_expand_less",
+      "entry": "expandLess",
+      "provenance": "regular/nav-arrow-up",
+      "source": "iconoir:regular:nav-arrow-up",
+      "strokes": 1,
+      "weight": 2,
+      "note": "plain chevron; ArrowUpward keeps the shank"
+    },
+    {
+      "semantic": "ExpandMore",
+      "asset": "ic_a_expand_more",
+      "entry": "expandMore",
+      "provenance": "regular/nav-arrow-down",
+      "source": "iconoir:regular:nav-arrow-down",
+      "strokes": 1,
+      "weight": 2,
+      "note": ""
+    },
+    {
+      "semantic": "FileDownload",
+      "asset": "ic_a_file_download",
+      "entry": "fileDownload",
+      "provenance": "regular/download-square",
+      "source": "iconoir:regular:download-square",
+      "strokes": 3,
+      "weight": 2,
+      "note": "tray device, set apart from plain Download"
+    },
+    {
+      "semantic": "FileUpload",
+      "asset": "ic_a_file_upload",
+      "entry": "fileUpload",
+      "provenance": "regular/upload-square",
+      "source": "iconoir:regular:upload-square",
+      "strokes": 3,
+      "weight": 2,
+      "note": "tray device, set apart from plain Upload"
+    },
+    {
+      "semantic": "Fingerprint",
+      "asset": "ic_a_fingerprint",
+      "entry": "fingerprint",
+      "provenance": "regular/fingerprint",
+      "source": "iconoir:regular:fingerprint",
+      "strokes": 9,
+      "weight": 1.7,
+      "note": ""
+    },
+    {
+      "semantic": "FlashOn",
+      "asset": "ic_a_flash_on",
+      "entry": "flashOn",
+      "provenance": "flashOn",
+      "source": "house:flashOn",
+      "strokes": 3,
+      "weight": 2,
+      "note": "torch with rays, so it is not a second copy of Bolt"
+    },
+    {
+      "semantic": "Folder",
+      "asset": "ic_a_folder",
+      "entry": "folder",
+      "provenance": "regular/folder",
+      "source": "iconoir:regular:folder",
+      "strokes": 1,
+      "weight": 2,
+      "note": ""
+    },
+    {
+      "semantic": "FolderOpen",
+      "asset": "ic_a_folder_open",
+      "entry": "folderOpen",
+      "provenance": "folderOpen",
+      "source": "house:folderOpen",
+      "strokes": 2,
+      "weight": 2,
+      "note": "no pack open folder; drawn to match Folder’s tab"
+    },
+    {
+      "semantic": "GridOn",
+      "asset": "ic_a_grid_on",
+      "entry": "gridOn",
+      "provenance": "regular/view-grid",
+      "source": "iconoir:regular:view-grid",
+      "strokes": 4,
+      "weight": 2,
+      "note": ""
+    },
+    {
+      "semantic": "HealthAndSafety",
+      "asset": "ic_a_health_and_safety",
+      "entry": "healthAndSafety",
+      "provenance": "regular/health-shield",
+      "source": "iconoir:regular:health-shield",
+      "strokes": 2,
+      "weight": 2,
+      "note": ""
+    },
+    {
+      "semantic": "Home",
+      "asset": "ic_a_home",
+      "entry": "home",
+      "provenance": "regular/home",
+      "source": "iconoir:regular:home",
+      "strokes": 2,
+      "weight": 2,
+      "note": ""
+    },
+    {
+      "semantic": "Image",
+      "asset": "ic_a_image",
+      "entry": "image",
+      "provenance": "regular/media-image",
+      "source": "iconoir:regular:media-image",
+      "strokes": 3,
+      "weight": 2,
+      "note": ""
+    },
+    {
+      "semantic": "Info",
+      "asset": "ic_a_info",
+      "entry": "info",
+      "provenance": "regular/info-circle",
+      "source": "iconoir:regular:info-circle",
+      "strokes": 3,
+      "weight": 2,
+      "note": ""
+    },
+    {
+      "semantic": "InsertDriveFile",
+      "asset": "ic_a_insert_drive_file",
+      "entry": "insertDriveFile",
+      "provenance": "regular/empty-page",
+      "source": "iconoir:regular:empty-page",
+      "strokes": 2,
+      "weight": 2,
+      "note": ""
+    },
+    {
+      "semantic": "Insights",
+      "asset": "ic_a_insights",
+      "entry": "insights",
+      "provenance": "regular/stats-report",
+      "source": "iconoir:regular:stats-report",
+      "strokes": 5,
+      "weight": 2,
+      "note": ""
+    },
+    {
+      "semantic": "Key",
+      "asset": "ic_a_key",
+      "entry": "key",
+      "provenance": "regular/key",
+      "source": "iconoir:regular:key",
+      "strokes": 2,
+      "weight": 2,
+      "note": ""
+    },
+    {
+      "semantic": "Language",
+      "asset": "ic_a_language",
+      "entry": "language",
+      "provenance": "regular/translate",
+      "source": "iconoir:regular:translate",
+      "strokes": 2,
+      "weight": 2,
+      "note": "the A/文 device; Public keeps the globe"
+    },
+    {
+      "semantic": "LightMode",
+      "asset": "ic_a_light_mode",
+      "entry": "lightMode",
+      "provenance": "regular/sun-light",
+      "source": "iconoir:regular:sun-light",
+      "strokes": 9,
+      "weight": 1.7,
+      "note": ""
+    },
+    {
+      "semantic": "Link",
+      "asset": "ic_a_link",
+      "entry": "link",
+      "provenance": "regular/link",
+      "source": "iconoir:regular:link",
+      "strokes": 2,
+      "weight": 2,
+      "note": ""
+    },
+    {
+      "semantic": "LocationOn",
+      "asset": "ic_a_location_on",
+      "entry": "locationOn",
+      "provenance": "locationOn",
+      "source": "house:locationOn",
+      "strokes": 2,
+      "weight": 2,
+      "note": "marker carrying the lit dot; Pin is hollow"
+    },
+    {
+      "semantic": "Lock",
+      "asset": "ic_a_lock",
+      "entry": "lock",
+      "provenance": "regular/lock",
+      "source": "iconoir:regular:lock",
+      "strokes": 1,
+      "weight": 2,
+      "note": ""
+    },
+    {
+      "semantic": "Memory",
+      "asset": "ic_a_memory",
+      "entry": "memory",
+      "provenance": "regular/cpu",
+      "source": "iconoir:regular:cpu",
+      "strokes": 14,
+      "weight": 1.7,
+      "note": ""
+    },
+    {
+      "semantic": "Message",
+      "asset": "ic_a_message",
+      "entry": "message",
+      "provenance": "regular/chat-lines",
+      "source": "iconoir:regular:chat-lines",
+      "strokes": 3,
+      "weight": 2,
+      "note": "ruled bubble; Chat is the empty one"
+    },
+    {
+      "semantic": "Mic",
+      "asset": "ic_a_mic",
+      "entry": "mic",
+      "provenance": "regular/microphone",
+      "source": "iconoir:regular:microphone",
+      "strokes": 2,
+      "weight": 2,
+      "note": ""
+    },
+    {
+      "semantic": "MusicNote",
+      "asset": "ic_a_music_note",
+      "entry": "musicNote",
+      "provenance": "regular/music-note",
+      "source": "iconoir:regular:music-note",
+      "strokes": 1,
+      "weight": 2,
+      "note": ""
+    },
+    {
+      "semantic": "Notes",
+      "asset": "ic_a_notes",
+      "entry": "notes",
+      "provenance": "regular/notes",
+      "source": "iconoir:regular:notes",
+      "strokes": 4,
+      "weight": 2,
+      "note": ""
+    },
+    {
+      "semantic": "OpenInNew",
+      "asset": "ic_a_open_in_new",
+      "entry": "openInNew",
+      "provenance": "regular/open-new-window",
+      "source": "iconoir:regular:open-new-window",
+      "strokes": 2,
+      "weight": 2,
+      "note": ""
+    },
+    {
+      "semantic": "Palette",
+      "asset": "ic_a_palette",
+      "entry": "palette",
+      "provenance": "regular/palette",
+      "source": "iconoir:regular:palette",
+      "strokes": 6,
+      "weight": 2,
+      "note": ""
+    },
+    {
+      "semantic": "Person",
+      "asset": "ic_a_person",
+      "entry": "person",
+      "provenance": "regular/user",
+      "source": "iconoir:regular:user",
+      "strokes": 2,
+      "weight": 2,
+      "note": ""
+    },
+    {
+      "semantic": "Phone",
+      "asset": "ic_a_phone",
+      "entry": "phone",
+      "provenance": "regular/dialpad",
+      "source": "iconoir:regular:dialpad",
+      "strokes": 10,
+      "weight": 2,
+      "note": "the number pad, so it is not a second handset"
+    },
+    {
+      "semantic": "PhotoLibrary",
+      "asset": "ic_a_photo_library",
+      "entry": "photoLibrary",
+      "provenance": "regular/media-image-list",
+      "source": "iconoir:regular:media-image-list",
+      "strokes": 4,
+      "weight": 2,
+      "note": "stacked frames; Image is the single one"
+    },
+    {
+      "semantic": "PictureAsPdf",
+      "asset": "ic_a_picture_as_pdf",
+      "entry": "pictureAsPdf",
+      "provenance": "pictureAsPdf",
+      "source": "house:pictureAsPdf",
+      "strokes": 4,
+      "weight": 2,
+      "note": "a page carrying an image tile"
+    },
+    {
+      "semantic": "Pin",
+      "asset": "ic_a_pin",
+      "entry": "pin",
+      "provenance": "regular/map-pin",
+      "source": "iconoir:regular:map-pin",
+      "strokes": 2,
+      "weight": 2,
+      "note": "hollow marker; LocationOn adds the dot"
+    },
+    {
+      "semantic": "PlayArrow",
+      "asset": "ic_a_play_arrow",
+      "entry": "playArrow",
+      "provenance": "regular/play",
+      "source": "iconoir:regular:play",
+      "strokes": 1,
+      "weight": 2,
+      "note": ""
+    },
+    {
+      "semantic": "Public",
+      "asset": "ic_a_public",
+      "entry": "publicGlobe",
+      "provenance": "regular/globe",
+      "source": "iconoir:regular:globe",
+      "strokes": 5,
+      "weight": 2,
+      "note": ""
+    },
+    {
+      "semantic": "PushPin",
+      "asset": "ic_a_push_pin",
+      "entry": "pushPin",
+      "provenance": "regular/pin",
+      "source": "iconoir:regular:pin",
+      "strokes": 2,
+      "weight": 2,
+      "note": "the thumbtack, which is what a push pin is"
+    },
+    {
+      "semantic": "QrCode",
+      "asset": "ic_a_qr_code",
+      "entry": "qrCode",
+      "provenance": "regular/qr-code",
+      "source": "iconoir:regular:qr-code",
+      "strokes": 20,
+      "weight": 1.7,
+      "note": ""
+    },
+    {
+      "semantic": "QrCodeScanner",
+      "asset": "ic_a_qr_code_scanner",
+      "entry": "qrCodeScanner",
+      "provenance": "regular/scan-qr-code",
+      "source": "iconoir:regular:scan-qr-code",
+      "strokes": 17,
+      "weight": 1.7,
+      "note": "QR inside the capture corners"
+    },
+    {
+      "semantic": "Refresh",
+      "asset": "ic_a_refresh",
+      "entry": "refresh",
+      "provenance": "regular/refresh",
+      "source": "iconoir:regular:refresh",
+      "strokes": 2,
+      "weight": 2,
+      "note": "one circular arrow; Sync is the pair"
+    },
+    {
+      "semantic": "Replay",
+      "asset": "ic_a_replay",
+      "entry": "replay",
+      "provenance": "regular/restart",
+      "source": "iconoir:regular:restart",
+      "strokes": 3,
+      "weight": 2,
+      "note": "the rewind loop, distinct from Refresh"
+    },
+    {
+      "semantic": "Search",
+      "asset": "ic_a_search",
+      "entry": "search",
+      "provenance": "regular/search",
+      "source": "iconoir:regular:search",
+      "strokes": 2,
+      "weight": 2,
+      "note": ""
+    },
+    {
+      "semantic": "Security",
+      "asset": "ic_a_security",
+      "entry": "security",
+      "provenance": "regular/shield-check",
+      "source": "iconoir:regular:shield-check",
+      "strokes": 2,
+      "weight": 2,
+      "note": "Shield is the bare one"
+    },
+    {
+      "semantic": "Send",
+      "asset": "ic_a_send",
+      "entry": "send",
+      "provenance": "regular/send",
+      "source": "iconoir:regular:send",
+      "strokes": 2,
+      "weight": 2,
+      "note": ""
+    },
+    {
+      "semantic": "Settings",
+      "asset": "ic_a_settings",
+      "entry": "settings",
+      "provenance": "regular/settings",
+      "source": "iconoir:regular:settings",
+      "strokes": 2,
+      "weight": 2,
+      "note": ""
+    },
+    {
+      "semantic": "Share",
+      "asset": "ic_a_share",
+      "entry": "share",
+      "provenance": "regular/share-android",
+      "source": "iconoir:regular:share-android",
+      "strokes": 5,
+      "weight": 2,
+      "note": "three-node share, closest to the semantic"
+    },
+    {
+      "semantic": "Shield",
+      "asset": "ic_a_shield",
+      "entry": "shield",
+      "provenance": "regular/shield",
+      "source": "iconoir:regular:shield",
+      "strokes": 1,
+      "weight": 2,
+      "note": ""
+    },
+    {
+      "semantic": "Shuffle",
+      "asset": "ic_a_shuffle",
+      "entry": "shuffle",
+      "provenance": "regular/shuffle",
+      "source": "iconoir:regular:shuffle",
+      "strokes": 4,
+      "weight": 2,
+      "note": ""
+    },
+    {
+      "semantic": "Star",
+      "asset": "ic_a_star",
+      "entry": "star",
+      "provenance": "solid/star",
+      "source": "iconoir:solid:star",
+      "strokes": 1,
+      "weight": 2,
+      "note": "the filled half of the Star / StarBorder pair"
+    },
+    {
+      "semantic": "StarBorder",
+      "asset": "ic_a_star_border",
+      "entry": "starBorder",
+      "provenance": "regular/star",
+      "source": "iconoir:regular:star",
+      "strokes": 1,
+      "weight": 2,
+      "note": "the outlined half of the pair"
+    },
+    {
+      "semantic": "Stop",
+      "asset": "ic_a_stop",
+      "entry": "stop",
+      "provenance": "stop",
+      "source": "house:stop",
+      "strokes": 1,
+      "weight": 2,
+      "note": "solid square — the meaning is mass, not outline"
+    },
+    {
+      "semantic": "Sync",
+      "asset": "ic_a_sync",
+      "entry": "sync",
+      "provenance": "regular/refresh-double",
+      "source": "iconoir:regular:refresh-double",
+      "strokes": 4,
+      "weight": 2,
+      "note": ""
+    },
+    {
+      "semantic": "SystemUpdate",
+      "asset": "ic_a_system_update",
+      "entry": "systemUpdate",
+      "provenance": "systemUpdate",
+      "source": "house:systemUpdate",
+      "strokes": 3,
+      "weight": 2,
+      "note": "arrow into the device rule"
+    },
+    {
+      "semantic": "TextFields",
+      "asset": "ic_a_text_fields",
+      "entry": "textFields",
+      "provenance": "regular/text",
+      "source": "iconoir:regular:text",
+      "strokes": 2,
+      "weight": 2,
+      "note": ""
+    },
+    {
+      "semantic": "Timer",
+      "asset": "ic_a_timer",
+      "entry": "timer",
+      "provenance": "regular/timer",
+      "source": "iconoir:regular:timer",
+      "strokes": 3,
+      "weight": 2,
+      "note": ""
+    },
+    {
+      "semantic": "TravelExplore",
+      "asset": "ic_a_travel_explore",
+      "entry": "travelExplore",
+      "provenance": "regular/compass",
+      "source": "iconoir:regular:compass",
+      "strokes": 2,
+      "weight": 2,
+      "note": "Public is the globe; this is the bearing"
+    },
+    {
+      "semantic": "Upload",
+      "asset": "ic_a_upload",
+      "entry": "upload",
+      "provenance": "regular/upload",
+      "source": "iconoir:regular:upload",
+      "strokes": 2,
+      "weight": 2,
+      "note": ""
+    },
+    {
+      "semantic": "UploadFile",
+      "asset": "ic_a_upload_file",
+      "entry": "uploadFile",
+      "provenance": "regular/upload-data-window",
+      "source": "iconoir:regular:upload-data-window",
+      "strokes": 6,
+      "weight": 2,
+      "note": "the data window, third upload member"
+    },
+    {
+      "semantic": "Vibration",
+      "asset": "ic_a_vibration",
+      "entry": "vibration",
+      "provenance": "vibration",
+      "source": "house:vibration",
+      "strokes": 6,
+      "weight": 2,
+      "note": "no pack vibrate; device plus both wave arcs"
+    },
+    {
+      "semantic": "Videocam",
+      "asset": "ic_a_videocam",
+      "entry": "videocam",
+      "provenance": "regular/video-camera",
+      "source": "iconoir:regular:video-camera",
+      "strokes": 1,
+      "weight": 2,
+      "note": ""
+    },
+    {
+      "semantic": "Visibility",
+      "asset": "ic_a_visibility",
+      "entry": "visibility",
+      "provenance": "regular/eye",
+      "source": "iconoir:regular:eye",
+      "strokes": 2,
+      "weight": 2,
+      "note": ""
+    },
+    {
+      "semantic": "VisibilityOff",
+      "asset": "ic_a_visibility_off",
+      "entry": "visibilityOff",
+      "provenance": "regular/eye-closed",
+      "source": "iconoir:regular:eye-closed",
+      "strokes": 4,
+      "weight": 2,
+      "note": ""
+    },
+    {
+      "semantic": "VolumeUp",
+      "asset": "ic_a_volume_up",
+      "entry": "volumeUp",
+      "provenance": "regular/sound-high",
+      "source": "iconoir:regular:sound-high",
+      "strokes": 3,
+      "weight": 2,
+      "note": ""
+    },
+    {
+      "semantic": "Warning",
+      "asset": "ic_a_warning",
+      "entry": "warning",
+      "provenance": "regular/warning-triangle",
+      "source": "iconoir:regular:warning-triangle",
+      "strokes": 3,
+      "weight": 2,
+      "note": ""
+    },
+    {
+      "semantic": "WarningAmber",
+      "asset": "ic_a_warning_amber",
+      "entry": "warningAmber",
+      "provenance": "regular/warning-hexagon",
+      "source": "iconoir:regular:warning-hexagon",
+      "strokes": 5,
+      "weight": 2,
+      "note": "hazard plate, so the two cautions stay apart"
+    }
+  ]
+}

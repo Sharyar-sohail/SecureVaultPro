@@ -1,0 +1,349 @@
+{
+  "module": "notes",
+  "contract": "SPEC-v1.md #Conflict rule + RECORD-FORMAT-v1.md #4",
+  "clockBase": 1730000000000,
+  "nodeFields": [
+    "e",
+    "u",
+    "r",
+    "d"
+  ],
+  "recordKeys": [
+    "id",
+    "title",
+    "content",
+    "isPinned",
+    "color",
+    "tagsJson",
+    "createdAt",
+    "updatedAt"
+  ],
+  "cases": [
+    {
+      "name": "remote_newer_live",
+      "local": {
+        "e": "AAA=.placeholder-not-a-real-seal",
+        "u": 1730000060000,
+        "r": 11,
+        "d": null
+      },
+      "incoming": {
+        "e": "AAA=.placeholder-not-a-real-seal",
+        "u": 1730000120000,
+        "r": 12,
+        "d": null
+      },
+      "expected": {
+        "outcome": "APPLIED_REMOTE",
+        "decision": "APPLIED_REMOTE",
+        "applyRemote": true,
+        "remoteDropped": false,
+        "deleteWins": false,
+        "nodeAccepted": true,
+        "reason": "see sync_engine/RECORD-FORMAT-v1.md #4"
+      }
+    },
+    {
+      "name": "remote_newer_tombstone",
+      "local": {
+        "e": "AAA=.placeholder-not-a-real-seal",
+        "u": 1730000060000,
+        "r": 11,
+        "d": null
+      },
+      "incoming": {
+        "e": "AAA=.placeholder-not-a-real-seal",
+        "u": 1730000120000,
+        "r": 12,
+        "d": 1730000120000
+      },
+      "expected": {
+        "outcome": "APPLIED_TOMBSTONE",
+        "decision": "APPLIED_TOMBSTONE",
+        "applyRemote": true,
+        "remoteDropped": false,
+        "deleteWins": true,
+        "nodeAccepted": true,
+        "reason": "see sync_engine/RECORD-FORMAT-v1.md #4"
+      }
+    },
+    {
+      "name": "remote_older_higher_r_never_wins",
+      "local": {
+        "e": "AAA=.placeholder-not-a-real-seal",
+        "u": 1730000060000,
+        "r": 11,
+        "d": null
+      },
+      "incoming": {
+        "e": "AAA=.placeholder-not-a-real-seal",
+        "u": 1730000000000,
+        "r": 12,
+        "d": null
+      },
+      "expected": {
+        "outcome": "REJECTED_OLDER",
+        "decision": "KEPT_LOCAL_OLDER_REMOTE",
+        "applyRemote": false,
+        "remoteDropped": true,
+        "deleteWins": false,
+        "nodeAccepted": true,
+        "reason": "see sync_engine/RECORD-FORMAT-v1.md #4"
+      }
+    },
+    {
+      "name": "equal_u_higher_r_live",
+      "local": {
+        "e": "AAA=.placeholder-not-a-real-seal",
+        "u": 1730000060000,
+        "r": 11,
+        "d": null
+      },
+      "incoming": {
+        "e": "AAA=.placeholder-not-a-real-seal",
+        "u": 1730000060000,
+        "r": 12,
+        "d": null
+      },
+      "expected": {
+        "outcome": "APPLIED_REMOTE",
+        "decision": "APPLIED_REMOTE",
+        "applyRemote": true,
+        "remoteDropped": false,
+        "deleteWins": false,
+        "nodeAccepted": true,
+        "reason": "see sync_engine/RECORD-FORMAT-v1.md #4"
+      }
+    },
+    {
+      "name": "equal_u_lower_r_live",
+      "local": {
+        "e": "AAA=.placeholder-not-a-real-seal",
+        "u": 1730000060000,
+        "r": 11,
+        "d": null
+      },
+      "incoming": {
+        "e": "AAA=.placeholder-not-a-real-seal",
+        "u": 1730000060000,
+        "r": 10,
+        "d": null
+      },
+      "expected": {
+        "outcome": "KEPT_LOCAL_NEWER",
+        "decision": "KEPT_LOCAL_TIE",
+        "applyRemote": false,
+        "remoteDropped": true,
+        "deleteWins": false,
+        "nodeAccepted": true,
+        "reason": "see sync_engine/RECORD-FORMAT-v1.md #4"
+      }
+    },
+    {
+      "name": "equal_u_identical_node",
+      "local": {
+        "e": "AAA=.placeholder-not-a-real-seal",
+        "u": 1730000060000,
+        "r": 11,
+        "d": null
+      },
+      "incoming": {
+        "e": "AAA=.placeholder-not-a-real-seal",
+        "u": 1730000060000,
+        "r": 11,
+        "d": null
+      },
+      "expected": {
+        "outcome": "KEPT_LOCAL_NEWER",
+        "decision": "KEPT_LOCAL_TIE",
+        "applyRemote": false,
+        "remoteDropped": true,
+        "deleteWins": false,
+        "nodeAccepted": true,
+        "reason": "see sync_engine/RECORD-FORMAT-v1.md #4"
+      }
+    },
+    {
+      "name": "equal_u_remote_tombstone_beats_live",
+      "local": {
+        "e": "AAA=.placeholder-not-a-real-seal",
+        "u": 1730000060000,
+        "r": 11,
+        "d": null
+      },
+      "incoming": {
+        "e": "AAA=.placeholder-not-a-real-seal",
+        "u": 1730000060000,
+        "r": 10,
+        "d": 1730000060000
+      },
+      "expected": {
+        "outcome": "APPLIED_TOMBSTONE",
+        "decision": "APPLIED_TOMBSTONE",
+        "applyRemote": true,
+        "remoteDropped": false,
+        "deleteWins": true,
+        "nodeAccepted": true,
+        "reason": "see sync_engine/RECORD-FORMAT-v1.md #4"
+      }
+    },
+    {
+      "name": "equal_u_local_tombstone_beats_live_remote",
+      "local": {
+        "e": "AAA=.placeholder-not-a-real-seal",
+        "u": 1730000060000,
+        "r": 10,
+        "d": 1730000060000
+      },
+      "incoming": {
+        "e": "AAA=.placeholder-not-a-real-seal",
+        "u": 1730000060000,
+        "r": 12,
+        "d": null
+      },
+      "expected": {
+        "outcome": "KEPT_LOCAL_NEWER",
+        "decision": "KEPT_LOCAL_TIE",
+        "applyRemote": false,
+        "remoteDropped": true,
+        "deleteWins": true,
+        "nodeAccepted": true,
+        "reason": "see sync_engine/RECORD-FORMAT-v1.md #4"
+      }
+    },
+    {
+      "name": "equal_u_both_tombstones_higher_r_wins",
+      "local": {
+        "e": "AAA=.placeholder-not-a-real-seal",
+        "u": 1730000060000,
+        "r": 10,
+        "d": 1730000060000
+      },
+      "incoming": {
+        "e": "AAA=.placeholder-not-a-real-seal",
+        "u": 1730000060000,
+        "r": 12,
+        "d": 1730000060000
+      },
+      "expected": {
+        "outcome": "APPLIED_TOMBSTONE",
+        "decision": "APPLIED_TOMBSTONE",
+        "applyRemote": true,
+        "remoteDropped": false,
+        "deleteWins": true,
+        "nodeAccepted": true,
+        "reason": "see sync_engine/RECORD-FORMAT-v1.md #4"
+      }
+    },
+    {
+      "name": "no_local_live",
+      "local": null,
+      "incoming": {
+        "e": "AAA=.placeholder-not-a-real-seal",
+        "u": 1730000060000,
+        "r": 11,
+        "d": null
+      },
+      "expected": {
+        "outcome": "APPLIED_REMOTE",
+        "decision": "APPLIED_REMOTE",
+        "applyRemote": true,
+        "remoteDropped": false,
+        "deleteWins": false,
+        "nodeAccepted": true,
+        "reason": "see sync_engine/RECORD-FORMAT-v1.md #4"
+      }
+    },
+    {
+      "name": "no_local_tombstone",
+      "local": null,
+      "incoming": {
+        "e": "AAA=.placeholder-not-a-real-seal",
+        "u": 1730000120000,
+        "r": 12,
+        "d": 1730000120000
+      },
+      "expected": {
+        "outcome": "APPLIED_TOMBSTONE",
+        "decision": "APPLIED_TOMBSTONE",
+        "applyRemote": true,
+        "remoteDropped": false,
+        "deleteWins": true,
+        "nodeAccepted": true,
+        "reason": "see sync_engine/RECORD-FORMAT-v1.md #4"
+      }
+    },
+    {
+      "name": "remote_extra_plaintext_field",
+      "local": {
+        "e": "AAA=.placeholder-not-a-real-seal",
+        "u": 1730000060000,
+        "r": 11,
+        "d": null
+      },
+      "incoming": {
+        "e": "AAA=.placeholder-not-a-real-seal",
+        "u": 1730000120000,
+        "r": 12,
+        "d": null,
+        "title": "leaked"
+      },
+      "expected": {
+        "outcome": null,
+        "decision": "REJECTED_REMOTE_MALFORMED",
+        "applyRemote": false,
+        "remoteDropped": true,
+        "deleteWins": false,
+        "nodeAccepted": false,
+        "reason": "see sync_engine/RECORD-FORMAT-v1.md #4"
+      }
+    },
+    {
+      "name": "remote_non_numeric_clock",
+      "local": {
+        "e": "AAA=.placeholder-not-a-real-seal",
+        "u": 1730000060000,
+        "r": 11,
+        "d": null
+      },
+      "incoming": {
+        "e": "AAA=.placeholder-not-a-real-seal",
+        "u": "not-a-clock",
+        "r": 12,
+        "d": null
+      },
+      "expected": {
+        "outcome": null,
+        "decision": "REJECTED_REMOTE_MALFORMED",
+        "applyRemote": false,
+        "remoteDropped": true,
+        "deleteWins": false,
+        "nodeAccepted": false,
+        "reason": "see sync_engine/RECORD-FORMAT-v1.md #4"
+      }
+    },
+    {
+      "name": "remote_missing_e",
+      "local": {
+        "e": "AAA=.placeholder-not-a-real-seal",
+        "u": 1730000060000,
+        "r": 11,
+        "d": null
+      },
+      "incoming": {
+        "u": 1730000120000,
+        "r": 12,
+        "d": null
+      },
+      "expected": {
+        "outcome": null,
+        "decision": "REJECTED_REMOTE_MALFORMED",
+        "applyRemote": false,
+        "remoteDropped": true,
+        "deleteWins": false,
+        "nodeAccepted": false,
+        "reason": "see sync_engine/RECORD-FORMAT-v1.md #4"
+      }
+    }
+  ]
+}

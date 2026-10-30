@@ -1,0 +1,6 @@
+<svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><!-- DirectionsCar: regular/car -->
+  <path d="M8 9.5L16 9.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M7 13.5L8 13.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M16 13.5L17 13.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M3 17.5V10.911C3 10.64 3.055 10.372 3.162 10.123L5.481 4.712C5.796 3.977 6.519 3.5 7.319 3.5H16.681C17.481 3.5 18.204 3.977 18.52 4.712L20.838 10.123C20.945 10.372 21 10.64 21 10.911V17.5M3 17.5V19.9C3 20.231 3.269 20.5 3.6 20.5H6.4C6.731 20.5 7 20.231 7 19.9V17.5M3 17.5H7M21 17.5V19.9C21 20.231 20.731 20.5 20.4 20.5H17.6C17.269 20.5 17 20.231 17 19.9V17.5M21 17.5H17M7 17.5H17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

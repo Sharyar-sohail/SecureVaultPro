@@ -1,0 +1,10 @@
+{
+  "id": "fix-totp-0001",
+  "issuer": "Sample Issuer",
+  "accountName": "sample-account",
+  "secret": "SAMPLE-TOTP-SECRET-NOT-REAL",
+  "algorithm": "SHA1",
+  "digits": 6,
+  "period": 30,
+  "createdAt": 1730000000000
+}

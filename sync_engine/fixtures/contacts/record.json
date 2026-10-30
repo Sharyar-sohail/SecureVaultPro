@@ -1,0 +1,11 @@
+{
+  "id": "fix-contact-0001",
+  "name": "Sample Contact",
+  "phone": "000-000-0000",
+  "email": "sample@example.com",
+  "address": "1 Sample Street",
+  "notes": "Synthetic notes",
+  "category": "Personal",
+  "createdAt": 1730000000000,
+  "updatedAt": 1730000060000
+}

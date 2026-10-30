@@ -1,0 +1,5 @@
+<svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><!-- VolumeUp: regular/sound-high -->
+  <path d="M2 13.688V10.312C2 9.308 2.814 8.494 3.818 8.494H6.455C6.632 8.494 6.806 8.441 6.955 8.343L12.409 4.748C13.013 4.349 13.818 4.783 13.818 5.507V18.494C13.818 19.217 13.013 19.651 12.409 19.252L6.955 15.657C6.806 15.559 6.632 15.506 6.455 15.506H3.818C2.814 15.506 2 14.692 2 13.688Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M17 7.909C17 7.909 18.364 9.273 18.364 11.545C18.364 13.818 17 15.182 17 15.182" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M19.727 5.182C19.727 5.182 22 7.455 22 11.545C22 15.636 19.727 17.909 19.727 17.909" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

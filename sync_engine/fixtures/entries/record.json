@@ -1,0 +1,23 @@
+{
+  "id": "fix-entry-0001",
+  "title": "Sample login",
+  "username": "sample-user",
+  "email": "sample@example.com",
+  "password": "sample-not-a-real-password",
+  "website": "example.com",
+  "url": "https://example.com",
+  "notes": "Synthetic notes",
+  "category": "WEBSITES",
+  "customFieldsJson": "[]",
+  "tagsJson": "[\"sample\"]",
+  "isFavorite": false,
+  "hasTotp": false,
+  "totpSecret": "",
+  "createdAt": 1730000000000,
+  "updatedAt": 1730000060000,
+  "lastAccessedAt": null,
+  "expiresAt": null,
+  "strengthScore": 0,
+  "deletedAt": null,
+  "isHiddenInTravel": false
+}

@@ -1,0 +1,12 @@
+{
+  "id": "fix-wallet-0001",
+  "label": "Sample wallet",
+  "kind": "SOLANA",
+  "secret": "SAMPLE-WALLET-SECRET-NOT-REAL",
+  "addressesJson": "[\"sample-address\"]",
+  "balancesJson": "[]",
+  "totalUsd": 1234.5,
+  "lastSyncedAt": 1730000001000,
+  "createdAt": 1730000000000,
+  "updatedAt": 1730000060000
+}

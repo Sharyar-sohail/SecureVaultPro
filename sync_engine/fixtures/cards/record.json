@@ -1,0 +1,16 @@
+{
+  "id": "fix-card-0001",
+  "type": "CREDIT",
+  "nickname": "Sample card",
+  "holderName": "Sample Holder",
+  "number": "0000000000000000",
+  "expiryMonth": 12,
+  "expiryYear": 2099,
+  "cvv": "000",
+  "pin": "0000",
+  "bankName": "Sample Bank",
+  "notes": "Synthetic notes",
+  "colorGradientStart": "#1E273E",
+  "colorGradientEnd": "#141B2D",
+  "createdAt": 1730000000000
+}

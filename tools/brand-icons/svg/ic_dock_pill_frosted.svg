@@ -1,0 +1,5 @@
+<svg width="300" height="72" viewBox="0 0 300 72" xmlns="http://www.w3.org/2000/svg"><!-- Pill frosted -->
+  <path d="M58,6H242A28,28 0 0 1 270,34V34A28,28 0 0 1 242,62H58A28,28 0 0 1 30,34V34A28,28 0 0 1 58,6Z" fill="#FFFFFFFF"/>
+  <path d="M58,6H242A28,28 0 0 1 270,34V34A28,28 0 0 1 242,62H58A28,28 0 0 1 30,34V34A28,28 0 0 1 58,6Z" fill="none" stroke="#40FFFFFF" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M58,6H242A28,28 0 0 1 270,34V27.28L30,46.32V34A28,28 0 0 1 58,6Z" fill="#73FFFFFF"/>
+</svg>

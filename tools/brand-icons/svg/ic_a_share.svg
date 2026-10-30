@@ -1,0 +1,7 @@
+<svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><!-- Share: regular/share-android -->
+  <path d="M18 22C19.657 22 21 20.657 21 19C21 17.343 19.657 16 18 16C16.343 16 15 17.343 15 19C15 20.657 16.343 22 18 22Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M18 8C19.657 8 21 6.657 21 5C21 3.343 19.657 2 18 2C16.343 2 15 3.343 15 5C15 6.657 16.343 8 18 8Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M6 15C7.657 15 9 13.657 9 12C9 10.343 7.657 9 6 9C4.343 9 3 10.343 3 12C3 13.657 4.343 15 6 15Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M15.5 6.5L8.5 10.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M8.5 13.5L15.5 17.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

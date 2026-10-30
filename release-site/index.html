@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Secure Wallet Pro 3.3.4 · release</title>
+<style>
+  :root{--bg:#05070d;--panel:rgba(17,23,37,.78);--line:rgba(122,180,255,.18);--cyan:#38e8ff;
+        --mint:#3ef0b0;--indigo:#8b7bff;--amber:#ffc85c;--coral:#ff6b8a;--text:#eaf2ff;--muted:#8b9bb4}
+  *{box-sizing:border-box}
+  body{margin:0;padding:0;min-height:100vh;color:var(--text);
+       font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+       background:radial-gradient(900px 500px at 12% -10%,rgba(56,232,255,.13),transparent 60%),
+                  radial-gradient(800px 520px at 88% 0,rgba(139,123,255,.14),transparent 55%),#05070d;
+       background-attachment:fixed;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:880px;margin:0 auto;padding:34px 18px 56px}
+  header{display:flex;align-items:center;gap:14px;margin-bottom:26px}
+  .logo{width:46px;height:46px;border-radius:14px;display:flex;align-items:center;justify-content:center;
+        font-size:20px;color:#031018;background:linear-gradient(135deg,var(--cyan),var(--mint))}
+  h1{font-size:21px;margin:0;letter-spacing:.2px}
+  .sub{margin:2px 0 0;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted)}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:18px 20px;margin-bottom:14px;
+        backdrop-filter:blur(16px)}
+  h2{margin:0 0 10px;font-size:15px}
+  p{margin:0 0 10px;font-size:13.5px;line-height:1.6;color:#cddaf0}
+  ul{margin:0;padding-left:18px}
+  li{font-size:13px;line-height:1.7;color:#cddaf0}
+  code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;color:var(--mint);
+       word-break:break-all}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:12px}
+  .btn{display:inline-block;border:0;border-radius:12px;padding:11px 16px;font-size:13px;font-weight:700;
+       text-decoration:none;color:#031018;background:linear-gradient(135deg,var(--cyan),var(--mint))}
+  .btn.ghost{background:rgba(255,255,255,.05);color:var(--text);border:1px solid var(--line);font-weight:600}
+  .warn{border-color:rgba(255,200,92,.4);background:rgba(255,200,92,.07)}
+  .warn p{color:var(--amber)}
+  .dim{color:var(--muted);font-size:11.5px;letter-spacing:.04em}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo">&#9670;</div>
+    <div>
+      <h1>Secure Wallet Pro</h1>
+      <p class="sub">Release 3.3.4 &middot; build 344 &middot; 29 October 2026</p>
+    </div>
+  </header>
+
+  <div class="card">
+    <h2>Web companion theme</h2>
+    <p>The Blogger theme for the realtime web clone. It now carries the same per-chat identity the
+       phone uses: an imported WhatsApp conversation keeps its own folder, <code>chats/&lt;chat id&gt;</code>,
+       and both clients pick that chat's mark with the same FNV-1a over its id, so one conversation
+       looks like one thing on a handset and in a browser.</p>
+    <div class="row">
+      <a class="btn" href="Blogger-Theme-3.3.4.xml" download>Download Blogger-Theme-3.3.4.xml</a>
+      <span class="dim">143 KB &middot; sha256 5ebd3b5c&hellip;c8e4ca46b</span>
+    </div>
+    <p class="dim" style="margin-top:12px">Install: Blogger &rarr; Theme &rarr; Customise &rarr; Edit HTML &rarr; replace everything &rarr; Save.</p>
+  </div>
+
+  <div class="card">
+    <h2>Android app</h2>
+    <p>Signed with the same release key as every earlier build, so 3.3.4 installs straight over an
+       existing 3.x vault without losing data. Encryption was not touched: PBKDF2-HMAC-SHA256
+       600,000 iterations (210,000 for a PIN), AES-256-GCM, the same <code>{v:3}</code> envelope.</p>
+    <div class="row">
+      <a class="btn" href="https://files.catbox.moe/p4hdjh.apk" rel="nofollow">Download SecureWalletPro-3.3.4.apk</a>
+      <a class="btn ghost" href="https://gofile.io/d/LjoAu2Hb" rel="nofollow">Mirror on gofile</a>
+      <span class="dim">83,393,382 bytes &middot; sha256 6a1ebe41&hellip;6c3ed832b &middot; md5 e8581c5f&hellip;136e67f9</span>
+    </div>
+    <p class="dim" style="margin-top:12px">Open the link on the phone, allow &ldquo;install from unknown
+       sources&rdquo; for the browser once, then run the file. It upgrade-installs over a 3.x vault.</p>
+    <p class="dim">The host is a temporary public file bin, not a store, so treat this URL as the leaky
+       one: if it ever shows up somewhere you did not put it, say so and the link goes away. The
+       AAB for Play internal testing stays on this machine
+       (<code>D:\sharyar\SMART VALUATE\SecureWalletPro-3.3.4.aab</code>, 46,601,937 bytes, sha256
+       <code>225f120226b3019948587f3ba06f1e5df95d6cf85d2451bb966c6dcde3bb179d</code>) &mdash; it is not
+       the file you install by hand.</p>
+  </div>
+
+  <div class="card">
+    <h2>What changed in 3.3.4</h2>
+    <ul>
+      <li><b>Material icons are gone.</b> 944 call sites across 101 semantics now draw from the
+          house vector family &mdash; 107 action glyphs and 195 module glyphs &mdash; the
+          <code>material-icons</code> dependency is deleted from both build files, and a guard test
+          fails the build if the package, a symbol or the dependency reappears.</li>
+      <li><b>One chat, one module, one icon.</b> Every imported conversation gets its own encrypted
+          directory, that directory rides the realtime wire as <code>folder</code> (schema, fixtures
+          and contract doc updated), and the chat's glyph comes from a 16-member board keyed on the
+          chat id. Twelve new tests pin id stability, container round-trip, board determinism and
+          phone/web slot agreement.</li>
+      <li><b>The send confirmation shows the trust verdict.</b> Each pre-signing check &mdash;
+          address grammar, chain id, token contract, balance, fee &mdash; is rendered line by line
+          with its pass mark, and "Confirm &amp; send" stays disabled with the refusal reason until
+          every one passes, instead of failing only inside the signing path.</li>
+      <li><b>WhatsApp export and import are wired end to end</b> in the vault: seal a shared chat,
+          read it as bubbles, and write it back out as the .txt or .zip shape WhatsApp itself
+          produces.</li>
+    </ul>
+    <p class="dim">Known honest gap: the brief named a "Shiva" chain. No such chain exists in any
+       registry this wallet can resolve, so it is not in <code>ChainRegistry</code>; inventing a
+       chain id would make every address rule, fee and broadcast against it wrong. BNB Smart Chain,
+       Ethereum, Polygon, Bitcoin and Tron are live.</p>
+  </div>
+</div>
+</body>
+</html>

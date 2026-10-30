@@ -1,0 +1,10 @@
+{
+  "id": "fix-note-0001",
+  "title": "Sample note title",
+  "content": "Synthetic sample body. Not a secret.",
+  "isPinned": false,
+  "color": "DEFAULT",
+  "tagsJson": "[\"sample\"]",
+  "createdAt": 1730000000000,
+  "updatedAt": 1730000060000
+}

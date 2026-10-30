@@ -1,0 +1,12 @@
+{
+  "id": "fix-file-0001",
+  "name": "sample-document.pdf",
+  "size": 10240,
+  "mimeType": "application/pdf",
+  "category": "DOCUMENTS",
+  "createdAt": 1730000000000,
+  "uploadedAt": 1730000001000,
+  "noteId": null,
+  "folder": null,
+  "driveId": "synthetic-drive-id-not-real"
+}

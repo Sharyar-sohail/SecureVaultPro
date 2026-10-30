@@ -1,0 +1,4 @@
+<svg width="360" height="64" viewBox="0 0 360 64" xmlns="http://www.w3.org/2000/svg"><!-- Minimal bar -->
+  <path d="M0,0H360V64H0Z" fill="#FFFFFFFF"/>
+  <path d="M0 1.5H360" fill="none" stroke="#40FFFFFF" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

@@ -1,0 +1,24 @@
+SVP-1 network floor (NOT a sync measurement)
+captured: 2026-10-29T11:13:02.249Z
+database: https://vault-35423-default-rtdb.asia-southeast1.firebasedatabase.app
+
+The realtime rules require a signed-in uid, so every sample below is an anonymous request the
+server rejected. Rejection is served by the same Firebase edge that serves the realtime traffic,
+so the round-trip times are the region round trip this deployment sits on - the floor under any
+phone-to-web push. The push itself is measured with a token:
+  SVP_ID_TOKEN=... node tools/sync-probe/probe.js --uid <uid> --runs 5
+
+samples: 10 (HTTP 401 expected)
+round trip min/median/mean/p95/max (ms): 468 / 481 / 748 / 1145 / 2515
+event-stream time to first byte (ms): 472 (HTTP 401)
+
+  #1 1145 ms HTTP 401
+  #2 2515 ms HTTP 401
+  #3 483 ms HTTP 401
+  #4 483 ms HTTP 401
+  #5 481 ms HTTP 401
+  #6 470 ms HTTP 401
+  #7 486 ms HTTP 401
+  #8 475 ms HTTP 401
+  #9 468 ms HTTP 401
+  #10 470 ms HTTP 401

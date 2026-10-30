@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <cache-path name="secure_share" path="secure_share/" />
+    <cache-path name="secure_viewer" path="secure_viewer/" />
+</paths>
