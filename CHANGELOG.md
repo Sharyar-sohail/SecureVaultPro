@@ -9,6 +9,17 @@ Release artifacts for each version: `SecureWalletPro-<version>.apk`,
 `Blogger-Theme-<version>.xml` (byte-identical to `app/src/main/assets/blogger_theme.xml`,
 with a blank `var SEED`), and `app-release.aab` for Play.
 
+## Repository
+
+Version control starts here: this directory had no git repository through 3.4.0, so every
+release existed only as a folder plus the APK/XML artifacts handed over by hand. The baseline
+commit imports the 3.4.1 working tree — app source and tests, the Blogger theme asset, the
+icon/theme tooling and the sync-engine contract — and deliberately excludes `release.jks`,
+`keystore.properties`, `google-services.json`, `local.properties`, every built APK/AAB and
+Blogger XML artifact, and the backup/checkpoint snapshots, which hold vault and WhatsApp user
+data. One stale 3.3.4 theme export under `release-site/` is left on disk but untracked because
+it embedded a Firebase `apiKey`; themes we ship carry a blank `var SEED` and no cloud config.
+
 ## [3.4.1] — 2026-10-30 (versionCode 346)
 
 The owner's test of 3.4.0 found two blockers: the new layouts clipped and overlapped text,
