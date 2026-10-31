@@ -20,6 +20,38 @@ Blogger XML artifact, and the backup/checkpoint snapshots, which hold vault and 
 data. One stale 3.3.4 theme export under `release-site/` is left on disk but untracked because
 it embedded a Firebase `apiKey`; themes we ship carry a blank `var SEED` and no cloud config.
 
+## [3.4.8] — 2026-10-31 (versionCode 353)
+
+3.4.5 put FLAG_SECURE on the whole window, so the welcome and sign-in screens could not be
+photographed — exactly where the owner needed to report a failure. That is undone, and the
+sign-in path that could repeat the same fault is fixed.
+
+### Fixed — screenshots are blocked in the vault, not at the door
+- `MainActivity` no longer raises `FLAG_SECURE` on creation. `VaultAppScaffold` raises it only
+  for `AppStage.UNLOCKED`, so welcome, onboarding, setup, the lock screen and the rescue report
+  stay photographable; leaving the vault clears it immediately.
+- The rescue branch clears any flag the vault left behind, because that report is what the owner
+  photographs. The preference and the "Allow screenshots" switch are unchanged: blocked by
+  default inside the vault, opt-in to lift it.
+
+### Reverted — the legacy decryption is exactly as it shipped
+- The 3.4.5 addition of 100k/50k/10k PBKDF2 fallback counts is removed. `ITERATION_PROFILES` is
+  again the shipped list only: 600,000 → 210,000 → 120,000, plus a file's own stated count.
+- No cipher, KDF, salt, IV, tag or envelope field was touched in 3.4.5 or here: `CryptoManager`,
+  `KeyDerivation` and the `vault_backup.enc` writer are byte-identical to the 3.4.1 tree. Old
+  backups keep opening with the same code path they always used.
+
+### Fixed — Google sign-in no longer rejects its own success
+- `completeSignIn` demanded both the app-data and the file scope. A consent screen that granted
+  app-data (all a restore reads) was reported as "permission was not granted", and every retry
+  replayed the same refusal. It now requires app-data only; the file scope is still requested,
+  and only the pre-wipe archive needs it.
+- After a consent/token fault the next tap always opens Google's picker. The cached account can
+  keep claiming a grant it no longer holds, which is what made the loop feel endless; a
+  `forcePicker` flag now overrides it until a sign-in completes.
+- No seed or passphrase stands anywhere in the pre-login flow; seed recovery remains a Settings
+  tool after unlock.
+
 ## [3.4.5] — 2026-10-31 (versionCode 350)
 
 The owner reported screenshots as a security gap, and that a phrase still stood in front of an

@@ -187,14 +187,12 @@ class GoogleDriveService @Inject constructor(
         try {
             val account = GoogleSignIn.getSignedInAccountFromIntent(data).await()
             if (account == null) return@withContext null
-            if (!GoogleSignIn.hasPermissions(
-                    account,
-                    Scope(DriveScopes.DRIVE_APPDATA),
-                    Scope(DriveScopes.DRIVE_FILE)
-                )
-            ) {
+            // App-data access is the only grant a restore needs. Demanding the file scope here
+            // turned a consent screen that granted app-data into "permission was not granted",
+            // and every retry replayed the same refusal - a loop the owner could not leave.
+            if (!GoogleSignIn.hasPermissions(account, Scope(DriveScopes.DRIVE_APPDATA))) {
                 throw GoogleDriveException(
-                    "Google Drive permission was not granted. Allow app data and file access, then try again."
+                    "Google Drive app-data access was not granted. Allow it on Google's screen, then try again."
                 )
             }
             account

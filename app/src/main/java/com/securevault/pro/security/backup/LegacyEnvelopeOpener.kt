@@ -66,20 +66,15 @@ class LegacyEnvelopeOpener @Inject constructor(
         const val EARLIER_PROFILE_ITERATIONS = 120_000
 
         /**
-         * Counts used by builds whose exact profile was never recorded. They are cheap to derive
-         * and are swept last, so an unreadable modern file pays almost nothing for the safety net.
-         */
-        val FALLBACK_PROFILE_ITERATIONS = listOf(100_000, 50_000, 10_000)
-
-        /**
-         * Every count to try, most likely first. The envelope's own stated count leads when it has
-         * one, so a self-describing file is opened in a single pass.
+         * Every count a release actually shipped, most likely first. This is the legacy list and
+         * it is frozen: the envelope's own stated count leads when it has one, so a self-describing
+         * file is opened in a single pass.
          */
         val ITERATION_PROFILES = listOf(
             CURRENT_ITERATIONS,
             PIN_PROFILE_ITERATIONS,
             EARLIER_PROFILE_ITERATIONS
-        ) + FALLBACK_PROFILE_ITERATIONS
+        )
     }
 
     /** [json] is the vault body; the rest is what the caller needs to describe the restore honestly. */

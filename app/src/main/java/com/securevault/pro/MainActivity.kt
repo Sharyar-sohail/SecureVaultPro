@@ -5,6 +5,7 @@ import android.graphics.Color
 import android.os.Bundle
 import android.view.WindowManager
 import androidx.activity.compose.setContent
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -30,9 +31,9 @@ class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         CrashLogger.noteStage("activity/created")
-        if (!CrashLogger.safeRender) {
-            window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
-        }
+        // Nothing is blocked here. FLAG_SECURE belongs to the open vault, and this window also
+        // hosts the welcome, setup, lock and rescue surfaces, where the owner has to be able to
+        // photograph what went wrong. VaultAppScaffold raises it for the unlocked session only.
         WindowCompat.setDecorFitsSystemWindows(window, false)
         @Suppress("DEPRECATION")
         window.statusBarColor = Color.TRANSPARENT
@@ -49,6 +50,9 @@ class MainActivity : FragmentActivity() {
             val inRescue by CrashLogger.rescue.collectAsStateWithLifecycle()
             if (inRescue) {
                 CrashLogger.noteStage("rescue/shown")
+                // The rescue report is the thing the owner photographs to get help; a flag left
+                // behind by the vault it replaced would black out exactly that screen.
+                SideEffect { window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE) }
                 // Nothing in this branch goes through Hilt. The recovery screen is what runs
                 // when the app itself is the thing that keeps dying, so asking for a full
                 // view model — vault repository, sync manager, all of it — would let a broken
@@ -82,9 +86,6 @@ class MainActivity : FragmentActivity() {
     override fun onStart() {
         super.onStart()
         CrashLogger.markForeground(this)
-        if (CrashLogger.safeRender) {
-            window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
-        }
     }
 
     override fun onStop() {

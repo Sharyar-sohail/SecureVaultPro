@@ -77,6 +77,27 @@ class GoogleRestoreFlowTest {
             "the owner must see what to do, not a raw status code",
             viewModel.contains("notice = DriveFaults.SIGN_IN_AGAIN")
         )
+        val forced = Regex("forcePicker = true").findAll(viewModel).count()
+        assertTrue("both consent-fault branches must force the picker next tap, found $forced", forced >= 2)
+        assertTrue(
+            "the tile must honour the forced picker instead of reusing a cached grant",
+            viewModel.contains("val usable = !forcePicker &&")
+        )
+    }
+
+    @Test
+    fun `sign-in only demands the grant a restore actually needs`() {
+        val service = sourceFrom("data/remote/google/GoogleDriveService.kt")
+        val body = service.substringAfter("suspend fun completeSignIn(")
+            .substringBefore("private fun signInFailure(")
+        assertTrue(
+            "app-data access is what a restore reads",
+            body.contains("Scope(DriveScopes.DRIVE_APPDATA)")
+        )
+        assertFalse(
+            "demanding the file scope here rejected a granted sign-in and replayed the same error",
+            body.contains("Scope(DriveScopes.DRIVE_FILE)")
+        )
     }
 
     @Test
@@ -91,13 +112,15 @@ class GoogleRestoreFlowTest {
         )
     }
 
-    private fun source(name: String): String {
+    private fun source(name: String): String = sourceFrom("presentation/screens/welcome/$name")
+
+    private fun sourceFrom(relative: String): String {
         val candidates = listOf(
-            File("src/main/java/com/securevault/pro/presentation/screens/welcome/$name"),
-            File("app/src/main/java/com/securevault/pro/presentation/screens/welcome/$name"),
-            File("../src/main/java/com/securevault/pro/presentation/screens/welcome/$name")
+            File("src/main/java/com/securevault/pro/$relative"),
+            File("app/src/main/java/com/securevault/pro/$relative"),
+            File("../src/main/java/com/securevault/pro/$relative")
         )
         return candidates.firstOrNull { it.isFile }?.readText()
-            ?: throw IllegalStateException("cannot locate $name from ${File(".").absolutePath}")
+            ?: throw IllegalStateException("cannot locate $relative from ${File(".").absolutePath}")
     }
 }

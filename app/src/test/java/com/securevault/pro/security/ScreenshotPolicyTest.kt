@@ -43,14 +43,31 @@ class ScreenshotPolicyTest {
     }
 
     @Test
-    fun `FLAG_SECURE is on before the first frame and follows the preference`() {
-        assertTrue(
-            "the activity must protect the process from its first frame",
+    fun `the login and recovery surfaces stay photographable`() {
+        assertFalse(
+            "the activity must not raise FLAG_SECURE before the vault is open: welcome, setup, " +
+                "lock and rescue all live in that window and the owner has to be able to report them",
             activity.contains("window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)")
         )
         assertTrue(
-            "the composition must re-assert the flag while blocking is on",
-            app.contains("if (screenshotBlocked && !CrashLogger.safeRender)")
+            "the rescue report must clear any flag the vault left behind",
+            activity.contains("SideEffect { window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE) }")
+        )
+    }
+
+    @Test
+    fun `FLAG_SECURE covers the unlocked vault only`() {
+        assertTrue(
+            "the flag must be tied to the unlocked stage as well as the preference",
+            app.contains("val protect = state.stage == AppStage.UNLOCKED && screenshotBlocked && !CrashLogger.safeRender")
+        )
+        assertTrue(
+            "the flag must still be raised for the unlocked vault",
+            app.contains("activity.window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)")
+        )
+        assertTrue(
+            "every other stage must clear it",
+            app.contains("activity.window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)")
         )
     }
 

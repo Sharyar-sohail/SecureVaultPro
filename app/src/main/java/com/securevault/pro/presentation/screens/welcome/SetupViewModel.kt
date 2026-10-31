@@ -82,10 +82,18 @@ class SetupViewModel @Inject constructor(
     /** The in-flight sign-in / restore / import job, so the welcome screen can abort it. */
     private var flowJob: Job? = null
 
+    /**
+     * Set when Drive refused the credential. The cached account can keep reporting a grant it no
+     * longer has, so the next tap must reach Google's picker instead of rebuilding the same dead
+     * request; without this the owner ping-pongs between the same error and the same tap.
+     */
+    private var forcePicker = false
+
     fun onWelcomeOpened() {
         // Only a genuinely running restore may hold the welcome state open; a stale
         // busy or active-cloud flag must never freeze the three options.
         if (flowJob?.isActive == true && cloudSyncManager.state.value.active) return
+        forcePicker = false
         if (cloudSyncManager.state.value.active) cloudSyncManager.abandonOperation("Previous attempt was interrupted.")
         val email = runCatching { driveService.lastSignedInAccount()?.email.orEmpty() }.getOrDefault("")
         _state.update {
@@ -163,7 +171,8 @@ class SetupViewModel @Inject constructor(
      */
     fun onGoogleTileTapped(): Boolean {
         val account = runCatching { driveService.lastSignedInAccount() }.getOrNull()
-        val usable = account != null &&
+        val usable = !forcePicker &&
+            account != null &&
             !account.email.isNullOrBlank() &&
             runCatching { driveService.hasDriveAccess(account) }.getOrDefault(false)
         if (!usable) {
@@ -234,6 +243,7 @@ class SetupViewModel @Inject constructor(
                     }
                     return@launch
                 }
+                forcePicker = false
                 _state.update {
                     it.copy(signedInEmail = email, restoreMode = SetupRestoreMode.DRIVE)
                 }
@@ -299,6 +309,7 @@ class SetupViewModel @Inject constructor(
             if (DriveFaults.needsFreshSignIn(message)) {
                 // Clear the dead credential so the next tap opens Google's picker instead of
                 // rebuilding the same request and reporting the same fault.
+                forcePicker = true
                 cloudSyncManager.signOutOfDrive()
                 _state.update {
                     it.copy(
@@ -358,6 +369,7 @@ class SetupViewModel @Inject constructor(
             onFailure = { error ->
                 val message = error.message?.take(220).orEmpty()
                 if (DriveFaults.needsFreshSignIn(message)) {
+                    forcePicker = true
                     cloudSyncManager.signOutOfDrive()
                     _state.update {
                         it.copy(
