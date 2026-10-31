@@ -42,20 +42,39 @@ class LegacyRestoreReachTest {
 
     @Test
     fun `no failure sentence sends the owner to a passphrase`() {
-        val failure = source.substringAfter("private fun undecryptableMessage(")
-            .substringBefore("private fun readPlainJson(")
+        val description = diagnosticsSource()
+            .substringAfter("fun describe(")
+            .substringBefore("private fun decode(")
         assertFalse(
-            "the undecryptable message still asks for a typed passphrase",
-            failure.contains("passphrase", ignoreCase = true)
+            "the failure sentence must not ask for a passphrase the restore screen does not accept",
+            description.contains("passphrase", ignoreCase = true)
+        )
+        assertFalse(
+            "the failure sentence must not invite a recovery phrase either",
+            description.contains("recovery phrase", ignoreCase = true)
         )
         assertFalse(
             "the walk summary still blames a typed secret",
             source.contains("backups in Drive opened with this device's key")
         )
         assertTrue(
-            "the failure must still say what was looked at",
-            source.contains("secrets x") && source.contains("profiles tried")
+            "the failure must still name the parameter that differs",
+            description.contains("mismatch")
         )
+        assertTrue(
+            "the failure must still report how many derivations ran",
+            description.contains("key derivations")
+        )
+    }
+
+    private fun diagnosticsSource(): String {
+        val candidates = listOf(
+            File("src/main/java/com/securevault/pro/security/backup/EnvelopeDiagnostics.kt"),
+            File("app/src/main/java/com/securevault/pro/security/backup/EnvelopeDiagnostics.kt"),
+            File("../src/main/java/com/securevault/pro/security/backup/EnvelopeDiagnostics.kt")
+        )
+        return candidates.firstOrNull { it.isFile }?.readText()
+            ?: throw IllegalStateException("cannot locate EnvelopeDiagnostics.kt from ${File(".").absolutePath}")
     }
 
     private fun cloudSource(): String {

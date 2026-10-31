@@ -73,10 +73,11 @@ class UniversalKeyGuardTest {
     /** The read path is the other half of the rule: an old vault must still open. */
     @Test
     fun `the universal key survives only as a read candidate`() {
-        val file = syncManagerSource()
-        val text = file.readText()
-        val candidates = text.substringAfter("private suspend fun buildSecrets(")
-            .substringBefore("\n    }")
+        // The opening order lives in LegacyKeyPlan so it can be tested without Android; the sync
+        // manager must keep delegating to it rather than re-inventing an order of its own.
+        val plan = sourceFile("java/com/securevault/pro/security/backup/LegacyKeyPlan.kt")
+        assumeTrue("LegacyKeyPlan.kt is not next to this test run", plan != null)
+        val candidates = plan!!.readText()
         assertTrue("old envelopes must still open", candidates.contains("PRIMARY_CLOUD_KEY"))
         assertTrue("the user's own key must be tried", candidates.contains("vaultSecret"))
         assertTrue(
@@ -84,6 +85,10 @@ class UniversalKeyGuardTest {
             candidates.contains("passphrase")
         )
         assertFalse("opening candidates must not gain a writer role", candidates.contains("createEnvelope"))
+        assertFalse("opening candidates must not gain a writer role", candidates.contains("sealPayload"))
+
+        val sync = syncManagerSource().readText()
+        assertTrue("the sync manager must use the shared plan", sync.contains("LegacyKeyPlan.ordered("))
     }
 
     /**

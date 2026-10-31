@@ -10,13 +10,12 @@ import org.junit.Test
 import java.util.Base64
 
 /**
- * Proof that a legacy restore finishes in bounded time.
+ * Proof that a legacy restore finishes in bounded time, and on the exact key the writer used.
  *
- * The 3.4.8 restore could sit at "Decrypting vault..." while it derived PBKDF2 for every secret in
- * the list; on a handset that is minutes at 45%, and "Stop waiting" only stopped the spinner. These
- * tests hold the opener to the two properties the fix relies on: the real account key opens a
- * legacy file in a single derivation well under two seconds, and a wrong-key sweep gives up at its
- * deadline instead of hashing forever.
+ * The 3.4.9 restore could sit at "Decrypting vault..." while it derived PBKDF2 ahead of the real
+ * key; on a handset that is seconds per candidate and the time budget ended the sweep at four. The
+ * universal-key vector is the shape every pre-keyring build actually wrote, so opening it on the
+ * first candidate in under two seconds is the property that makes the Google restore work.
  */
 class LegacyRestoreBudgetTest {
 
@@ -29,18 +28,49 @@ class LegacyRestoreBudgetTest {
         val envelope: BackupEnvelope
     )
 
-    private fun emailVector(): Vector {
+    private fun vector(name: String): Vector {
         val stream = javaClass.getResourceAsStream("/legacy_vectors.json")
             ?: error("legacy_vectors.json is missing from the test classpath")
         val root = stream.use { JsonParser.parseReader(it.reader()).asJsonObject }
         val plaintext = root.get("plaintext").asString
         val element = root.getAsJsonArray("vectors")
-            .first { it.asJsonObject.get("name").asString == "E-email-600k" }
+            .first { it.asJsonObject.get("name").asString == name }
             .asJsonObject
         val bytes = Base64.getDecoder().decode(element.get("envelopeBase64").asString)
-        val envelope = BackupEnvelopeFormat.parse(bytes) ?: error("E-email-600k is not parseable")
-        assertTrue("the address-sealed vector must parse as an envelope", envelope.recognised)
+        val envelope = BackupEnvelopeFormat.parse(bytes) ?: error("$name is not parseable")
+        assertTrue("$name must parse as an envelope", envelope.recognised)
         return Vector(plaintext, element.get("secret").asString, envelope)
+    }
+
+    private fun emailVector(): Vector = vector("E-email-600k")
+
+    @Test
+    fun `the key every pre-keyring writer used opens its backup in one derivation under two seconds`() {
+        val v = vector("A-universal-v3-600k")
+        val plan = LegacyKeyPlan.ordered(
+            emails = listOf("owner@example.com"),
+            vaultSecret = null
+        )
+        assertEquals(
+            "the writer's own key must be the first thing tried when no vault key exists",
+            "SecureVaultPro_Universal_Cloud_Key_v3",
+            plan.first().value
+        )
+
+        val started = System.nanoTime()
+        val attempt = opener.openWithin(
+            salt = v.envelope.salt,
+            data = v.envelope.data,
+            secrets = plan,
+            budgetMs = 2_000L
+        )
+        val elapsedMs = (System.nanoTime() - started) / 1_000_000L
+
+        assertNotNull("the writer's own key must open its own backup", attempt.opened)
+        assertEquals(v.plaintext, attempt.opened!!.json)
+        assertEquals(OpeningSecretKind.RETIRED_UNIVERSAL_KEY, attempt.opened!!.kind)
+        assertEquals("the real key must be reached on the first derivation", 1, attempt.candidatesTried)
+        assertTrue("one derivation took ${elapsedMs}ms", elapsedMs < 2_000L)
     }
 
     @Test

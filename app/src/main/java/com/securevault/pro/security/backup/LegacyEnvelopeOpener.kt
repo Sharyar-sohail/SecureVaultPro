@@ -29,8 +29,18 @@ enum class OpeningSecretKind {
     OTHER
 }
 
-/** One secret offered to [LegacyEnvelopeOpener] together with what it is, so warnings can be honest. */
-data class OpeningSecret(val value: String, val kind: OpeningSecretKind)
+/**
+ * One secret offered to [LegacyEnvelopeOpener] together with what it is, so warnings can be honest.
+ *
+ * [iterationProfiles] narrows the sweep for that secret. Past builds paired a profile with a writer
+ * — the universal-key era used 600k/210k/120k, the keyring era has only ever written 600k — so
+ * deriving the impossible pairings only spends time the restore does not have.
+ */
+data class OpeningSecret(
+    val value: String,
+    val kind: OpeningSecretKind,
+    val iterationProfiles: List<Int>? = null
+)
 
 /**
  * Opens backup envelopes written by *any* past build of this app.
@@ -144,7 +154,11 @@ class LegacyEnvelopeOpener @Inject constructor(
         var tried = 0
         for (secret in secrets) {
             if (secret.value.isBlank()) continue
-            for (iterations in profiles) {
+            val allowed = secret.iterationProfiles
+                ?.takeIf { it.isNotEmpty() }
+                ?: profiles
+            for (iterations in allowed) {
+                if (iterations <= 0) continue
                 if (shouldStop()) return OpenAttempt(null, tried, true)
                 if (deadline != Long.MAX_VALUE && System.nanoTime() >= deadline) {
                     return OpenAttempt(null, tried, true)
@@ -199,7 +213,10 @@ class LegacyEnvelopeOpener @Inject constructor(
     }
 
     private fun attempt(iv: ByteArray, payload: ByteArray, key: ByteArray): String? {
-        if (iv.size != 12 || payload.size <= TAG_BITS / 8) return null
+        // The shipped writer always emits a 12-byte IV, but the original reader never refused a
+        // different length itself — it handed the bytes to GCM and let the tag decide. Keeping that
+        // behaviour means a file from a build that picked another IV length still opens.
+        if (iv.isEmpty() || payload.size <= TAG_BITS / 8) return null
         return try {
             val cipher = Cipher.getInstance(TRANSFORMATION)
             cipher.init(Cipher.DECRYPT_MODE, SecretKeySpec(key, "AES"), GCMParameterSpec(TAG_BITS, iv))

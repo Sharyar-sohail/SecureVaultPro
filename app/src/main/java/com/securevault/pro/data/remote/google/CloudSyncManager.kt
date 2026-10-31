@@ -26,7 +26,9 @@ import com.securevault.pro.security.SessionManager
 import com.securevault.pro.security.WipeArchiveStore
 import com.securevault.pro.security.backup.BackupEnvelope
 import com.securevault.pro.security.backup.BackupEnvelopeFormat
+import com.securevault.pro.security.backup.EnvelopeDiagnostics
 import com.securevault.pro.security.backup.LegacyEnvelopeOpener
+import com.securevault.pro.security.backup.LegacyKeyPlan
 import com.securevault.pro.security.backup.OpeningSecret
 import com.securevault.pro.security.backup.OpeningSecretKind
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -130,28 +132,23 @@ class CloudSyncManager @Inject constructor(
          * READ-ONLY since the per-user keyring landed. These strings seal nothing any more: they
          * survive only as candidates for *opening* a vault that was backed up before the keyring —
          * which is exactly what a reinstall with a lost device key needs — and the first write after
-         * that re-seals it under the user's own key. No new envelope may use them, and a test guards
-         * the call sites.
+         * that re-seals it under the user's own key. They live in `LegacyKeyPlan` now, next to the
+         * order that uses them; no new envelope may use them, and a test guards the call sites.
          */
-        const val PRIMARY_CLOUD_KEY = "SecureVaultPro_Universal_Cloud_Key_v3"
-        const val LEGACY_CLOUD_KEY_V2 = "SecureVaultPro_Universal_Cloud_Key_v2"
-        const val LEGACY_CLOUD_KEY_V1 = "SecureVaultPro_Universal_Cloud_Key_v1"
-        const val LEGACY_CLOUD_KEY = "SecureVaultPro_Universal_Cloud_Key"
         const val PBKDF2_ITERATIONS = KeyDerivation.PBKDF2_ITERATIONS
         private const val MAX_BACKUP_BYTES = 120L * 1024L * 1024L
         private const val RESTORE_TIMEOUT_MS = 60_000L
 
         /**
-         * Hard ceiling on PBKDF2 work for one file. A wrong-key sweep is a handful of derivations at
-         * 600,000 rounds each; on a slow handset an unbounded list ran for minutes and read as a
-         * frozen app at 45%. The correct key is tried first, so a genuinely readable backup opens
-         * well inside this, and anything else fails with a sentence instead of a spinner.
+         * Hard ceiling on PBKDF2 work for one file. The exact key each writer used now leads its
+         * own section of the list, so a readable backup opens on its first derivation and this
+         * only ever prices the failure case: roughly a dozen derivations at 600,000 rounds.
          */
-        private const val DECRYPT_BUDGET_MS = 8_000L
+        private const val DECRYPT_BUDGET_MS = 25_000L
 
         /** Ceiling on the whole walk: primary slot plus the newest fallbacks, never every file ever. */
-        private const val MAX_WALK_FILES = 3
-        private const val WALK_BUDGET_MS = 24_000L
+        private const val MAX_WALK_FILES = 5
+        private const val WALK_BUDGET_MS = 60_000L
 
         /** How long a passphrase is allowed to fetch the account's vault key before the restore moves on. */
         private const val KEYRING_ATTACH_TIMEOUT_MS = 45_000L
@@ -381,7 +378,7 @@ class CloudSyncManager @Inject constructor(
             if (bytes.size > MAX_BACKUP_BYTES) {
                 throw CloudSyncException("Backup is larger than the supported 120 MB limit")
             }
-            update("Decrypting vault...", "Account address, then your vault key", 45)
+            update("Decrypting vault...", "Your account key, then the retired universal keys", 45)
             val decoded = decryptBackup(bytes, accountEmail, passphrase, decryptBudgetMs, epoch)
 
             update("Importing data into app...", "Passwords, cards, 2FA, contacts, notes & files", 55)
@@ -509,7 +506,7 @@ class CloudSyncManager @Inject constructor(
         try {
             if (bytes.isEmpty()) throw CloudSyncException("The selected backup is empty")
             if (bytes.size > MAX_BACKUP_BYTES) throw CloudSyncException("Backup exceeds the 120 MB limit")
-            update("Decrypting vault...", "Account address, then the vault key and retired keys", 35)
+            update("Decrypting vault...", "Your vault key, then the retired universal keys", 35)
             val decoded = decryptBackup(bytes, accountEmail, passphrase = passphrase)
             update(
                 if (replace) "Replacing vault from file" else "Importing data into app...",
@@ -1015,7 +1012,7 @@ class CloudSyncManager @Inject constructor(
                 warnings = listOf("This backup was stored without envelope encryption.")
             )
         }
-        val secrets = buildSecrets(email, passphrase)
+        val secrets = buildSecrets(email, passphrase, statedIterations = envelope.iterations)
         val profiles = iterationProfilesFor(envelope)
         val attempt = legacyOpener.openWithin(
             salt = envelope.salt,
@@ -1029,13 +1026,11 @@ class CloudSyncManager @Inject constructor(
             throw CancellationException("Restore stopped by the owner")
         }
         val opened = attempt.opened ?: throw CloudSyncException(
-            if (attempt.budgetExhausted) {
-                "Stopped decrypting after ${budgetMs / 1000}s: the key that sealed this backup is " +
-                    "not on this device. (envelope v${envelope.version}, ${attempt.candidatesTried} " +
-                    "candidates tried; restore continues with the next copy or the embedded vault.)"
-            } else {
-                undecryptableMessage(envelope, secrets.size, profiles)
-            }
+            EnvelopeDiagnostics.describe(
+                envelope = envelope,
+                secretsTried = attempt.candidatesTried,
+                stoppedEarly = attempt.budgetExhausted
+            )
         )
         DecodedBackup(
             json = opened.json,
@@ -1078,25 +1073,6 @@ class CloudSyncManager @Inject constructor(
         return (bySecret + byProfile).distinct()
     }
 
-    /**
-     * What was actually looked at, in the failure sentence.
-     *
-     * "Corrupted" told the owner nothing and cost them a reinstall to find out. The version, salt
-     * length, payload shape, stated count and number of secrets tried are all safe to print — no key
-     * material, no address — and together they say whether this is an unknown format or simply a key
-     * this device does not hold.
-     */
-    private fun undecryptableMessage(
-        envelope: BackupEnvelope,
-        secretsTried: Int,
-        profiles: List<Int>
-    ): String =
-        "The backup could not be decrypted with this account or key. Restore will continue with " +
-            "the other Drive copies, then fall back to the embedded vault. (envelope v${envelope.version}, " +
-            "salt ${envelope.saltBytes} bytes, body ${envelope.payloadShape}, " +
-            "${envelope.iterations?.let { "$it rounds" } ?: "no stated round count"}, " +
-            "$secretsTried secrets x ${profiles.size} profiles tried.)"
-
     private fun readPlainJson(text: String, bytes: ByteArray): String {
         val trimmed = text.trimStart('\uFEFF', ' ', '\n', '\r', '\t')
         // The XML mirror is a real backup body, not a foreign file; BackupParser opens it.
@@ -1115,44 +1091,38 @@ class CloudSyncManager @Inject constructor(
     }
 
     /**
-     * What a stored envelope might be sealed with, best guess first, each labelled by what it is.
+     * The secrets a stored envelope is offered, in the order the writers used them.
      *
-     * The typed passphrase leads when the owner typed one — it is the only secret that survives a
-     * reinstall, a factory reset, or a phone that never came back from the repair shop. The device's
-     * own vault key follows, then the retired universal strings, then the account address. Every one
-     * of these is a candidate for *opening* a file and never for writing one; the guard test in
-     * `KeyringProtocolTest` holds every writer to that rule.
+     * The order lives in [LegacyKeyPlan] so it can be unit-tested without Android, and it is not a
+     * guess: pre-keyring builds sealed with the universal v3 key, keyring builds seal with the
+     * user's own vault key, and both are tried before the account address or the older strings.
+     *
+     * A vault key is offered only if the keyring already has one: [Keyring] *creates* a fresh key
+     * when asked for a sealing secret, and a generated key can never open the owner's file — it only
+     * spends a derivation ahead of the key that can.
      */
     private suspend fun buildSecrets(
         email: String,
         passphrase: String?,
-        vaultSecret: String? = runCatching { keyring.sealingSecret() }.getOrNull()
+        statedIterations: Int? = null,
+        vaultSecret: String? = storedVaultSecret()
     ): List<OpeningSecret> {
         val emails = buildList {
             add(email)
             add(runCatching { appLockManager.cloudEmail.first() }.getOrDefault(""))
             add(runCatching { signedInEmail() }.getOrDefault(""))
-        }.map { it.trim() }.filter { it.isNotBlank() }.distinct()
-        val ordered = buildList {
-            if (!passphrase.isNullOrBlank()) {
-                add(OpeningSecret(passphrase.trim(), OpeningSecretKind.PASSPHRASE))
-            }
-            // The address the owner signed in with is the exact legacy key: oldest backups were
-            // sealed with it, and the Google restore path knows it before any hashing starts. Trying
-            // it first turns that restore into one derivation instead of the tail of a blind sweep.
-            emails.forEach {
-                add(OpeningSecret(it, OpeningSecretKind.ACCOUNT_EMAIL))
-                add(OpeningSecret(it.lowercase(Locale.US), OpeningSecretKind.ACCOUNT_EMAIL))
-            }
-            vaultSecret?.let { add(OpeningSecret(it, OpeningSecretKind.VAULT_KEY)) }
-            add(OpeningSecret(PRIMARY_CLOUD_KEY, OpeningSecretKind.RETIRED_UNIVERSAL_KEY))
-            add(OpeningSecret(LEGACY_CLOUD_KEY_V2, OpeningSecretKind.RETIRED_UNIVERSAL_KEY))
-            add(OpeningSecret(LEGACY_CLOUD_KEY_V1, OpeningSecretKind.RETIRED_UNIVERSAL_KEY))
-            add(OpeningSecret(LEGACY_CLOUD_KEY, OpeningSecretKind.RETIRED_UNIVERSAL_KEY))
         }
-        val seen = mutableSetOf<String>()
-        return ordered.filter { seen.add(it.value) }
+        return LegacyKeyPlan.ordered(
+            emails = emails,
+            passphrase = passphrase,
+            statedIterations = statedIterations,
+            vaultSecret = vaultSecret
+        )
     }
+
+    private fun storedVaultSecret(): String? = runCatching {
+        if (keyring.hasDeviceKey()) keyring.sealingSecret() else null
+    }.getOrNull()
 
     /**
      * Replace the backup slot, keeping whatever was in it if this device cannot open that.

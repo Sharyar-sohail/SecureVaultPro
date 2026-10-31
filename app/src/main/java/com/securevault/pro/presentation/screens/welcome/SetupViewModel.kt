@@ -367,7 +367,7 @@ class SetupViewModel @Inject constructor(
                 }
             },
             onFailure = { error ->
-                val message = error.message?.take(220).orEmpty()
+                val message = error.message?.take(600).orEmpty()
                 if (DriveFaults.needsFreshSignIn(message)) {
                     forcePicker = true
                     cloudSyncManager.signOutOfDrive()
@@ -422,7 +422,7 @@ class SetupViewModel @Inject constructor(
                     _state.update {
                         it.copy(
                             busy = false,
-                            notice = error.message?.take(220) ?: "The encrypted file could not be imported.",
+                            notice = error.message?.take(600) ?: "The encrypted file could not be imported.",
                             noticeIsError = true
                         )
                     }

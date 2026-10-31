@@ -371,7 +371,7 @@ class BackupViewModel @Inject constructor(
                 onFailure = { error ->
                     _state.update {
                         it.copy(
-                            message = error.message?.take(240) ?: "The cloud restore could not complete.",
+                            message = error.message?.take(600) ?: "The cloud restore could not complete.",
                             messageIsError = true
                         )
                     }

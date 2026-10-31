@@ -20,6 +20,52 @@ Blogger XML artifact, and the backup/checkpoint snapshots, which hold vault and 
 data. One stale 3.3.4 theme export under `release-site/` is left on disk but untracked because
 it embedded a Firebase `apiKey`; themes we ship carry a blank `var SEED` and no cloud config.
 
+## [3.4.10] — 2026-10-31 (versionCode 355)
+
+The 3.4.9 restore still failed with "the key that sealed this backup is not on this device
+(envelope v3, 4 candidates tried)". The cipher was never the problem — every PBKDF2/AES-GCM
+parameter is byte-identical to the original app. The problem was *which key was tried when*:
+3.4.9 asked the keyring for the vault key, which **creates** one when none exists, so a fresh
+key was derived and tried ahead of `SecureVaultPro_Universal_Cloud_Key_v3` — the literal every
+pre-keyring writer actually sealed with. The first four candidates burned the 8 s budget, so the
+real key was never reached. This release restores the original reader's exact key order and
+budgets, and makes the failure message name the parameter that actually differs.
+
+### Fixed — the old backups' own key is tried first again
+- `LegacyKeyPlan.ordered` is now the one source of truth for key order, lifted verbatim from the
+  original `decryptBackup`: passphrase → stored vault key → **universal v3** → account address
+  (exact, then lowercase) → v2 → v1 → v0. This is the order every build since the format landed
+  used, and it is unit-tested.
+- `CloudSyncManager.storedVaultSecret` returns the vault key only when `keyring.hasDeviceKey()`;
+  a restore no longer generates a key that was never used to seal anything.
+- Per-secret iteration profiles follow the original reader: the universal keys sweep
+  600,000 → 210,000 → 120,000, the account address and vault key use 600,000, and a file that
+  states its own count narrows every candidate to that count.
+- Budgets raised to cover the real sweep on a phone CPU: 25 s per file, five files and 60 s for
+  the whole walk — enough for the universal key and every profile, still bounded. Stop still
+  ends the sweep within one derivation through `operationEpoch`.
+
+### Fixed — the error names the real mismatch
+- `EnvelopeDiagnostics` inspects the file before blaming the key: salt width (32 B), IV width
+  (12 B), ciphertext length and payload shape. A structural difference reports
+  "Salt mismatch: …", "IV mismatch: …" or "Ciphertext mismatch: …" and says the format, not the
+  account key, is what differs.
+- A structurally intact envelope reports the measured parameters ("Envelope v3, salt 32 B,
+  IV 12 B, tag 16 B, shape iv.payload, 600,000 rounds"), then states whether the sweep was cut
+  off by its budget or all derivations were rejected — and in the latter case points at restoring
+  with the passphrase or recovery phrase if the vault was created with one.
+- The message is no longer truncated at 220/240 characters in onboarding or the backup screen.
+
+### Added — tests
+- `LegacyKeyPlanTest` (8) pins the historical order, the no-generated-key rule, the per-era
+  iteration profiles, deduplication, stated-count narrowing and the empty-email case.
+- `LegacyRestoreBudgetTest` gains a proof that the retired universal v3 key opens the
+  pre-keyring `A-universal-v3-600k` vector in one derivation in under 2 s.
+- `EnvelopeDiagnosticsTest` (5) proves a shipped vector is reported intact and that a 16-byte
+  salt, 16-byte IV and short ciphertext each produce their own named mismatch.
+- `UniversalKeyGuardTest` now reads `LegacyKeyPlan.kt` for the read-path assertions and still
+  forbids every universal literal in any write path.
+
 ## [3.4.9] — 2026-10-31 (versionCode 354)
 
 The owner's Google restore froze at 45% on "Decrypting vault…". The legacy opener swept every
