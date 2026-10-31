@@ -31,11 +31,28 @@ class WelcomeGateTest {
 
     @Test
     fun `every tile is disabled only by this screen's own attempt`() {
-        val gates = Regex("enabled = ([^,]+),").findAll(source).map { it.groupValues[1].trim() }.toList()
-        assertTrue("the tiles carry no enable gate at all", gates.isNotEmpty())
-        for (gate in gates) {
+        val calls = source.split(Regex("(?<!fun )WelcomeOption\\(")).drop(1)
+        assertEquals("expected three tile call sites", 3, calls.size)
+        for (call in calls) {
+            val gate = Regex("enabled = ([^,]+),").find(call)?.groupValues?.get(1)?.trim()
             assertEquals("tile gate must be busy-or-cloud, found: $gate", "!state.busy && !cloudState.active", gate)
         }
+    }
+
+    @Test
+    fun `the password retry card is gated by a key mismatch, never shown up front`() {
+        assertTrue(
+            "a key-mismatch retry card is required so a keyring-sealed backup is not a dead end",
+            source.contains("if (state.restoreNeedsSecret)")
+        )
+        val card = source.substringAfter("if (state.restoreNeedsSecret)")
+            .substringBefore("Spacer(Modifier.height(30.dp))")
+        assertTrue(
+            "the retry action must need a non-blank secret and a free screen",
+            card.contains("state.restoreSecret.trim().isNotEmpty() && !state.busy")
+        )
+        // The card may not contain any tile, so the three-ways-in gate stays exactly three.
+        assertFalse("a tile crept into the retry card", card.contains("WelcomeOption("))
     }
 
     @Test
@@ -49,9 +66,19 @@ class WelcomeGateTest {
     }
 
     @Test
-    fun `the import sheet opens a file and asks for nothing`() {
+    fun `the import sheet opens a file first and asks for a secret only if the file needs one`() {
         assertTrue("the import dialog lost its file action", source.contains("backupPicker.launch(arrayOf(\"*/*\"))"))
-        assertTrue("the import copy must promise no typing", source.contains("Nothing is typed"))
+        val dialog = source.substringAfter("if (showImportDialog)")
+            .substringBefore("Only an attempt this screen started")
+        assertFalse("the sheet must not ask before the file is chosen", dialog.contains("VaultTextField("))
+        assertFalse(
+            "the sheet may not promise that no secret is ever needed",
+            dialog.contains("Nothing is typed")
+        )
+        assertTrue(
+            "the sheet must say when a passphrase will be asked for",
+            dialog.contains("asks for")
+        )
     }
 
     @Test

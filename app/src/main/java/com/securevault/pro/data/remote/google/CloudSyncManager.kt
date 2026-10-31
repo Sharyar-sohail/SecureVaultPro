@@ -375,7 +375,18 @@ class CloudSyncManager @Inject constructor(
                 throw CloudSyncException("Backup is larger than the supported 120 MB limit")
             }
             update("Decrypting vault...", "Your account key, then the retired universal keys", 45)
-            val decoded = decryptBackup(bytes, accountEmail, passphrase, epoch)
+            val decoded = try {
+                decryptBackup(bytes, accountEmail, passphrase, epoch)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                // A passphrase was typed precisely so the account keyring could be unwrapped. If the
+                // file still refuses, the reason the keyring could not be used is the answer the
+                // owner needs; dropping it leaves them re-typing the same password blindly.
+                val detail = listOfNotNull(e.message, keyringNote?.let { "Vault key: $it" })
+                    .joinToString(" ")
+                throw CloudSyncException(detail.ifBlank { "This backup could not be opened." }, e)
+            }
 
             update("Importing data into app...", "Passwords, cards, 2FA, contacts, notes & files", 55)
             val outcome = mergeDecoded(decoded)
@@ -1089,7 +1100,10 @@ class CloudSyncManager @Inject constructor(
         secrets: List<OpeningSecret>,
         epoch: Long
     ): LegacyEnvelopeOpener.OpenAttempt {
-        val approximateTotal = secrets.size
+        // The opener reports one step per derivation, not per secret. Counting only `secrets.size`
+        // is what printed "Exact legacy key 21 of 15": 15 keys × 4 counts is 60 derivations.
+        val perSalt = secrets.sumOf { it.iterationProfiles?.size?.takeIf { size -> size > 0 } ?: 1 }
+        val total = (perSalt * salts.size).coerceAtLeast(1)
         return legacyOpener.openWithSalts(
             salts = salts,
             data = data,
@@ -1098,8 +1112,8 @@ class CloudSyncManager @Inject constructor(
             onAttempt = { tried ->
                 update(
                     "Decrypting vault...",
-                    "Exact legacy key $tried of $approximateTotal",
-                    45 + (tried * 3).coerceAtMost(9)
+                    "Exact legacy key ${tried.coerceAtMost(total)} of $total",
+                    45 + (tried * 9 / total)
                 )
             }
         )

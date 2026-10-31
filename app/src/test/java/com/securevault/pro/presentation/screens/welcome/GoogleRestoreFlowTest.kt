@@ -40,27 +40,45 @@ class GoogleRestoreFlowTest {
     }
 
     @Test
-    fun `the restore path has no passphrase parameter and no passphrase state`() {
-        val body = viewModel.substringAfter("private suspend fun restoreFromDrive(")
-            .substringBefore("fun importLocalFile(")
-        assertFalse(
-            "the restore must not read any typed secret",
-            body.contains("passphrase", ignoreCase = true)
+    fun `the first restore attempt carries no typed secret, only a key-mismatch retry does`() {
+        val signature = Regex("private suspend fun restoreFromDrive\\(([^)]*)\\)").find(viewModel)
+            ?.groupValues?.get(1) ?: throw IllegalStateException("restoreFromDrive is missing")
+        assertTrue(
+            "the first attempt must default to no secret, found: $signature",
+            signature.contains("secret: String? = null")
+        )
+        // Both one-tap entry points must still call the keyless form.
+        val keyless = Regex("restoreFromDrive\\(email\\)").findAll(viewModel).count()
+        assertTrue("both one-tap paths must restore without typing, found $keyless", keyless >= 2)
+        assertTrue(
+            "the walk must accept the keyring key once the password unwrapped it",
+            viewModel.contains("restoreAnyCloudBackup(email, passphrase = secret)")
         )
         assertTrue(
-            "the walk must be handed nothing but the account",
-            body.contains("restoreAnyCloudBackup(email)")
+            "a retry must exist and go through the typed secret",
+            viewModel.contains("fun submitRestoreSecret()")
         )
-        assertFalse("the gate still carries passphrase state", viewModel.contains("restorePassphrase"))
-        assertFalse("the gate still exposes a passphrase setter", viewModel.contains("setRestorePassphrase"))
+        assertTrue(
+            "the retry prompt may only appear after a key mismatch",
+            viewModel.contains("val needsSecret = looksLikeKeyMismatch(message)")
+        )
     }
 
     @Test
-    fun `the screen offers no passphrase or seed entry point at all`() {
+    fun `the screen offers no seed entry and only a key-mismatch password retry`() {
         assertFalse("a Drive phrase sheet is back", screen.contains("showDrivePassphraseDialog"))
-        assertFalse("a passphrase field is back", screen.contains("SecurePasswordField"))
+        assertFalse("a passphrase field is back before any attempt", screen.contains("SecurePasswordField"))
         assertFalse("the seed sheet is back", screen.contains("RecoverySeedSection"))
         assertFalse("a seed tab is back", screen.contains("\"Seed phrase\""))
+        // The only secret field is inside a card that a failed key sweep has to switch on.
+        assertTrue(
+            "the password card must be gated by the failure state",
+            screen.contains("if (state.restoreNeedsSecret)")
+        )
+        val card = screen.substringAfter("if (state.restoreNeedsSecret)")
+            .substringBefore("Spacer(Modifier.height(30.dp))")
+        assertTrue("the retry card lost its password field", card.contains("VaultTextField("))
+        assertTrue("the retry card lost its action", card.contains("viewModel.submitRestoreSecret()"))
     }
 
     @Test

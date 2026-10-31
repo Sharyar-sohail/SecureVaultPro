@@ -305,6 +305,48 @@ class LegacyEnvelopeOpenerTest {
         assertEquals(3, attempt.candidatesTried)
     }
 
+    /**
+     * The exact shape the owner's Drive copies have: sealed with the account's random 256-bit vault
+     * key (the keyring secret, base64), not with any literal or address. Sixty derivations — the
+     * number the failure screen printed — cannot open it, and the only fix is to offer the key the
+     * keyring returns after the master password unwraps it.
+     */
+    @Test
+    fun `a keyring-sealed backup opens only when the account vault key is offered`() {
+        val json = """{"entries":[{"id":"e-vault-key"}]}"""
+        val salt = derivation.generateSalt()
+        val vaultKey = ByteArray(32).also { java.security.SecureRandom().nextBytes(it) }
+            .let { Base64.getEncoder().encodeToString(it) }
+        val data = seal(json, vaultKey, salt, 600_000)
+
+        val without = opener.openWithSalts(
+            salts = listOf(salt),
+            data = data,
+            secrets = LegacyKeyPlan.ordered(
+                emails = listOf("owner@example.com"),
+                vaultSecret = null,
+                version = 3
+            ),
+            iterationProfiles = LegacyEnvelopeOpener.exactProfiles(3)
+        )
+        assertNull("no literal or address can open a keyring-sealed file", without.opened)
+        assertEquals("15 keys × 4 counts is what the overlay must report", 60, without.candidatesTried)
+
+        val with = opener.openWithSalts(
+            salts = listOf(salt),
+            data = data,
+            secrets = LegacyKeyPlan.ordered(
+                emails = listOf("owner@example.com"),
+                vaultSecret = vaultKey,
+                version = 3
+            ),
+            iterationProfiles = LegacyEnvelopeOpener.exactProfiles(3)
+        )
+        assertEquals(json, with.opened?.json)
+        assertEquals(OpeningSecretKind.VAULT_KEY, with.opened?.kind)
+        assertEquals(600_000, with.opened?.iterations)
+    }
+
     private fun seal(json: String, secret: String, salt: ByteArray, iterations: Int): String {
         val key = derivation.deriveKey(secret.toCharArray(), salt, iterations)
         val cipher = javax.crypto.Cipher.getInstance("AES/GCM/NoPadding")

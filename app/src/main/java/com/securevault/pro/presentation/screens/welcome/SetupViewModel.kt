@@ -44,7 +44,12 @@ data class SetupUiState(
     val warnings: List<String> = emptyList(),
     val lastRestoredFrom: String = "",
     val restoreComplete: Boolean = false,
-    val readyForSetup: Boolean = false
+    val readyForSetup: Boolean = false,
+    /** The last attempt failed on a key this device does not hold; a master password can supply it. */
+    val restoreNeedsSecret: Boolean = false,
+    val restoreSecret: String = "",
+    /** The technical reason, kept so the owner can report it without re-running a slow sweep. */
+    val restoreDiagnostic: String? = null
 ) {
     val canSubmit: Boolean
         get() = masterPassword.length >= 8 &&
@@ -83,6 +88,12 @@ class SetupViewModel @Inject constructor(
     private var flowJob: Job? = null
 
     /**
+     * The file whose import failed, kept only so a passphrase can be offered and the same bytes
+     * retried without a second trip through the document picker. Cleared on any successful import.
+     */
+    private var pendingImport: Pair<ByteArray, String>? = null
+
+    /**
      * Set when Drive refused the credential. The cached account can keep reporting a grant it no
      * longer has, so the next tap must reach Google's picker instead of rebuilding the same dead
      * request; without this the owner ping-pongs between the same error and the same tap.
@@ -112,7 +123,10 @@ class SetupViewModel @Inject constructor(
                 warnings = emptyList(),
                 lastRestoredFrom = "",
                 restoreComplete = false,
-                readyForSetup = false
+                readyForSetup = false,
+                restoreNeedsSecret = false,
+                restoreSecret = "",
+                restoreDiagnostic = null
             )
         }
     }
@@ -230,7 +244,7 @@ class SetupViewModel @Inject constructor(
 
     fun handleGoogleSignInResult(data: Intent?) {
         flowJob = viewModelScope.launch {
-            _state.update { it.copy(busy = true, error = null, notice = null, warnings = emptyList()) }
+            _state.update { it.copy(busy = true, error = null, notice = null, warnings = emptyList(), restoreNeedsSecret = false, restoreDiagnostic = null) }
             try {
                 val email = cloudSyncManager.completeGoogleSignIn(data)
                 if (email.isNullOrBlank()) {
@@ -287,12 +301,19 @@ class SetupViewModel @Inject constructor(
     }
 
     /**
-     * Restore every copy in Drive with the keys this app holds. Nothing is asked for: the
-     * account authorises the download and [CloudSyncManager.restoreAnyCloudBackup] sweeps
-     * the vault key, the retired universal keys and the account address itself.
+     * Restore every copy in Drive with the keys this app holds.
+     *
+     * Nothing is asked for up front: the account authorises the download and
+     * [CloudSyncManager.restoreAnyCloudBackup] sweeps the vault key, the retired universal keys and
+     * the account address itself. A build from 3.3.4 on seals Drive copies with this account's own
+     * random vault key, which is not derivable from any of those: it is only recoverable by
+     * unwrapping the cloud keyring with the master password. That is why [secret] exists — when the
+     * keyless walk fails, the owner types the password they set on the phone that wrote the copies.
      */
-    private suspend fun restoreFromDrive(email: String) {
-        _state.update { it.copy(busy = true, error = null) }
+    private suspend fun restoreFromDrive(email: String, secret: String? = null) {
+        _state.update {
+            it.copy(busy = true, error = null, restoreNeedsSecret = false, restoreDiagnostic = null)
+        }
         val listed = withTimeoutOrNull(LIST_TIMEOUT_MS) { cloudSyncManager.listCloudBackups() }
         if (listed == null) {
             _state.update {
@@ -346,14 +367,15 @@ class SetupViewModel @Inject constructor(
             }
             return
         }
-        // Every copy is tried, newest first, and no typed secret is involved.
-        val outcome = cloudSyncManager.restoreAnyCloudBackup(email)
+        // Every copy is tried, newest first.
+        val outcome = cloudSyncManager.restoreAnyCloudBackup(email, passphrase = secret)
         outcome.fold(
             onSuccess = { result ->
                 val complete = result.failureReason == null
                 // A partial restore still leaves a real vault on the device, so the user
                 // is allowed forward with the failure shown — never stranded on Welcome.
                 val usable = complete || result.counts.total > 0
+                val keepSecret = secret?.trim().orEmpty()
                 _state.update {
                     it.copy(
                         busy = false,
@@ -362,7 +384,15 @@ class SetupViewModel @Inject constructor(
                         warnings = result.warnings,
                         lastRestoredFrom = primary.name,
                         restoreComplete = complete,
-                        readyForSetup = usable
+                        readyForSetup = usable,
+                        // A password that unwrapped the account keyring is the account's own master
+                        // password; carry it into setup so the next keyring publish confirms it
+                        // instead of replacing a live key with an unrelated new one.
+                        masterPassword = if (usable && keepSecret.isNotBlank()) keepSecret else it.masterPassword,
+                        confirmPassword = if (usable && keepSecret.isNotBlank()) keepSecret else it.confirmPassword,
+                        restoreNeedsSecret = false,
+                        restoreSecret = if (usable) "" else it.restoreSecret,
+                        restoreDiagnostic = null
                     )
                 }
             },
@@ -381,11 +411,26 @@ class SetupViewModel @Inject constructor(
                         )
                     }
                 } else {
+                    val needsSecret = looksLikeKeyMismatch(message)
+                    val vaultKeyProblem = message.substringAfter("Vault key:", "")
+                        .trim()
+                        .takeIf { it.isNotBlank() }
+                    val keyringBlocked = vaultKeyProblem != null && listOf(
+                        "authorisation", "sign in", "timed out", "could not be fetched", "unavailable"
+                    ).any { vaultKeyProblem.contains(it, ignoreCase = true) }
                     _state.update {
                         it.copy(
                             busy = false,
-                            notice = message.ifBlank { "The cloud restore could not complete." },
-                            noticeIsError = true
+                            notice = when {
+                                !needsSecret -> message.ifBlank { "The cloud restore could not complete." }
+                                keyringBlocked -> vaultKeyProblem
+                                secret.isNullOrBlank() -> DRIVE_SECRET_PROMPT
+                                else -> "That master password did not open this account's vault key. " +
+                                    "Type it again exactly as you set it on the phone that made these backups."
+                            },
+                            noticeIsError = true,
+                            restoreNeedsSecret = needsSecret && !keyringBlocked,
+                            restoreDiagnostic = if (needsSecret) message else null
                         )
                     }
                 }
@@ -393,7 +438,53 @@ class SetupViewModel @Inject constructor(
         )
     }
 
-    fun importLocalFile(bytes: ByteArray, fileName: String) {
+    fun onRestoreSecretChange(value: String) {
+        _state.update { it.copy(restoreSecret = value, error = null) }
+    }
+
+    fun cancelRestoreSecret() {
+        _state.update {
+            it.copy(
+                restoreNeedsSecret = false,
+                restoreSecret = "",
+                notice = "Nothing was changed. You can try Google again, open an exported file, or create a vault on this device.",
+                noticeIsError = false
+            )
+        }
+    }
+
+    /**
+     * Retries the failed attempt with the password the owner typed.
+     *
+     * For Drive this unwraps the account keyring (the same random key every current copy is sealed
+     * with). For a file it opens the passphrase-sealed export. The password never leaves this
+     * process except as a PBKDF2 input.
+     */
+    fun submitRestoreSecret() {
+        val snapshot = _state.value
+        val secret = snapshot.restoreSecret.trim()
+        if (secret.isBlank() || snapshot.busy) return
+        flowJob = viewModelScope.launch {
+            val pending = pendingImport
+            if (snapshot.restoreMode == SetupRestoreMode.FILE && pending != null) {
+                importLocalFile(pending.first, pending.second, secret)
+            } else {
+                restoreFromDrive(snapshot.signedInEmail, secret)
+            }
+        }
+    }
+
+    /** True when a failure is a key mismatch rather than a network, consent or file-shape fault. */
+    private fun looksLikeKeyMismatch(message: String): Boolean =
+        message.contains("could be opened", ignoreCase = true) ||
+            message.contains("Invalid Legacy Key", ignoreCase = true) ||
+            message.contains("does not hold", ignoreCase = true) ||
+            message.contains("rejected by the GCM tag", ignoreCase = true) ||
+            message.contains("could not be opened", ignoreCase = true)
+
+    fun importLocalFile(bytes: ByteArray, fileName: String, passphrase: String? = null) {
+        // Kept so a failure can be retried with a passphrase without asking for the file again.
+        pendingImport = bytes to fileName
         flowJob = viewModelScope.launch {
             _state.update {
                 it.copy(
@@ -402,28 +493,43 @@ class SetupViewModel @Inject constructor(
                     error = null,
                     notice = null,
                     warnings = emptyList(),
-                    lastRestoredFrom = fileName
+                    lastRestoredFrom = fileName,
+                    restoreNeedsSecret = false,
+                    restoreDiagnostic = null
                 )
             }
-            cloudSyncManager.importLocalBackup(bytes, passphrase = null).fold(
+            cloudSyncManager.importLocalBackup(bytes, passphrase = passphrase).fold(
                 onSuccess = { result ->
                     val complete = result.failureReason == null
+                    val usable = complete || result.counts.total > 0
+                    if (usable) pendingImport = null
                     _state.update {
                         it.copy(
                             busy = false,
                             notice = result.message,
                             noticeIsError = result.failureReason != null,
                             warnings = result.warnings,
-                            readyForSetup = complete || result.counts.total > 0
+                            readyForSetup = usable,
+                            restoreNeedsSecret = false,
+                            restoreSecret = if (usable) "" else it.restoreSecret,
+                            restoreDiagnostic = null
                         )
                     }
                 },
                 onFailure = { error ->
+                    val message = error.message?.take(600).orEmpty()
+                    val needsSecret = looksLikeKeyMismatch(message)
                     _state.update {
                         it.copy(
                             busy = false,
-                            notice = error.message?.take(600) ?: "The encrypted file could not be imported.",
-                            noticeIsError = true
+                            notice = when {
+                                !needsSecret -> message.ifBlank { "The encrypted file could not be imported." }
+                                passphrase.isNullOrBlank() -> FILE_SECRET_PROMPT
+                                else -> "That passphrase did not open this export. It is case-sensitive — enter it exactly as you chose it."
+                            },
+                            noticeIsError = true,
+                            restoreNeedsSecret = needsSecret,
+                            restoreDiagnostic = if (needsSecret) message else null
                         )
                     }
                 }
@@ -493,5 +599,14 @@ class SetupViewModel @Inject constructor(
     private companion object {
         /** Long enough for a slow mobile handshake; the Drive call itself gives up at 45 s. */
         const val LIST_TIMEOUT_MS = 60_000L
+
+        const val DRIVE_SECRET_PROMPT =
+            "These Drive copies are sealed with this account's own vault key, not the old universal " +
+                "key. Enter the master password you set on the phone that wrote them — it unwraps " +
+                "the account key and the restore reopens every copy. Nothing is erased either way."
+
+        const val FILE_SECRET_PROMPT =
+            "This export is sealed with a passphrase, so it cannot open with the device keys alone. " +
+                "Enter the passphrase you used when you exported it."
     }
 }

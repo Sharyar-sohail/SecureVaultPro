@@ -47,8 +47,10 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.securevault.pro.presentation.components.CloudOperationOverlay
 import com.securevault.pro.presentation.components.GlassCard
+import com.securevault.pro.presentation.components.GradientButton
 import com.securevault.pro.presentation.components.NeonBackground
 import com.securevault.pro.presentation.components.ThemedIcon
+import com.securevault.pro.presentation.components.VaultTextField
 import com.securevault.pro.presentation.components.queryDisplayName
 import com.securevault.pro.presentation.components.readDocumentBytes
 import kotlinx.coroutines.delay
@@ -203,7 +205,7 @@ fun OnboardingScreen(
                 description = if (state.signedInEmail.isBlank()) {
                     "Restore the encrypted vault stored in your Drive app-data folder"
                 } else {
-                    "${state.signedInEmail} · one tap restores every Drive copy"
+                    "${state.signedInEmail} · restores every Drive copy"
                 },
                 enabled = !state.busy && !cloudState.active,
                 onClick = {
@@ -268,6 +270,85 @@ fun OnboardingScreen(
                                     color = VaultColor.textFaint
                                 )
                             }
+                            val diagnostic = state.restoreDiagnostic
+                            if (state.restoreNeedsSecret && diagnostic != null) {
+                                Spacer(Modifier.height(6.dp))
+                                Text(
+                                    text = diagnostic,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = VaultColor.textFaint,
+                                    maxLines = 4,
+                                    overflow = TextOverflow.Ellipsis,
+                                    lineHeight = 14.sp
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (state.restoreNeedsSecret) {
+                Spacer(Modifier.height(12.dp))
+                GlassCard(
+                    accent = VaultColor.warning,
+                    borderColor = VaultColor.warning.copy(alpha = 0.35f),
+                    contentPadding = PaddingValues(horizontal = 13.dp, vertical = 12.dp)
+                ) {
+                    Column {
+                        Text(
+                            text = if (state.restoreMode == SetupRestoreMode.FILE) {
+                                "Unlock this export"
+                            } else {
+                                "Unlock your Drive backups"
+                            },
+                            style = MaterialTheme.typography.titleSmall,
+                            color = VaultColor.textStrong,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Spacer(Modifier.height(5.dp))
+                        Text(
+                            text = if (state.restoreMode == SetupRestoreMode.FILE) {
+                                "The file is sealed with the passphrase you chose when exporting it."
+                            } else {
+                                "Current backups are sealed with this account's own vault key. Your master " +
+                                    "password unwraps that key from Google's realtime store — it is never sent anywhere."
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = VaultColor.textBody,
+                            lineHeight = 17.sp
+                        )
+                        Spacer(Modifier.height(10.dp))
+                        VaultTextField(
+                            value = state.restoreSecret,
+                            onValueChange = viewModel::onRestoreSecretChange,
+                            label = if (state.restoreMode == SetupRestoreMode.FILE) {
+                                "Export passphrase"
+                            } else {
+                                "Master password"
+                            },
+                            leadingIcon = Glyph.lock,
+                            isPassword = true,
+                            enabled = !state.busy,
+                            onImeSubmit = { viewModel.submitRestoreSecret() }
+                        )
+                        Spacer(Modifier.height(9.dp))
+                        GradientButton(
+                            text = "Unlock and restore",
+                            icon = Glyph.key,
+                            enabled = state.restoreSecret.trim().isNotEmpty() && !state.busy,
+                            modifier = Modifier.fillMaxWidth(),
+                            onClick = { viewModel.submitRestoreSecret() }
+                        )
+                        TextButton(
+                            onClick = { viewModel.cancelRestoreSecret() },
+                            enabled = !state.busy,
+                            modifier = Modifier.align(Alignment.CenterHorizontally)
+                        ) {
+                            Text(
+                                text = "Not now",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = VaultColor.textFaint
+                            )
                         }
                     }
                 }
@@ -295,8 +376,9 @@ fun OnboardingScreen(
             title = { Text("Import encrypted backup") },
             text = {
                 Text(
-                    text = "Choose a Secure Wallet Pro .enc or .xml.enc export. It opens " +
-                        "automatically with the keys this vault has always used. Nothing is typed.",
+                    text = "Choose a Secure Wallet Pro .enc or .xml.enc export. Copies sealed with your " +
+                        "vault key open on their own; an export you locked with a passphrase asks for " +
+                        "it before importing.",
                     style = MaterialTheme.typography.bodySmall,
                     color = VaultColor.textBody,
                     lineHeight = 18.sp
