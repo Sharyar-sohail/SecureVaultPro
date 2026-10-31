@@ -425,8 +425,9 @@ class SetupViewModel @Inject constructor(
                                 !needsSecret -> message.ifBlank { "The cloud restore could not complete." }
                                 keyringBlocked -> vaultKeyProblem
                                 secret.isNullOrBlank() -> DRIVE_SECRET_PROMPT
-                                else -> "That master password did not open this account's vault key. " +
-                                    "Type it again exactly as you set it on the phone that made these backups."
+                                else -> "That master password did not unwrap this account's cloud vault key. " +
+                                    "If this account never published one, these copies open only on the phone " +
+                                    "that wrote them, or from a passphrase export."
                             },
                             noticeIsError = true,
                             restoreNeedsSecret = needsSecret && !keyringBlocked,
