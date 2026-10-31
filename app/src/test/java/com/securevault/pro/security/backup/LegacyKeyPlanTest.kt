@@ -8,9 +8,10 @@ import org.junit.Test
 /**
  * Pins the keys a stored envelope is offered and, critically, the exact derivation counts.
  *
- * The old code used 600,000 rounds for every v3 candidate and 210,000/120,000 only for envelopes
- * older than v3. There is no count sweep: a count no writer used cannot open a file and only makes
- * the failure slower. The envelope's version also decides which historical keys are plausible.
+ * The reader 3.1.9 shipped derived every candidate at 600,000, 100,000, 10,000 and 1,000 rounds,
+ * and at 210,000/120,000 as well for envelopes older than v3. Those numbers are the whole history,
+ * so they are offered exactly and nothing more. The envelope's version also decides which
+ * historical keys are plausible.
  */
 class LegacyKeyPlanTest {
 

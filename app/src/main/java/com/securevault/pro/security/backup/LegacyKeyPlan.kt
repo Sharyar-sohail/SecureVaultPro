@@ -101,8 +101,9 @@ object LegacyKeyPlan {
     }
 
     /**
-     * The original reader's full candidate list. Only a pre-v3 envelope, or a deliberate last
-     * resort after the owner has supplied a secret, is ever offered this.
+     * The original reader's full candidate list. A pre-v3 envelope and the salt-less blob are
+     * offered this directly, and a v3 envelope is offered it after the one-key chain fails — the
+     * same order 3.1.9 used, so a copy it could open still opens here.
      *
      * @param version the envelope's `v` field, or null for the salt-less `iv.ciphertext` blob that
      *   predates envelopes.

@@ -153,6 +153,15 @@ class CloudSyncManager @Inject constructor(
          */
         private const val MAX_WALK_FILES = 6
 
+        /**
+         * How long one copy may spend in the original reader's key list when its exact key fails.
+         *
+         * That list is the one 3.1.9 shipped — every candidate at each of its four counts — so this
+         * only bounds a file sealed with a key neither this device nor the account holds. A copy
+         * written by a current build opens on the first derivation and never reaches this budget.
+         */
+        private const val LEGACY_SWEEP_BUDGET_MS = 60_000L
+
         /** How long a passphrase is allowed to fetch the account's vault key before the restore moves on. */
         private const val KEYRING_ATTACH_TIMEOUT_MS = 45_000L
     }
@@ -1036,13 +1045,17 @@ class CloudSyncManager @Inject constructor(
         val envelope = BackupEnvelopeFormat.parse(bytes)
         if (envelope != null && envelope.recognised && envelope.salt.size >= 8) {
             val salts = LegacySaltPlan.variants(envelope.salt)
-            val attempt = if (envelope.version == null || envelope.version < 3) {
+            // A file that states no version predates the field, so it is treated as older than v3
+            // rather than being read as current: that is what makes its retired keys and extra
+            // derivation counts available.
+            val version = envelope.version.takeIf { envelope.statedVersion }
+            val attempt = if (version == null || version < 3) {
                 // Only a pre-v3 envelope needs the original reader's wider list; its own version
                 // says so in the file, so this is history, not guessing.
                 openSecrets(
                     salts = salts,
                     data = envelope.data,
-                    secrets = buildSecrets(email, passphrase, version = envelope.version),
+                    secrets = buildSecrets(email, passphrase, version = version),
                     epoch = epoch,
                     detail = "Opening an older backup the way its reader did"
                 )
@@ -1054,20 +1067,33 @@ class CloudSyncManager @Inject constructor(
                     preferPassphrase = preferPassphrase,
                     epoch = epoch
                 )
-                // A typed secret means the owner deliberately retried. Only then is the original
-                // reader's historical list worth its handful of derivations; the common path is
-                // one exact key, never a 60-step sweep.
-                if (first.opened != null || passphrase.isNullOrBlank()) {
+                // The exact key first; if it fails, exactly what the 3.1.9 reader did next — its own
+                // candidate list at every count it iterated (600k/100k/10k/1k). A v3 copy sealed by
+                // an older build is still the owner's vault, and ending at the primary chain is what
+                // made such a file report "Invalid Legacy Key" on an install that used to open it.
+                if (first.opened != null) {
                     first
                 } else {
-                    openSecrets(
+                    val sweep = openSecrets(
                         salts = salts,
                         data = envelope.data,
-                        secrets = buildSecrets(email, passphrase, version = envelope.version)
-                            .map { it.copy(iterationProfiles = listOf(LegacyEnvelopeOpener.CURRENT_ITERATIONS)) },
+                        secrets = buildSecrets(email, passphrase, version = version),
                         epoch = epoch,
-                        detail = "Checking the keys this account has used"
+                        detail = "Checking every key the original app used",
+                        budgetMs = LEGACY_SWEEP_BUDGET_MS
                     )
+                    // A stop signal is reported by the epoch check below, not as a timeout.
+                    if (sweep.opened == null && sweep.budgetExhausted &&
+                        operationEpoch.get() == epoch
+                    ) {
+                        throw CloudSyncException(
+                            "This backup could not be opened within " +
+                                "${LEGACY_SWEEP_BUDGET_MS / 1000} s while checking every key the " +
+                                "original app used. If it was sealed with this account's own vault " +
+                                "key, enter the master password to unwrap it."
+                        )
+                    }
+                    sweep
                 }
             }
             if (operationEpoch.get() != epoch) {
@@ -1138,8 +1164,9 @@ class CloudSyncManager @Inject constructor(
      * This is the v3.1.9 behaviour the owner asked back: a Google login opens the Drive copies with
      * no prompt. Dropping [LegacyKeyPlan.PRIMARY_CLOUD_KEY] once keyring sealing arrived is what
      * made an old backup fail on a newer install, and a device with no vault key still needs it to
-     * open anything at all. The chain is closed and bounded — one derivation on the common path,
-     * never more than the exact writers.
+     * open anything at all. The chain is closed and bounded — one derivation on the common path.
+     * When it fails, the caller still runs the original reader's full candidate list at its four
+     * counts, because a v3 file may have been sealed by a build older than this one.
      */
     private fun openPrimary(
         salts: List<ByteArray>,
@@ -1168,16 +1195,19 @@ class CloudSyncManager @Inject constructor(
     }
 
     /**
-     * The original reader's candidate list for a file that predates the one-key format, or for a
-     * deliberate retry after the owner supplied a secret. Progress moves but never prints a count:
-     * the owner asked to stop watching key numbers, and a count is not information they can act on.
+     * The original reader's candidate list, used where the one-key chain cannot be the whole answer:
+     * a pre-v3 envelope, the salt-less blob, and a v3 copy whose exact key failed — the case the
+     * 3.1.9 reader covered and the one that otherwise reports "Invalid Legacy Key". Progress moves
+     * but never prints a count: the owner asked to stop watching key numbers, and a count is not
+     * information they can act on.
      */
     private fun openSecrets(
         salts: List<ByteArray>,
         data: String,
         secrets: List<OpeningSecret>,
         epoch: Long,
-        detail: String
+        detail: String,
+        budgetMs: Long = Long.MAX_VALUE
     ): LegacyEnvelopeOpener.OpenAttempt {
         val perSalt = secrets.sumOf { it.iterationProfiles?.size?.takeIf { size -> size > 0 } ?: 1 }
         val total = (perSalt * salts.size).coerceAtLeast(1)
@@ -1185,6 +1215,7 @@ class CloudSyncManager @Inject constructor(
             salts = salts,
             data = data,
             secrets = secrets,
+            budgetMs = budgetMs,
             shouldStop = { operationEpoch.get() != epoch },
             onAttempt = { tried ->
                 update(

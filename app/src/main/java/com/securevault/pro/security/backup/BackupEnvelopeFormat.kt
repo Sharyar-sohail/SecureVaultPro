@@ -18,7 +18,13 @@ data class BackupEnvelope(
     val version: Int,
     val iterations: Int?,
     /** True when the object had a recognisable envelope shape; false for a plain or unknown file. */
-    val recognised: Boolean
+    val recognised: Boolean,
+    /**
+     * False when the file states no version at all. [version] still carries the current default so
+     * diagnostics read sensibly, but an unstated file is older than v3 for decryption purposes: the
+     * reader must offer it the pre-v3 keys and counts, not the narrower current list.
+     */
+    val statedVersion: Boolean = true
 ) {
     val saltBytes: Int get() = salt.size
 
@@ -52,6 +58,9 @@ data class BackupEnvelope(
 
         /** The keys past builds used to state their own PBKDF2 count. */
         val ITERATION_FIELDS = listOf("iterations", "iter", "kdfIterations", "pbkdf2Iterations")
+
+        /** The keys past builds used to state their envelope version. */
+        val VERSION_FIELDS = listOf("v", "version")
 
         /** The count every release since the format landed uses when the file does not say. */
         const val DEFAULT_ITERATIONS = 600_000
@@ -103,13 +112,15 @@ object BackupEnvelopeFormat {
         val saltElement = firstPrimitive(obj, BackupEnvelope.SALT_FIELDS)
         val dataElement = firstPrimitive(obj, BackupEnvelope.DATA_FIELDS)
         val salt = saltElement?.let { decodeBase64OrNull(it) }
+        val statedVersion = firstPrimitive(obj, BackupEnvelope.VERSION_FIELDS) != null
         if (saltElement == null || dataElement == null || salt == null) {
             return BackupEnvelope(
                 salt = ByteArray(0),
                 data = dataElement.orEmpty(),
                 version = readVersion(obj),
                 iterations = readIterations(obj),
-                recognised = false
+                recognised = false,
+                statedVersion = statedVersion
             )
         }
         if (salt.size < 8) {
@@ -118,7 +129,8 @@ object BackupEnvelopeFormat {
                 data = dataElement,
                 version = readVersion(obj),
                 iterations = readIterations(obj),
-                recognised = false
+                recognised = false,
+                statedVersion = statedVersion
             )
         }
         var data = dataElement.trim()
@@ -130,7 +142,8 @@ object BackupEnvelopeFormat {
                     data = data,
                     version = readVersion(obj),
                     iterations = readIterations(obj),
-                    recognised = false
+                    recognised = false,
+                    statedVersion = statedVersion
                 )
             }
             data = "$iv.$data"
@@ -140,12 +153,13 @@ object BackupEnvelopeFormat {
             data = data,
             version = readVersion(obj),
             iterations = readIterations(obj),
-            recognised = true
+            recognised = true,
+            statedVersion = statedVersion
         )
     }
 
     private fun readVersion(obj: JsonObject): Int =
-        firstPrimitive(obj, listOf("v", "version"))?.trim()?.toIntOrNull() ?: 3
+        firstPrimitive(obj, BackupEnvelope.VERSION_FIELDS)?.trim()?.toIntOrNull() ?: 3
 
     private fun readIterations(obj: JsonObject): Int? =
         BackupEnvelope.ITERATION_FIELDS.asSequence()

@@ -144,6 +144,43 @@ class UniversalKeyGuardTest {
     }
 
     /**
+     * The other half of the 3.1.9 promise: when the exact key misses, the reader's own list runs.
+     *
+     * A v3 envelope says nothing about which build sealed it, so a copy from a pre-keyring release
+     * must be offered every candidate the shipped reader offered, at every count it iterated. The
+     * regression this guards is the one that shipped: the fallback was gated on the owner having
+     * typed a password and was then narrowed to 600,000 rounds, so a Google login reported "Invalid
+     * Legacy Key" on files 3.1.9 opened without asking anything.
+     */
+    @Test
+    fun `a v3 copy the exact key misses still gets the original reader's list`() {
+        val sync = syncManagerSource().readText()
+        assertTrue(
+            "the v3 fallback must run even when no password was typed",
+            sync.contains("Checking every key the original app used")
+        )
+        assertFalse(
+            "a missing passphrase must not end the v3 restore before the reader's list runs",
+            sync.contains("first.opened != null || passphrase.isNullOrBlank()")
+        )
+        assertFalse(
+            "the v3 fallback must not be narrowed to one derivation count",
+            sync.contains(".map { it.copy(iterationProfiles = listOf(LegacyEnvelopeOpener.CURRENT_ITERATIONS)) }")
+        )
+        val fallbackAt = sync.indexOf("Checking every key the original app used")
+        val fallbackCall = sync.substring((fallbackAt - 700).coerceAtLeast(0), fallbackAt + 200)
+        assertTrue(
+            "the fallback must hand the original reader's candidate plan to the opener",
+            fallbackCall.contains("buildSecrets(")
+        )
+        assertTrue(
+            "the exact key must be tried before the list, so a current copy costs one derivation",
+            sync.contains("val first = openPrimary(") &&
+                sync.contains("if (first.opened != null) {")
+        )
+    }
+
+    /**
      * Replacing the backup slot in place is how an owner's vault got overwritten by a vault they had
      * not restored. Every slot write now goes through the guard, which preserves bytes it cannot open
      * before it replaces them — so a direct upload over the slot's own file id is the regression to

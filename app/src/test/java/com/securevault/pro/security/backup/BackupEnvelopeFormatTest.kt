@@ -83,6 +83,17 @@ class BackupEnvelopeFormatTest {
     }
 
     @Test
+    fun `a file that states no version is marked as unstated`() {
+        val none = BackupEnvelopeFormat.parse(envelope("salt" to saltB64, "data" to body))
+        assertFalse(
+            "an unstated version must not be read as a current one, or its oldest keys are skipped",
+            none!!.statedVersion
+        )
+        val stated = BackupEnvelopeFormat.parse(envelope("v" to "3", "salt" to saltB64, "data" to body))
+        assertTrue(stated!!.statedVersion)
+    }
+
+    @Test
     fun `a base64-wrapped envelope file is unwrapped`() {
         val inner = """{"v":3,"salt":"$saltB64","data":"$body"}""".toByteArray()
         val wrapped = Base64.getEncoder().encodeToString(inner).toByteArray()

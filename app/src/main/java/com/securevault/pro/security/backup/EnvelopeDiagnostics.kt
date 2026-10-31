@@ -94,7 +94,9 @@ object EnvelopeDiagnostics {
         val rounds = s.statedRounds
             ?.let { String.format(Locale.US, "%,d rounds", it) }
             ?: "round count not stated"
-        val layout = "Envelope v${s.version}, salt ${s.saltBytes} B, IV ${s.ivBytes ?: "?"} B, " +
+        val versionLabel =
+            if (envelope.statedVersion) "v${s.version}" else "unstated (read as older than v3)"
+        val layout = "Envelope $versionLabel, salt ${s.saltBytes} B, IV ${s.ivBytes ?: "?"} B, " +
             "tag $EXPECTED_TAG_BYTES B, shape ${s.shape}, $rounds."
         if (!s.intact) {
             return "This backup could not be opened. $layout ${s.problems.joinToString(" ")} " +
