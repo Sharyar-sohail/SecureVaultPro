@@ -87,6 +87,13 @@ class LegacyEnvelopeOpener @Inject constructor(
         val openedWithRetiredKey: Boolean get() = kind != OpeningSecretKind.VAULT_KEY
     }
 
+    /** [budgetExhausted] means the clock or the stop signal ended the sweep, not a wrong key. */
+    data class OpenAttempt(
+        val opened: Opened?,
+        val candidatesTried: Int,
+        val budgetExhausted: Boolean
+    )
+
     private val keyCache = object : LinkedHashMap<String, ByteArray>(16, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ByteArray>?): Boolean {
             if (size > 24) {
@@ -110,25 +117,54 @@ class LegacyEnvelopeOpener @Inject constructor(
         data: String,
         secrets: List<OpeningSecret>,
         iterationProfiles: List<Int> = ITERATION_PROFILES
-    ): Opened? {
-        if (salt.size < 8 || data.isBlank()) return null
+    ): Opened? = openWithin(salt, data, secrets, iterationProfiles).opened
+
+    /**
+     * One bounded sweep, reporting whether the clock ran out instead of a key being wrong.
+     *
+     * A restore may only spend [budgetMs] here. Each candidate costs a full PBKDF2, so on a handset
+     * the unbounded list could run for minutes at 45%, which is indistinguishable from a hung app;
+     * the caller turns [budgetExhausted] into a fast, specific failure. [shouldStop] is polled before
+     * every derivation so "Stop waiting" aborts within one hash instead of after the whole sweep.
+     */
+    fun openWithin(
+        salt: ByteArray,
+        data: String,
+        secrets: List<OpeningSecret>,
+        iterationProfiles: List<Int> = ITERATION_PROFILES,
+        budgetMs: Long = Long.MAX_VALUE,
+        shouldStop: () -> Boolean = { false }
+    ): OpenAttempt {
+        if (salt.size < 8 || data.isBlank()) return OpenAttempt(null, 0, false)
         val profiles = buildList {
             iterationProfiles.forEach { if (it > 0 && it !in this) add(it) }
         }
+        val deadline = if (budgetMs == Long.MAX_VALUE) Long.MAX_VALUE
+            else System.nanoTime() + budgetMs * 1_000_000L
+        var tried = 0
         for (secret in secrets) {
             if (secret.value.isBlank()) continue
             for (iterations in profiles) {
+                if (shouldStop()) return OpenAttempt(null, tried, true)
+                if (deadline != Long.MAX_VALUE && System.nanoTime() >= deadline) {
+                    return OpenAttempt(null, tried, true)
+                }
+                tried++
                 val key = derivedKey(secret.value, salt, iterations)
                 val json = decrypt(data, key) ?: continue
-                return Opened(
-                    json = json,
-                    kind = secret.kind,
-                    iterations = iterations,
-                    secretFingerprint = fingerprint(secret.value)
+                return OpenAttempt(
+                    opened = Opened(
+                        json = json,
+                        kind = secret.kind,
+                        iterations = iterations,
+                        secretFingerprint = fingerprint(secret.value)
+                    ),
+                    candidatesTried = tried,
+                    budgetExhausted = false
                 )
             }
         }
-        return null
+        return OpenAttempt(null, tried, false)
     }
 
     /** True when [data] is this envelope's own payload under [secret] at [iterations]. */

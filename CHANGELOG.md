@@ -20,6 +20,43 @@ Blogger XML artifact, and the backup/checkpoint snapshots, which hold vault and 
 data. One stale 3.3.4 theme export under `release-site/` is left on disk but untracked because
 it embedded a Firebase `apiKey`; themes we ship carry a blank `var SEED` and no cloud config.
 
+## [3.4.9] — 2026-10-31 (versionCode 354)
+
+The owner's Google restore froze at 45% on "Decrypting vault…". The legacy opener swept every
+retired key × every iteration profile for every file in Drive, with no deadline, and a single
+600,000-round PBKDF2 derivation costs ~1.35 s on a phone-class CPU — so the progress bar never
+moved and Stop never took effect. The sweep is bounded now, the account's own key is tried
+first, and stopping interrupts the CPU work instead of waiting for it.
+
+### Fixed — restore no longer hangs at 45%
+- `LegacyEnvelopeOpener.openWithin` replaces the unbounded `open` sweep: it takes a wall-clock
+  budget and a `shouldStop` predicate, checks both before every PBKDF2 call, and reports
+  `candidatesTried` / `budgetExhausted` in an `OpenAttempt`. `open` stays as the unbudgeted
+  wrapper, so existing callers and tests are unchanged.
+- A backup that states its round count derives with that count only. Files that do not state one
+  still get the shipped profile list (600,000 → 210,000 → 120,000); no cipher, KDF, salt, IV,
+  tag or envelope field changed.
+- `buildSecrets` now tries the signed-in account address first (exact, then lowercase), followed
+  by the vault key and the retired universal keys. A backup sealed to the owner's own Gmail
+  opens on the first derivation; one sealed to something else fails rather than scans.
+- `restoreFromCloud` caps a single file at 8 s; `restoreAnyCloudBackup` walks at most 3 candidate
+  files under a 24 s wall budget. Exhausting a budget throws a named error ("the key that sealed
+  this backup is not on this device…") instead of spinning.
+- The 45% detail text now says which key is actually being tried: "Account address, then your
+  vault key".
+
+### Fixed — "Stop waiting and continue" stops the decryption
+- `CloudSyncManager.operationEpoch` is an `AtomicLong` captured when a flow starts and compared
+  inside the derivation loop. `abandonOperation` increments it, so Stop ends the sweep within one
+  derivation and the onboarding screen returns with everything downloaded so far intact. The 30 s
+  auto-stop uses the same path.
+
+### Added — tests
+- `LegacyRestoreBudgetTest` opens the foreign-written `E-email-600k` vector with the account
+  address in one candidate in under 2 s (measured ~1.35 s), proves twelve wrong keys halt at
+  their deadline rather than running on, and proves a stop signal ends the sweep after a single
+  derivation.
+
 ## [3.4.8] — 2026-10-31 (versionCode 353)
 
 3.4.5 put FLAG_SECURE on the whole window, so the welcome and sign-in screens could not be
