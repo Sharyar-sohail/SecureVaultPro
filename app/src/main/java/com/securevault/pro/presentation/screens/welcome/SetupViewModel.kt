@@ -5,6 +5,7 @@ import android.content.Intent
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.securevault.pro.data.remote.google.CloudSyncManager
+import com.securevault.pro.data.remote.google.DriveFaults
 import com.securevault.pro.data.remote.google.GoogleDriveException
 import com.securevault.pro.data.remote.google.GoogleDriveService
 import com.securevault.pro.presentation.components.BiometricUtils
@@ -159,7 +160,39 @@ class SetupViewModel @Inject constructor(
         }
     }
 
-    fun restoreFromExistingDrive() {
+    /**
+     * One tap on "Continue with Google".
+     *
+     * True means the screen must start Google's account picker; false means a restore is already
+     * running with the account this device holds. Nothing is typed in between: the OAuth account
+     * is the authentication, and no seed or passphrase may stand in front of it.
+     */
+    fun onGoogleTileTapped(): Boolean {
+        val account = runCatching { driveService.lastSignedInAccount() }.getOrNull()
+        val usable = account != null &&
+            !account.email.isNullOrBlank() &&
+            runCatching { driveService.hasDriveAccess(account) }.getOrDefault(false)
+        if (!usable) {
+            _state.update { it.copy(signedInEmail = account?.email.orEmpty(), busy = false) }
+            return true
+        }
+        val email = account.email!!.trim()
+        _state.update {
+            it.copy(
+                signedInEmail = email,
+                restoreMode = SetupRestoreMode.DRIVE,
+                error = null,
+                notice = null,
+                noticeIsError = false,
+                warnings = emptyList()
+            )
+        }
+        flowJob = viewModelScope.launch { restoreFromDrive(email, passphrase = null) }
+        return false
+    }
+
+    /** Opt-in only: a vault sealed with the owner's own passphrase, not a step in the Google path. */
+    fun restoreFromExistingDrive(passphrase: String? = null) {
         val email = state.value.signedInEmail.ifBlank {
             driveService.lastSignedInAccount()?.email.orEmpty()
         }
@@ -169,7 +202,7 @@ class SetupViewModel @Inject constructor(
             }
             return
         }
-        flowJob = viewModelScope.launch { restoreFromDrive(email) }
+        flowJob = viewModelScope.launch { restoreFromDrive(email, passphrase) }
     }
 
     fun onSignInCancelled() {
@@ -224,7 +257,7 @@ class SetupViewModel @Inject constructor(
                 _state.update {
                     it.copy(signedInEmail = email, restoreMode = SetupRestoreMode.DRIVE)
                 }
-                restoreFromDrive(email)
+                restoreFromDrive(email, passphrase = null)
             } catch (e: GoogleDriveException) {
                 _state.update {
                     it.copy(
@@ -263,26 +296,42 @@ class SetupViewModel @Inject constructor(
         }
     }
 
-    private suspend fun restoreFromDrive(email: String) {
+    private suspend fun restoreFromDrive(email: String, passphrase: String?) {
         _state.update { it.copy(busy = true, error = null) }
         val listed = withTimeoutOrNull(LIST_TIMEOUT_MS) { cloudSyncManager.listCloudBackups() }
         if (listed == null) {
             _state.update {
                 it.copy(
                     busy = false,
-                    notice = "Google Drive is not answering. Check the connection and try again, or set up a vault on this device.",
+                    notice = "Google Drive is taking too long to answer. Tap Continue with Google to try again.",
                     noticeIsError = true
                 )
             }
             return
         }
         val files = listed.getOrElse { error ->
-            _state.update {
-                it.copy(
-                    busy = false,
-                    notice = "Drive is connected, but backups could not be listed. ${error.message?.take(120).orEmpty()}".trim(),
-                    noticeIsError = true
-                )
+            val message = error.message?.take(160).orEmpty()
+            if (DriveFaults.needsFreshSignIn(message)) {
+                // Clear the dead credential so the next tap opens Google's picker instead of
+                // rebuilding the same request and reporting the same fault.
+                cloudSyncManager.signOutOfDrive()
+                _state.update {
+                    it.copy(
+                        busy = false,
+                        signedInEmail = "",
+                        restoreMode = SetupRestoreMode.NONE,
+                        notice = DriveFaults.SIGN_IN_AGAIN,
+                        noticeIsError = true
+                    )
+                }
+            } else {
+                _state.update {
+                    it.copy(
+                        busy = false,
+                        notice = "Drive is reachable, but the backups could not be listed. $message".trim(),
+                        noticeIsError = true
+                    )
+                }
             }
             return
         }
@@ -301,10 +350,8 @@ class SetupViewModel @Inject constructor(
             }
             return
         }
-        // Every backup is tried, newest first, with the passphrase typed here offered before this
-        // device's own key. Restoring only the slot is what reported an unreadable slot as
-        // "corrupted" while a readable copy sat in the same folder under another name.
-        val passphrase = state.value.restorePassphrase.trim().takeIf { it.isNotBlank() }
+        // Every backup is tried, newest first. The passphrase is only present when the owner chose
+        // the opt-in path; the ordinary Google tap carries nothing but the OAuth account.
         val outcome = cloudSyncManager.restoreAnyCloudBackup(email, passphrase)
         outcome.fold(
             onSuccess = { result ->
@@ -325,12 +372,26 @@ class SetupViewModel @Inject constructor(
                 }
             },
             onFailure = { error ->
-                _state.update {
-                    it.copy(
-                        busy = false,
-                        notice = error.message?.take(220) ?: "The cloud restore could not complete.",
-                        noticeIsError = true
-                    )
+                val message = error.message?.take(220).orEmpty()
+                if (DriveFaults.needsFreshSignIn(message)) {
+                    cloudSyncManager.signOutOfDrive()
+                    _state.update {
+                        it.copy(
+                            busy = false,
+                            signedInEmail = "",
+                            restoreMode = SetupRestoreMode.NONE,
+                            notice = DriveFaults.SIGN_IN_AGAIN,
+                            noticeIsError = true
+                        )
+                    }
+                } else {
+                    _state.update {
+                        it.copy(
+                            busy = false,
+                            notice = message.ifBlank { "The cloud restore could not complete." },
+                            noticeIsError = true
+                        )
+                    }
                 }
             }
         )
@@ -435,7 +496,7 @@ class SetupViewModel @Inject constructor(
     }
 
     private companion object {
-        /** A stalled Drive listing must not leave the welcome screen waiting forever. */
-        const val LIST_TIMEOUT_MS = 30_000L
+        /** Long enough for a slow mobile handshake; the Drive call itself gives up at 45 s. */
+        const val LIST_TIMEOUT_MS = 60_000L
     }
 }

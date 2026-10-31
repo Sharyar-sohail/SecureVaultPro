@@ -13,6 +13,7 @@ import com.google.android.gms.common.GoogleApiAvailability
 import com.google.android.gms.common.api.ApiException
 import com.google.android.gms.common.api.Scope
 import com.google.api.client.googleapis.extensions.android.gms.auth.GoogleAccountCredential
+import com.google.api.client.googleapis.extensions.android.gms.auth.UserRecoverableAuthIOException
 import com.google.api.client.googleapis.json.GoogleJsonResponseException
 import com.google.api.client.http.ByteArrayContent
 import com.google.api.client.http.javanet.NetHttpTransport
@@ -25,6 +26,7 @@ import com.securevault.pro.data.backup.CloudBackupFile
 import com.securevault.pro.data.remote.firebase.FirebaseBootstrap
 import com.securevault.pro.diagnostics.CrashLogger
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
@@ -157,6 +159,20 @@ class GoogleDriveService @Inject constructor(
 
     fun lastSignedInAccount(): GoogleSignInAccount? = GoogleSignIn.getLastSignedInAccount(context)
 
+    /**
+     * The account a restore may use right now, without any prompt.
+     *
+     * A cached account that lost its Drive grant after a reinstall is not usable, and calling Drive
+     * with it produced the raw 401 the owner read as "connection error". This tries the cache, then
+     * one silent refresh, and answers null when only an interactive sign-in can help.
+     */
+    suspend fun usableAccount(): GoogleSignInAccount? {
+        val cached = lastSignedInAccount()
+        if (cached != null && hasDriveAccess(cached) && !cached.email.isNullOrBlank()) return cached
+        val refreshed = silentSignIn()
+        return refreshed?.takeIf { hasDriveAccess(it) && !it.email.isNullOrBlank() }
+    }
+
     fun hasDriveAccess(account: GoogleSignInAccount? = lastSignedInAccount()): Boolean {
         if (account == null) return false
         return GoogleSignIn.hasPermissions(account, Scope(DriveScopes.DRIVE_APPDATA))
@@ -250,6 +266,45 @@ class GoogleDriveService @Inject constructor(
     suspend fun listBackups(account: GoogleSignInAccount? = lastSignedInAccount()): List<CloudBackupFile> =
         withContext(Dispatchers.IO) {
             val drive = driveFor(account)
+            try {
+                val files = withTimeout(OPERATION_TIMEOUT_MS) {
+                    drive.files().list()
+                        .setSpaces(APP_DATA_FOLDER)
+                        .setFields("files(id,name,size,modifiedTime,mimeType)")
+                        .setOrderBy("modifiedTime desc")
+                        .setPageSize(100)
+                        .execute()
+                }.files.orEmpty()
+                files.asSequence()
+                    .filter { it.name?.endsWith(".enc", ignoreCase = true) == true }
+                    .filter { it.name != "vault_salt.json" }
+                    .map { file ->
+                        CloudBackupFile(
+                            id = file.id.orEmpty(),
+                            name = file.name ?: "backup.enc",
+                            size = (file.size ?: 0L).toLong(),
+                            modifiedTime = file.modifiedTime?.value?.toLong() ?: 0L,
+                            isPrimary = file.name == PRIMARY_BACKUP
+                        )
+                    }
+                    .filter { it.id.isNotBlank() }
+                    .sortedWith(compareByDescending<CloudBackupFile> { it.isPrimary }.thenByDescending { it.modifiedTime })
+                    .toList()
+            } catch (e: GoogleDriveException) {
+                throw e
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                throw driveFailure(e, "Unable to read the encrypted backups in Drive")
+            }
+        }
+
+    suspend fun findBackupByName(
+        name: String,
+        account: GoogleSignInAccount? = lastSignedInAccount()
+    ): CloudBackupFile? = withContext(Dispatchers.IO) {
+        val drive = driveFor(account)
+        try {
             val files = withTimeout(OPERATION_TIMEOUT_MS) {
                 drive.files().list()
                     .setSpaces(APP_DATA_FOLDER)
@@ -258,44 +313,19 @@ class GoogleDriveService @Inject constructor(
                     .setPageSize(100)
                     .execute()
             }.files.orEmpty()
-            files.asSequence()
-                .filter { it.name?.endsWith(".enc", ignoreCase = true) == true }
-                .filter { it.name != "vault_salt.json" }
-                .map { file ->
-                    CloudBackupFile(
-                        id = file.id.orEmpty(),
-                        name = file.name ?: "backup.enc",
-                        size = (file.size ?: 0L).toLong(),
-                        modifiedTime = file.modifiedTime?.value?.toLong() ?: 0L,
-                        isPrimary = file.name == PRIMARY_BACKUP
-                    )
-                }
-                .filter { it.id.isNotBlank() }
-                .sortedWith(compareByDescending<CloudBackupFile> { it.isPrimary }.thenByDescending { it.modifiedTime })
-                .toList()
-        }
-
-    suspend fun findBackupByName(
-        name: String,
-        account: GoogleSignInAccount? = lastSignedInAccount()
-    ): CloudBackupFile? = withContext(Dispatchers.IO) {
-        val drive = driveFor(account)
-        val files = withTimeout(OPERATION_TIMEOUT_MS) {
-            drive.files().list()
-                .setSpaces(APP_DATA_FOLDER)
-                .setFields("files(id,name,size,modifiedTime,mimeType)")
-                .setOrderBy("modifiedTime desc")
-                .setPageSize(100)
-                .execute()
-        }.files.orEmpty()
-        files.firstOrNull { it.name == name }?.let { file ->
-            CloudBackupFile(
-                id = file.id.orEmpty(),
-                name = file.name ?: name,
-                size = (file.size ?: 0L).toLong(),
-                modifiedTime = file.modifiedTime?.value?.toLong() ?: 0L,
-                isPrimary = file.name == PRIMARY_BACKUP
-            )
+            files.firstOrNull { it.name == name }?.let { file ->
+                CloudBackupFile(
+                    id = file.id.orEmpty(),
+                    name = file.name ?: name,
+                    size = (file.size ?: 0L).toLong(),
+                    modifiedTime = file.modifiedTime?.value?.toLong() ?: 0L,
+                    isPrimary = file.name == PRIMARY_BACKUP
+                )
+            }
+        } catch (e: GoogleDriveException) {
+            throw e
+        } catch (e: Throwable) {
+            throw driveFailure(e, "Unable to read the encrypted backups in Drive")
         }
     }
 
@@ -311,12 +341,12 @@ class GoogleDriveService @Inject constructor(
                 drive.files().get(fileId).executeMediaAndDownloadTo(out)
                 out.toByteArray()
             }
-        } catch (e: GoogleJsonResponseException) {
-            throw GoogleDriveException("Drive download failed (${e.statusCode}).", e)
         } catch (e: GoogleDriveException) {
             throw e
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Throwable) {
-            throw GoogleDriveException("Unable to download the encrypted backup.", e)
+            throw driveFailure(e, "Unable to download the encrypted backup")
         }
     }
 
@@ -353,12 +383,12 @@ class GoogleDriveService @Inject constructor(
                 modifiedTime = uploaded.modifiedTime?.value?.toLong() ?: System.currentTimeMillis(),
                 isPrimary = name == PRIMARY_BACKUP
             )
-        } catch (e: GoogleJsonResponseException) {
-            throw GoogleDriveException("Drive upload failed (${e.statusCode}).", e)
         } catch (e: GoogleDriveException) {
             throw e
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Throwable) {
-            throw GoogleDriveException("Unable to upload the encrypted backup.", e)
+            throw driveFailure(e, "Unable to upload the encrypted backup")
         }
     }
 
@@ -494,6 +524,23 @@ class GoogleDriveService @Inject constructor(
             usedBytes = quota.usage ?: 0L,
             inDriveBytes = quota.usageInDrive ?: 0L
         )
+    }
+
+    /**
+     * One translation for every Drive call: a consent fault becomes the one message that makes the
+     * caller re-open Google, and everything else keeps its status code without pretending to be
+     * a connection problem.
+     */
+    private fun driveFailure(e: Throwable, fallback: String): GoogleDriveException = when (e) {
+        is UserRecoverableAuthIOException ->
+            GoogleDriveException(DriveFaults.SIGN_IN_AGAIN, e)
+        is GoogleJsonResponseException ->
+            if (e.statusCode == 401 || e.statusCode == 403) {
+                GoogleDriveException(DriveFaults.SIGN_IN_AGAIN, e)
+            } else {
+                GoogleDriveException("$fallback (status ${e.statusCode}).", e)
+            }
+        else -> GoogleDriveException("$fallback.", e)
     }
 
     @Synchronized

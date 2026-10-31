@@ -47,6 +47,27 @@ class WelcomeGateTest {
     }
 
     @Test
+    fun `the google tile carries no phrase in front of the restore`() {
+        val tile = source.substringAfter("title = \"Continue with Google\"")
+            .substringBefore("WelcomeOption(")
+        assertTrue("the Google tap must use the one-tap restore", tile.contains("viewModel.onGoogleTileTapped()"))
+        assertTrue("a new account must still reach Google's picker", tile.contains("launchGoogle()"))
+        assertFalse("the Google tap must never open the passphrase sheet", tile.contains("showDrivePassphraseDialog = true"))
+        assertFalse("no seed phrase may stand on the Google path", tile.contains("Seed phrase"))
+        assertFalse("the tile copy must not promise a phrase prompt", tile.contains("with your passphrase if needed"))
+    }
+
+    @Test
+    fun `the passphrase sheet is opt-in from a failed drive restore only`() {
+        val openings = Regex("showDrivePassphraseDialog = true").findAll(source).count()
+        assertEquals("the passphrase sheet has exactly one opening, the opt-in action", 1, openings)
+        assertTrue(
+            "the opt-in must only appear after a Drive attempt",
+            source.contains("state.restoreMode == SetupRestoreMode.DRIVE")
+        )
+    }
+
+    @Test
     fun `the restore watchdog runs on wall time, not on the progress stream`() {
         val keyed = Regex("LaunchedEffect\\(busy[^)]*\\)").findAll(source).map { it.value }.toList()
         assertEquals("expected exactly one busy watchdog", 1, keyed.size)

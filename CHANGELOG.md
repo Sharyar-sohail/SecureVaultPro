@@ -20,6 +20,46 @@ Blogger XML artifact, and the backup/checkpoint snapshots, which hold vault and 
 data. One stale 3.3.4 theme export under `release-site/` is left on disk but untracked because
 it embedded a Firebase `apiKey`; themes we ship carry a blank `var SEED` and no cloud config.
 
+## [3.4.4] — 2026-10-31 (versionCode 349)
+
+The owner signed in with Google on 3.4.3 and was asked for a passphrase before the restore,
+then the attempt failed with a connection error; tapping Google again asked again. The account
+was never the problem — the screen was gating it.
+
+### Fixed — Google is the whole authentication
+- **One tap, no phrase.** The Google tile calls `SetupViewModel.onGoogleTileTapped()`: with a
+  usable Drive grant it restores immediately; without one it opens Google's picker. Neither path
+  reads a passphrase and neither can show a seed screen. The passphrase sheet is now reachable
+  only from the failure card ("This vault uses a passphrase"), for vaults the owner sealed with
+  their own secret — it never stands in front of an ordinary restore.
+- **No seed requirement pre-login.** Seed generation and recovery remain in Settings → Security
+  tools (and as the optional tab in Import backup); nothing in the Google or file restore is
+  conditional on having one.
+
+### Fixed — the connection loop
+- A cached account whose Drive grant was lost (reinstall, revoked access) used to be handed to
+  the Drive client anyway; the resulting 401 was reported as a connection failure and rebuilt
+  identically on every retry. `GoogleDriveService.usableAccount()` now answers only with an
+  account that actually holds the Drive grant, and `DriveFaults` recognises a consent/token
+  fault by its message. When one occurs the credential is signed out, the owner is told to tap
+  Continue with Google again, and the next tap reaches the picker instead of repeating the call.
+- The restore walk stops at the first consent fault instead of failing once per backup, and the
+  welcome screen's listing cut-off moved from 30 s to 60 s so a slow handshake is no longer
+  misreported as "Drive is not answering. Check the connection."
+- Every Drive call translates `UserRecoverableAuthIOException` and 401/403 into the same
+  actionable sentence; unrelated failures keep their status without masquerading as network
+  problems.
+
+### Testing
+- 557 unit tests, 0 failures. `GoogleRestoreFlowTest` reads the shipped sources and pins: the
+  Google tap has no passphrase/seed branch, both one-tap entry points pass `passphrase = null`,
+  the Drive path never reads the file-import passphrase, an auth fault calls `signOutOfDrive()`,
+  and the list cut-off outlasts the 45 s Drive call. `DriveFaultsTest` pins the fault classifier
+  against both consent faults and real transfer failures; `WelcomeGateTest` asserts the phrase
+  sheet has exactly one opt-in opening and the Google tile carries none.
+- Verification caveat: no emulator or adb here, so the on-device proof is the owner signing in
+  with Google on this APK and watching a restore run with no prompt.
+
 ## [3.4.3] — 2026-10-31 (versionCode 348)
 
 The owner installed 3.4.2, signed in with Google, and was told his backup was corrupted and

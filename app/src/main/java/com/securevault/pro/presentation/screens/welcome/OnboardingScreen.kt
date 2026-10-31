@@ -153,9 +153,8 @@ fun OnboardingScreen(
 
     val startDriveRestore: () -> Unit = {
         showDrivePassphraseDialog = false
-        viewModel.setRestorePassphrase(drivePassphrase)
         flowStarted = true
-        viewModel.restoreFromExistingDrive()
+        viewModel.restoreFromExistingDrive(drivePassphrase.trim().takeIf { it.isNotBlank() })
     }
 
     NeonBackground {
@@ -224,15 +223,14 @@ fun OnboardingScreen(
                 description = if (state.signedInEmail.isBlank()) {
                     "Restore the encrypted vault stored in your Drive app-data folder"
                 } else {
-                    "${state.signedInEmail} · every Drive copy tried, with your passphrase if needed"
+                    "${state.signedInEmail} · one tap restores every Drive copy"
                 },
                 enabled = !state.busy && !cloudState.active,
                 onClick = {
-                    if (state.signedInEmail.isNotBlank()) {
-                        showDrivePassphraseDialog = true
-                    } else {
-                        launchGoogle()
-                    }
+                    // The Google account is the whole authentication: no phrase, seed or any other
+                    // typing stands between this tap and the restore. The picker only opens when
+                    // this device has no usable Drive grant.
+                    if (viewModel.onGoogleTileTapped()) launchGoogle() else flowStarted = true
                 }
             )
             Spacer(Modifier.height(11.dp))
@@ -289,6 +287,23 @@ fun OnboardingScreen(
                                     style = MaterialTheme.typography.labelSmall,
                                     color = VaultColor.textFaint
                                 )
+                            }
+                            // Opt-in escape hatch for a vault the owner sealed with their own
+                            // passphrase. It is never asked for on the ordinary Google tap.
+                            if (state.restoreMode == SetupRestoreMode.DRIVE &&
+                                !state.busy && !cloudState.active
+                            ) {
+                                TextButton(
+                                    onClick = { showDrivePassphraseDialog = true },
+                                    contentPadding = PaddingValues(0.dp)
+                                ) {
+                                    Text(
+                                        text = "This vault uses a passphrase",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = accent,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
                             }
                         }
                     }
@@ -394,16 +409,16 @@ fun OnboardingScreen(
             containerColor = VaultColor.elevated,
             titleContentColor = VaultColor.textStrong,
             textContentColor = VaultColor.textBody,
-            title = { Text("Open your Drive vault") },
+            title = { Text("Vault passphrase") },
             text = {
                 Column(
                     modifier = Modifier.verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Text(
-                        text = "Type the passphrase this vault was sealed with if this phone is new or " +
-                            "the app was reinstalled. Leave it empty to open the backup with this " +
-                            "device's own key. Every copy in Drive is tried before anything is reported.",
+                        text = "Only for a vault you sealed with your own passphrase. The ordinary " +
+                            "Google tap needs no phrase at all. Every copy in Drive is tried with " +
+                            "this passphrase, then with this device's own key.",
                         style = MaterialTheme.typography.bodySmall,
                         color = VaultColor.textBody,
                         lineHeight = 18.sp

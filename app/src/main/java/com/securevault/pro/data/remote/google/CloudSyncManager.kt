@@ -215,6 +215,9 @@ class CloudSyncManager @Inject constructor(
 
     suspend fun listCloudBackups(): Result<List<CloudBackupFile>> = kotlin.runCatching {
         withContext(Dispatchers.IO) {
+            if (!driveService.hasDriveAccess()) {
+                throw CloudSyncException(DriveFaults.SIGN_IN_AGAIN)
+            }
             driveService.listBackups().filterNot {
                 it.name == XML_BACKUP_NAME
             }
@@ -407,6 +410,10 @@ class CloudSyncManager @Inject constructor(
             val outcome = restoreFromCloud(file, email, passphrase, seedSafetyNet = false)
             if (outcome.isSuccess) return outcome
             lastReason = outcome.exceptionOrNull()?.message ?: lastReason
+            // Every remaining copy is behind the same credential. Retrying them turns one consent
+            // fault into N slow failures and reads to the owner as a loop; stop and let the caller
+            // send them through Google's picker once.
+            if (DriveFaults.needsFreshSignIn(lastReason)) break
         }
         return Result.failure(
             CloudSyncException(
