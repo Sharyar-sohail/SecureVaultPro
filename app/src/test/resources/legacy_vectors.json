@@ -64,5 +64,75 @@
       "shape": "iv.payload",
       "envelopeBase64": "eyJ2IjozLCJzYWx0IjoiMXNLbkpudnkyUXpuRmg5c1pDSVlScWNGM1dRcTdlZkdYeERzSVg0Qk9wMD0iLCJkYXRhIjoienM4b0pLcHBUQmxRYk1iby5wNHZCbXFmdDdtSGVycmpWQS9NQmJ6elBLeVNtMzVhamIyYzc4WkhyNzh3WDZJeEZCZFVya3BWNU55bVk0LzZrVTZ0djRpRHdpNGxreDJsQWZraWtZN0krMzI2NE0ycjdFVWdhdFlIRnA3MDdTbnZtNHgzL04rcnRVeWMva2JqYlFMNXVHcGhzSUJ0YVVlbHZFRXpXcGlrb2IxcVVsMlRLd3J1WThBa3RzZEtoS3U3Zk5nN1dUSldONFFIaEcxQUM0aHQza1BvaldEV04rUjBNYmVhR0RESmdQTmZ5ak10SHlWTHFCR1lmcjBWdEtTVzVVUlBMV0kwOTFUSHVxTDZyd1I1ZjN4dkxBdWV4VkUyNUZWV1NKNlc3N0R3NlM1Q1ZlY3lSRFgzQTdaZ2tpYXJwK25uL0ZZWkhWVUJvOStOd0t3cm9CMnhVV0pOUGRsWktWRGpOc3FxT083Q2x0WGFJTVQzdytpR3RvU1g3TTBUSmNPZ1N0ckJMd0I1ZytrejROMnpyeDBQc1FGazNQSXFQNG4wSDhhSGMyTzM1aXhaVlpra0FwSHc0YUhGYVZ3emxBWGU2ZkVJbHp6cXQrV0QxalB3cjVRNDdoOUtudGpNS2lZV3JuWHAyYk1WNS84eUV0ZW5TVE1ERi9tRWlOYmVtU080TEUyVjNLeVhmdlhPcjVNbXR3d2VUeDN6UjgxTXlKREtPaXc9PSJ9"
     }
+  ],
+  "writers": [
+    {
+      "name": "W1-web-companion-16b-passphrase",
+      "writer": "Blogger web companion (secure_wallet_web.enc)",
+      "secret": "web-companion-passphrase",
+      "iterations": 600000,
+      "shape": "envelope",
+      "saltBytes": 16,
+      "saltBase64": "XPqf/hxW5YMcV7uevyQcpg==",
+      "data": "EVr37cRzx7JBxKOl.HIU6QQkEg16SR8FbuxnJiyDarGlAZ9abqloKmmX0rHZpaxFOKxeT5sUEc5zId+YfbxMTFU/pO2hJF7BVv5bWlRewujPrValbPy0RF+xQooOnCXOdFizVn62Py0ESAcB7/HbnhrhKjm9glOt28okkPdPy8YX1OkvNRO5tYm6QtbGQ9a4ZrtCuLGfWnk+rDE+hCs5fN9InkYB3RvKPAleuv3shcuNnVyHRCYD7+2qIRPZInUcTRxb4d2WUh9FJr451RkfV5hGsGp2XIpt3rwW1aw8iVcZpMDj+lhIorsr9TifuMceXlpGwdQHMA4RLjhvTrLEeIUdfc98YUpHdROGZNxMuxIhQYyRYCDbZ5Esitfh+Ce4U2ytsB+LrqBcCtLDzg+vIiwWaZBxbqmH/KCrlYMVjhuX5y0HMCBXufTgR0ixi7owm9C1WASMERYgw4DJ9NYJAm27auyooSyzquamE9YRPYaJk3gAFi4mt6KjLud4ukuJRxG8tgXkQm15rkL9E/bB+Y/zP+kmNIlOr0MLTOA==",
+      "note": "raw 16-byte salt, as crypto.getRandomValues(new Uint8Array(16))"
+    },
+    {
+      "name": "W2-web-portal-keysalt-email",
+      "writer": "Web & Mobile app / portal (bare iv.ct + key.salt)",
+      "secret": "sharyar1670@gmail.com",
+      "iterations": 600000,
+      "shape": "bare",
+      "saltBytes": 32,
+      "saltBase64": "9ipYd+Ge9IbBYCnVfnbpmjyHnAq4HJQu8RPywg19jXM=",
+      "data": "fFUqMpjTB1lTPCTR.5iFLHjpPajH3u72wvcHZfT+ENjmbQOwLUh4XS9K4Smoc1PckpnU6QBNYcjrAH9/P2CXmt02S6r0DyCcx/XPCFR1RXDKJ7vLiRZV776NGVrmSKyaS7XtVOViliOE+UUEisfDG5s+MJiCdDb23nX0i2fyuis3kmU7569qr6lKQ93rQimEHo106GaoRO1Zgt2tLcFTFe5n0n13fifjB+SkWh5nil5qzeSZsFGNpguZVIDIx7thoUCsUOopbQR6mel1OoT/yUE7vxBMrzc+EAdpKOPXBRYMrbvJUYTQdUKqQ2GDcTmIb0E4oqwUwLiQHFOPqbGJ1h2kgH+/fpq3AgIO2rSrbhvef5hefNwZWtj8ntfwrlqF5eSJS1ucvjZTIx3/iISsQiJjAkrvg9ccrT7N55NfdjVNbgfG/sJhjwtbD8OmytKP/OkvrtUV+lmA8IJ/9rs0dW9AjxnYV1FNO6dW2CI/thCicCqpUqfae17vZCXtURXqNDRQsVavKihFFh1qiRbtNeTlpfxADCBrWggAuvg==",
+      "note": "salt stored separately",
+      "keySaltBase64": "9ipYd+Ge9IbBYCnVfnbpmjyHnAq4HJQu8RPywg19jXM="
+    },
+    {
+      "name": "W3-password-protector-keysalt-accountid",
+      "writer": "Password protector (bare iv.ct + key.salt)",
+      "secret": "118273645091827364509",
+      "iterations": 600000,
+      "shape": "bare",
+      "saltBytes": 32,
+      "saltBase64": "n58vevawTJ02E09SHFs4+BvI320O7nNMAfRVWa3jdPA=",
+      "data": "Fx0k5c/RkeG+1ifg.tFrPWxqVThy75Ani1r743+KgdIwX0DkwkfBDOnM3bMHhHCJSh7Xcvj6cmUrWMc7UtrL+1fuUevuhHz4Ec5EXkrC9b5pDMVAWoK9hYRah0G4nciWcRw37bqCSZx2aI3CCtUVVSJftrVbwEGJcbRs9bFH4ijqBPJ+a05K6iY8Y28pYVnUABEgK8cZ8eGwk1shMnf1fYoQnwjZerm9e7TB8UGIVuMK5H3KEhJBaLEsUTOmEaLy0sl5VO6S/Aa7cFM1Yn0lAxYrMFekcEK2f9sRpoHGMEYIpWNtHoFYfFgkG333RET+PqWQ2zW25mENgFcRYDryD3PRyDR2rZpuO+b1rs/yJlz3xSjTFVwx4PNI/d83x5JNJMfAnKAaoPPKTNsUI9LEgKYt1wEKYdZMqagNJBi5EhNiuEZgYwpmUhSBNvsyj+7ucBL0rbP9cOaMuF0kWWwKu98Y/q8iJHp2zxQ170QG0zVEDMckmidfjXw3Suoy8IBsB+nhIl8CUimyzA1X4+7BEYOBSFwmKEvyxqvbDFQ==",
+      "note": "salt stored separately",
+      "keySaltBase64": "n58vevawTJ02E09SHFs4+BvI320O7nNMAfRVWa3jdPA="
+    },
+    {
+      "name": "W4-original-app-padded-16b-accountid-100k",
+      "writer": "Original app (v:3 envelope, reader padded the short salt)",
+      "secret": "118273645091827364509",
+      "iterations": 100000,
+      "shape": "envelope",
+      "saltBytes": 16,
+      "saltBase64": "+pDN5MQ8w2KdUr8lULEtjw==",
+      "data": "EtSLBnlhkcU5rHUx.Yhb/uc3znpCGqKpO2LWnTAYEwSCrJy67fRH3X/b1dtbw3BJ+/V2IP2GaLCxs+xw5GFwXrgGr42PkHU5DaX8HcsXtvPMKkBYRgEkLBV4tefH6CuLgSkNAfsbV0o1gVNTVBzkQqYgqG1fw5Vk1bVCH6A+4XS/9fU28vHLSfFIrTErfXyObuMqWmfFK9NVHm4MPN62Z+CyXgNiLfYBzDviWu7mZ0Uds6oy0Di+vfYDTc8yQk2uVSiz5dTp3TXP2r4kzco1G1rp/gikMeS5O0eu5hauOBhRgHHr2oZrl4wpSmpwmgINLJLGwmSbntp89rgNs+fQNrZ6tLn33L47RsYtgtCFrQmPIoNz2C0XT+WASX9IRDx0+EiqAHg7dAl44AmBcLmRMVmLwGf6jyfyEncOny/KO85cXF+WQsTKKkk9j0ueRtU7OGn4wGvjRBgUKQwGC/K6bqoQV8NN+Y8R1alUHU6BvKtN5is6HGWqDd/aEqAkVj7ngCyRz/h6pVsYzAlIbBmHw+qKWtXKd7PD5BvRrCA==",
+      "note": "padded to 32 bytes by salt.copyOf(32)"
+    },
+    {
+      "name": "W5-node-backend-10k-email",
+      "writer": "Node backend (v:3 envelope)",
+      "secret": "sharyar1670@gmail.com",
+      "iterations": 10000,
+      "shape": "envelope",
+      "saltBytes": 32,
+      "saltBase64": "AsC1IHgxgjIPnToosXDzHD8KDAFtl2KJn4vdT+Vz0lI=",
+      "data": "/IGJAh9rl7hKCrwo.u/sNax/TLlQAwYJAfhR2CgNPE/Ve7LOyGVPcWXpTUpfd5Sy597Zx3L2Oibuu1xyWmbB8XP4LIluBWQRdcqcPsCLp5xDYsQ7nQxHenAWgk86Bq1VX5DN1/6tZQVMgzYmXCEuCZur0ftS41b8lMe4QvseVy60PjMR4WLMxAajOfyXiCS5s6rN13vMwdCkiXrM9jZn2HFI1g3oygj1H9q1objzw4QiIjRJHRuBx0UexgzcrlR2S1hdCHrZPqDHpGfUs+0rotjuNcxak3Va7YwEetM36rPFfuFdAlCNB4q1xZB/8QaZbp7ldP7BtEu3etCrI3TTcG/fJvRKJr1InE8bfU9lESl+fT8xFmyL2/yfNYrfzVXPzu6IxC9v0DrHC/RFLvHqx4Ups0OC4XmpygV//Xi+2AMOL42n1L3GEH7jXQNE4qSL7TbzL8kpFxZFuVB7vb6c1gk47K7O64oxkndN0frYWmLlusDqHPTjcBjQn05EqFGcp0CR5R1SYJwG2cXjTiA5QWSay23sfYqh+ZmH82g==",
+      "note": "10,000 rounds"
+    },
+    {
+      "name": "W6-original-app-universal-32b-600k",
+      "writer": "Original app (v:3 envelope, vault_backup.enc)",
+      "secret": "SecureVaultPro_Universal_Cloud_Key_v3",
+      "iterations": 600000,
+      "shape": "envelope",
+      "saltBytes": 32,
+      "saltBase64": "xPYPelMXf8b6ye3xkQM+/kCwUBxrEwyl0scQMJko32k=",
+      "data": "WWrCERklkmmQeVzP.jbOMdZi1onG23ZDlaM5vCmP282VcE1i1XxMqVLgk5Jt/1ChGlUNtYr0w9adLCPhu6O8Q9t5BRz0GlH/X0YNBJsfJbrX6Xbqlhrtu81QqZ7PaWSVs14xLMinPw3F9GvozMPwRzpgII8+UFhPZd4C7whWTxW8yTYyRDC2576bXDuw+ihHJLBxVYpmpIe47NB0gcPZEFhTk2wz8+Hz0xx6MTbqUdRAkC7lFEVgAbJGb7Iy6Ud/CzVhJMXt8EbUZHUTNmZ4g0+exM4l5SxtqZv3u6VsieXh7g1clBjnLdfCp73BWBU1lhAg6BTllHRqu7qmBLlBe7DLENjA4fV9vD2PiPt0nQJRFOGuEO7Q/nlTFklwFDS3EW6WgxBz25mKYUW5Vu+fl7VUxnaLjl2tTmPNj5dUVROLEG6KhNcYAZi8OcPw7W+h4a63FwzITRmZYYqo4cqpg7W4nupm56s7dmots2P1pjNhWXL+/7FK0xklmNxo1MMuFHPQJXZHOsQdgy1XnXAi6KdyXsFPkzBxGkBK5iQ==",
+      "note": "the slot Drive holds today"
+    }
   ]
 }

@@ -28,7 +28,7 @@ class LegacyRestoreReachTest {
         )
         assertTrue(
             "the walk must order every file it was given",
-            source.contains("val ordered = files.sortedWith(")
+            source.contains("RestoreWalkOrder.order(files)")
         )
     }
 

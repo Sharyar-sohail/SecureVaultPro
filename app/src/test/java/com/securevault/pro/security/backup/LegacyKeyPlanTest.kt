@@ -111,7 +111,7 @@ class LegacyKeyPlanTest {
     }
 
     @Test
-    fun `a stated round count narrows every secret to that count alone`() {
+    fun `a stated round count leads every secret's sweep without replacing it`() {
         val plan = LegacyKeyPlan.ordered(
             emails = listOf("owner@example.com"),
             statedIterations = 210_000,
@@ -121,11 +121,24 @@ class LegacyKeyPlanTest {
         assertTrue(plan.isNotEmpty())
         for (secret in plan) {
             assertEquals(
-                "${secret.value} must be derived at the stated count only",
-                listOf(210_000),
-                secret.iterationProfiles
+                "${secret.value} must try the stated count first",
+                210_000,
+                secret.iterationProfiles?.first()
+            )
+            assertTrue(
+                "${secret.value} must still sweep the shipped counts, as the original reader did",
+                (secret.iterationProfiles?.size ?: 0) > 1
             )
         }
+        val universal = plan.first { it.value == PRIMARY_CLOUD_KEY }
+        assertEquals(
+            listOf(210_000, 600_000, 120_000, 100_000, 10_000, 1_000),
+            universal.iterationProfiles
+        )
+        val address = plan.first { it.kind == OpeningSecretKind.ACCOUNT_EMAIL }
+        assertEquals(listOf(210_000, 600_000, 100_000, 10_000, 1_000), address.iterationProfiles)
+        val vault = plan.first { it.kind == OpeningSecretKind.VAULT_KEY }
+        assertEquals(listOf(210_000, 600_000), vault.iterationProfiles)
     }
 
     @Test

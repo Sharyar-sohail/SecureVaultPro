@@ -67,13 +67,20 @@ object LegacyKeyPlan {
         displayName: String? = null
     ): List<OpeningSecret> {
         val stated = statedIterations?.takeIf { it > 0 }
-        val universalProfiles = stated?.let { listOf(it) } ?: LegacyEnvelopeOpener.ITERATION_PROFILES
+
+        // A count stated in the file leads but never replaces the sweep: the original reader did not
+        // read a count at all, it tried all four every time, and a file whose field disagrees with
+        // the rounds it was actually sealed at must still open.
+        fun withStated(defaults: List<Int>): List<Int> =
+            stated?.let { listOf(it) + defaults }?.distinct() ?: defaults
+
+        val universalProfiles = withStated(LegacyEnvelopeOpener.ITERATION_PROFILES)
         // Everything the address-era and literal-era writers could have paired with their key:
         // the original reader's exact four counts. 210k/120k stay off these because those counts
         // were only ever paired with the universal keys.
-        val legacyProfiles = stated?.let { listOf(it) } ?: LegacyEnvelopeOpener.ADDRESS_ERA_PROFILES
-        // The keyring era only ever wrote 600,000 (or whatever the file states).
-        val vaultProfiles = stated?.let { listOf(it) } ?: listOf(LegacyEnvelopeOpener.CURRENT_ITERATIONS)
+        val legacyProfiles = withStated(LegacyEnvelopeOpener.ADDRESS_ERA_PROFILES)
+        // The keyring era only ever wrote 600,000, plus whatever the file states.
+        val vaultProfiles = withStated(listOf(LegacyEnvelopeOpener.CURRENT_ITERATIONS))
 
         val ordered = buildList {
             if (!passphrase.isNullOrBlank()) {

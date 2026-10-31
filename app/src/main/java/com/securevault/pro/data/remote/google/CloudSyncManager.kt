@@ -15,6 +15,7 @@ import com.securevault.pro.data.backup.CloudBackupFile
 import com.securevault.pro.data.backup.CloudOperation
 import com.securevault.pro.data.backup.CloudSyncState
 import com.securevault.pro.data.backup.ParsedBackup
+import com.securevault.pro.data.backup.RestoreWalkOrder
 import com.securevault.pro.data.remote.companion.CompanionSyncClient
 import com.securevault.pro.data.remote.firebase.Keyring
 import com.securevault.pro.data.repository.VaultRepository
@@ -427,9 +428,7 @@ class CloudSyncManager @Inject constructor(
         if (files.isEmpty()) {
             return Result.failure(CloudSyncException("No encrypted backup was found in Google Drive."))
         }
-        val ordered = files.sortedWith(
-            compareByDescending<CloudBackupFile> { it.isPrimary }.thenByDescending { it.modifiedTime }
-        )
+        val ordered = RestoreWalkOrder.order(files)
         // One credential decides every file, and each attempt costs a full PBKDF2. Walking the
         // entire history turned a lost key into a multi-minute spinner, so the primary slot plus the
         // newest fallbacks are the whole walk, inside a single wall-clock budget.
@@ -1153,13 +1152,14 @@ class CloudSyncManager @Inject constructor(
     }
 
     /**
-     * The counts to try. A file that states its own PBKDF2 count is taken at its word and only that
-     * count is derived: every shipped writer recorded what it used, so a stated count that fails is
-     * a wrong key, not a reason to keep hashing three more profiles.
+     * The counts to try. A count stated in the file leads, because every shipped writer recorded
+     * what it used and a self-describing file normally opens on the first derivation. It never
+     * replaces the sweep: the original reader ignored the field and tried all four counts anyway,
+     * so a file whose recorded count disagrees with the rounds it was sealed at still opens.
      */
     private fun iterationProfilesFor(envelope: BackupEnvelope): List<Int> {
-        envelope.iterations?.takeIf { it > 0 }?.let { return listOf(it) }
-        return LegacyEnvelopeOpener.ITERATION_PROFILES
+        val stated = envelope.iterations?.takeIf { it > 0 } ?: return LegacyEnvelopeOpener.ITERATION_PROFILES
+        return (listOf(stated) + LegacyEnvelopeOpener.ITERATION_PROFILES).distinct()
     }
 
 
