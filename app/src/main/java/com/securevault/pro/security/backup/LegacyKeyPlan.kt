@@ -58,33 +58,46 @@ object LegacyKeyPlan {
     )
 
     /**
-     * The **one** secret a v3 envelope could have been written with, at the one count every writer
-     * used. No list, no sweep.
+     * Every key a v3 envelope could have been written with, in the order the writers appeared.
      *
-     * The original app's writer sealed with [PRIMARY_CLOUD_KEY] at 600,000 rounds. The keyring-era
-     * writer seals with this account's vault key at the same count. An export sealed with a
-     * passphrase uses that passphrase, also at 600,000. There is no fourth writer, so a v3 file
-     * that this single derivation cannot open was not written for this account, and the honest
-     * answer is to ask for the master password — not to spend a minute guessing.
+     * This is deliberately a short, closed list rather than a sweep. There have only ever been
+     * three v3 writers, all at 600,000 rounds:
+     *  - [PRIMARY_CLOUD_KEY], which every build up to 3.3.x (including 3.1.9) sealed Drive copies
+     *    with — the reason a Google login used to open any of the owner's backups with no prompt;
+     *  - this account's keyring vault key, which 3.3.4+ seals with;
+     *  - the passphrase the owner typed, which seals a local export.
+     *
+     * A device that holds a vault key still has to offer [PRIMARY_CLOUD_KEY]: its 3.1.9-era copies
+     * were written before that key existed, and dropping the literal is exactly what made an old
+     * Drive backup fail on a newer install. A device with neither still gets the 3.1.9 key, so the
+     * common restore needs one derivation and never more than these exact three.
      *
      * [preferPassphrase] is for a local export: the owner typed a passphrase precisely because that
      * is the file's key, so it is offered before a vault key this device happens to hold.
      */
-    fun primary(
+    fun restoreChain(
         passphrase: String? = null,
         vaultSecret: String? = null,
         preferPassphrase: Boolean = false
-    ): OpeningSecret {
+    ): List<OpeningSecret> {
         val rounds = listOf(LegacyEnvelopeOpener.CURRENT_ITERATIONS)
         val typed = passphrase?.trim()?.takeIf { it.isNotBlank() }
         val vault = vaultSecret?.trim()?.takeIf { it.isNotBlank() }
-        return when {
-            preferPassphrase && typed != null ->
-                OpeningSecret(typed, OpeningSecretKind.PASSPHRASE, rounds)
-            vault != null -> OpeningSecret(vault, OpeningSecretKind.VAULT_KEY, rounds)
-            typed != null -> OpeningSecret(typed, OpeningSecretKind.PASSPHRASE, rounds)
-            else -> OpeningSecret(PRIMARY_CLOUD_KEY, OpeningSecretKind.RETIRED_UNIVERSAL_KEY, rounds)
+        val chain = buildList {
+            if (preferPassphrase && typed != null) {
+                add(OpeningSecret(typed, OpeningSecretKind.PASSPHRASE, rounds))
+            }
+            if (vault != null) {
+                add(OpeningSecret(vault, OpeningSecretKind.VAULT_KEY, rounds))
+            }
+            // The exact key builds up to 3.3.x, including 3.1.9, wrote every Drive copy with.
+            add(OpeningSecret(PRIMARY_CLOUD_KEY, OpeningSecretKind.RETIRED_UNIVERSAL_KEY, rounds))
+            if (!preferPassphrase && typed != null) {
+                add(OpeningSecret(typed, OpeningSecretKind.PASSPHRASE, rounds))
+            }
         }
+        val seen = mutableSetOf<String>()
+        return chain.filter { seen.add(it.value) }
     }
 
     /**

@@ -44,6 +44,16 @@ class StegoViewModel @Inject constructor(
     private val _state = MutableStateFlow(StegoUiState())
     val state: StateFlow<StegoUiState> = _state.asStateFlow()
 
+    /** The read-once ledger's home between launches; metadata only, capped by the ledger itself. */
+    private val ledgerStore = StegoLedgerStore(context)
+
+    init {
+        // A saved carrier outlives this route and the process, so the reveal list is rebuilt from
+        // the private record before the first frame. It is a few kilobytes read once per session.
+        val restored = ledgerStore.load()
+        if (!restored.isEmpty()) _state.update { it.copy(ledger = restored) }
+    }
+
     private var job: Job? = null
     private var jobSerial = 0
 
@@ -264,15 +274,22 @@ class StegoViewModel @Inject constructor(
                 }
                 return@startJob
             }
+            val registered = _state.value.ledger.register(
+                OwnedCopy(
+                    key = key,
+                    label = artifact.displayName,
+                    path = saved.location,
+                    createdAt = System.currentTimeMillis()
+                )
+            )
+            ledgerStore.save(registered)
             _state.update { current ->
                 current.copy(
                     busy = false,
                     artifacts = current.artifacts.map {
                         if (it.key == key) it.copy(writtenTo = saved.location) else it
                     },
-                    ledger = current.ledger.register(
-                        OwnedCopy(key = key, label = artifact.displayName, path = saved.location)
-                    ),
+                    ledger = registered,
                     message = "Saved ${artifact.displayName} to ${saved.described}."
                 )
             }
@@ -369,6 +386,7 @@ class StegoViewModel @Inject constructor(
             var revealedSecret: ByteArray? = null
             var revealedKind = SecretKind.MESSAGE
             var revealedFinding: StegoCodec.Finding? = null
+            var revealedNames: List<String> = emptyList()
             var decisive: StegoFinding? = null
 
             withContext(Dispatchers.IO) {
@@ -378,6 +396,7 @@ class StegoViewModel @Inject constructor(
                 var secret: ByteArray? = null
                 var kind = SecretKind.MESSAGE
                 var revealed: StegoCodec.Finding? = null
+                var revealedFrom: List<String> = emptyList()
                 for (carrier in reads) {
                     if (!isActive) return@withContext
                     val finding = codec.scan(StegoDecodeRequest(carrier.plane, passphrases))
@@ -404,6 +423,7 @@ class StegoViewModel @Inject constructor(
                         secret = read.secret
                         kind = read.kind
                         revealed = finding
+                        revealedFrom = listOf(carrier.name)
                     }
                 }
                 findings = collected
@@ -412,6 +432,7 @@ class StegoViewModel @Inject constructor(
                 revealedSecret = secret
                 revealedKind = kind
                 revealedFinding = revealed
+                revealedNames = revealedFrom
                 decisive = decisiveFindingOf(collected)
             }
 
@@ -420,6 +441,7 @@ class StegoViewModel @Inject constructor(
             val secretNow = revealedSecret
             val kindNow = revealedKind
             val findingNow = revealedFinding
+            val namesNow = revealedNames
             val rebuilt = if (heldNow.isNotEmpty()) rebuildSecret(heldNow, totalNow) else null
 
             val outcome = when {
@@ -470,6 +492,17 @@ class StegoViewModel @Inject constructor(
             }
 
             val readOnce = outcome.branch == StegoBranch.READ_ONCE_REVEALED
+            // An open is recorded against the saved copy that carries the file name just read; the
+            // file itself is not touched. A partial share opens nothing, so it marks nothing.
+            val openedLabels = when {
+                secretNow != null -> namesNow.toSet()
+                outcome.branch == StegoBranch.SHARE_COMPLETE -> reads.map { it.name }.toSet()
+                else -> emptySet()
+            }
+            val ledgerBefore = _state.value.ledger
+            val ledgerNow = ledgerBefore.markReadNamed(openedLabels)
+            if (ledgerNow !== ledgerBefore) ledgerStore.save(ledgerNow)
+            val offer = if (readOnce) ledgerNow.copies.filter { it.label in openedLabels } else emptyList()
             _state.update {
                 it.copy(
                     busy = false,
@@ -478,7 +511,8 @@ class StegoViewModel @Inject constructor(
                     readShareTotal = totalNow,
                     outcome = outcome,
                     revealedSecretVisible = stegoBranchShowsSecret(outcome.branch),
-                    destructOffer = if (readOnce) it.ledger.copies else emptyList(),
+                    ledger = ledgerNow,
+                    destructOffer = offer,
                     destructRefused = emptyList(),
                     fault = null,
                     message = null
@@ -540,10 +574,12 @@ class StegoViewModel @Inject constructor(
             val (gone, stuck) = withContext(Dispatchers.IO) { cleared.partition { removeCopy(it) } }
             val goneKeys = gone.map { it.key }.toSet()
             val stillOwed = refused + stuck
+            val forgotten = snapshot.ledger.forget(gone.map { it.key })
+            if (gone.isNotEmpty()) ledgerStore.save(forgotten)
             _state.update {
                 it.copy(
                     busy = false,
-                    ledger = snapshot.ledger.forget(gone.map { it.key }),
+                    ledger = forgotten,
                     artifacts = it.artifacts.map { artifact ->
                         if (artifact.key in goneKeys) artifact.copy(writtenTo = null) else artifact
                     },

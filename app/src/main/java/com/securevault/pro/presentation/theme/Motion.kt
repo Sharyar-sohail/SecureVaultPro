@@ -9,6 +9,7 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.FiniteAnimationSpec
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -20,8 +21,13 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.interaction.InteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.IntOffset
 
@@ -158,4 +164,38 @@ object VaultMotion {
     @Composable
     fun slideExitHorizontally(durationMillis: Int = QUICK, offset: (Int) -> Int): ExitTransition =
         slideOutHorizontally(tweenSpec<IntOffset>(durationMillis, Exit), offset)
+}
+
+/**
+ * Press-down scale for any plate that reacts to touch: buttons, chips, dock items.
+ *
+ * The interaction source is the same one the caller already hands to `clickable`, so a press
+ * reads instantly and the spring back is a short tween — no ripple required. Under reduced motion
+ * the spec collapses to 1 ms and the plate simply stays at rest.
+ */
+@Composable
+fun Modifier.pressScale(
+    interactionSource: InteractionSource,
+    pressedScale: Float = 0.97f,
+    enabled: Boolean = true
+): Modifier {
+    val pressed by interactionSource.collectIsPressedAsState()
+    return this.pressScale(pressed = pressed && enabled, pressedScale = pressedScale)
+}
+
+/** The same press-down scale when the caller already knows whether the plate is held. */
+@Composable
+fun Modifier.pressScale(
+    pressed: Boolean,
+    pressedScale: Float = 0.97f
+): Modifier {
+    val scale by animateFloatAsState(
+        targetValue = if (pressed) pressedScale else 1f,
+        animationSpec = VaultMotion.tweenSpec<Float>(VaultMotion.QUICK, VaultMotion.Exit),
+        label = "pressScale"
+    )
+    return this.graphicsLayer {
+        scaleX = scale
+        scaleY = scale
+    }
 }

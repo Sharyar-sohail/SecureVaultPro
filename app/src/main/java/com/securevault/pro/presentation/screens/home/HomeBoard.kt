@@ -50,6 +50,7 @@ import com.securevault.pro.presentation.components.Glyph
 import com.securevault.pro.presentation.components.ThemedIcon
 import com.securevault.pro.presentation.components.VaultModule
 import com.securevault.pro.presentation.theme.BoardRhythm
+import com.securevault.pro.presentation.theme.LayoutTuning
 import com.securevault.pro.presentation.theme.TileKind
 import com.securevault.pro.presentation.theme.VaultColor
 import com.securevault.pro.presentation.theme.VaultContrast
@@ -150,6 +151,21 @@ internal fun tileShapeOf(palette: VaultPalette, layout: VaultLayout, kind: TileK
     tileShape(palette, layout, kind)
 
 /**
+ * The owner's tile-size dial, applied as a draw-time multiplier rather than a layout request.
+ *
+ * Scaling the content block instead of re-measuring it is what keeps the dashboard's promise: the
+ * grid still owns every row of the pane, the plate still earns its share of the height, and a
+ * larger tile simply paints past its resting edges before the parent clips it — it never pushes a
+ * row off the pane or forces the board to scroll. At the default 1f this adds no layer at all.
+ */
+private fun Modifier.contentScale(scale: Float): Modifier =
+    if (scale == 1f) this
+    else this.graphicsLayer {
+        scaleX = scale
+        scaleY = scale
+    }
+
+/**
  * Press feedback, hoisted into one modifier so no tile carries its own magic number: a spring
  * scale and a shadow lift, both of which snap to their resting value under reduced motion.
  */
@@ -180,11 +196,12 @@ internal fun BoardTile(
     kind: TileKind,
     layout: VaultLayout,
     rhythm: BoardRhythm,
+    tuning: LayoutTuning = LayoutTuning.DEFAULT,
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
     if (kind == TileKind.MICRO) {
-        MicroCell(item, layout, rhythm, modifier, onClick)
+        MicroCell(item, layout, rhythm, tuning, modifier, onClick)
         return
     }
     val palette = VaultPaletteController.current
@@ -224,10 +241,10 @@ internal fun BoardTile(
         // internal arrangement, so a rail never renders as a plate with a different corner
         // radius — which is exactly the defect the owner rejected.
         when (kind) {
-            TileKind.ROW -> RailCell(item, palette, rhythm, labelInk, countInk)
-            TileKind.BAR -> ClosingBarCell(item, palette, rhythm, labelInk, countInk)
-            TileKind.FEATURE -> FeatureCell(item, layout, palette, rhythm, labelInk, countInk)
-            else -> PlateCell(item, layout, palette, rhythm, labelInk, countInk)
+            TileKind.ROW -> RailCell(item, palette, rhythm, tuning, labelInk, countInk)
+            TileKind.BAR -> ClosingBarCell(item, palette, rhythm, tuning, labelInk, countInk)
+            TileKind.FEATURE -> FeatureCell(item, layout, palette, rhythm, tuning, labelInk, countInk)
+            else -> PlateCell(item, layout, palette, rhythm, tuning, labelInk, countInk)
         }
     }
 }
@@ -251,6 +268,7 @@ private fun RailCell(
     item: BoardItem,
     palette: VaultPalette,
     rhythm: BoardRhythm,
+    tuning: LayoutTuning,
     labelInk: Color,
     countInk: Color
 ) {
@@ -259,13 +277,14 @@ private fun RailCell(
         val fit = fitCell(
             kind = TileKind.ROW,
             height = maxHeight,
-            icon = palette.moduleIconSize,
+            icon = palette.moduleIconSize * tuning.iconScale,
             labelSize = labelStyle.fontSize,
             padV = palette.moduleTilePadV
         )
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .contentScale(tuning.tileScale)
                 .padding(
                     start = rhythm.tilePadH + 4.dp,
                     end = rhythm.tilePadH + 2.dp,
@@ -276,7 +295,7 @@ private fun RailCell(
         ) {
             BrandModuleIcon(
                 module = item.module,
-                size = fit.iconSize.coerceAtMost(palette.moduleIconSize),
+                size = fit.iconSize,
                 contentDescription = null
             )
             Spacer(Modifier.width(8.dp))
@@ -318,6 +337,7 @@ private fun ClosingBarCell(
     item: BoardItem,
     palette: VaultPalette,
     rhythm: BoardRhythm,
+    tuning: LayoutTuning,
     labelInk: Color,
     countInk: Color
 ) {
@@ -330,7 +350,7 @@ private fun ClosingBarCell(
         val fit = fitCell(
             kind = TileKind.BAR,
             height = maxHeight,
-            icon = palette.moduleIconSize,
+            icon = palette.moduleIconSize * tuning.iconScale,
             labelSize = labelStyle.fontSize,
             padV = palette.moduleTilePadV
         )
@@ -338,13 +358,14 @@ private fun ClosingBarCell(
             modifier = Modifier
                 .align(Alignment.Center)
                 .fillMaxWidth()
+                .contentScale(tuning.tileScale)
                 .padding(horizontal = rhythm.tilePadH + 8.dp, vertical = fit.padV),
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically
         ) {
             BrandModuleIcon(
                 module = item.module,
-                size = fit.iconSize.coerceAtMost(palette.moduleIconSize),
+                size = fit.iconSize,
                 contentDescription = null
             )
             Spacer(Modifier.width(8.dp))
@@ -393,6 +414,7 @@ private fun FeatureCell(
     layout: VaultLayout,
     palette: VaultPalette,
     rhythm: BoardRhythm,
+    tuning: LayoutTuning,
     labelInk: Color,
     countInk: Color
 ) {
@@ -405,7 +427,7 @@ private fun FeatureCell(
         val fit = fitCell(
             kind = TileKind.FEATURE,
             height = maxHeight,
-            icon = palette.moduleIconSize,
+            icon = palette.moduleIconSize * tuning.iconScale,
             labelSize = labelStyle.fontSize,
             padV = palette.moduleTilePadV
         )
@@ -414,6 +436,7 @@ private fun FeatureCell(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
+                .contentScale(tuning.tileScale)
                 .padding(horizontal = rhythm.tilePadH + 4.dp, vertical = fit.padV),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -481,6 +504,7 @@ private fun PlateCell(
     layout: VaultLayout,
     palette: VaultPalette,
     rhythm: BoardRhythm,
+    tuning: LayoutTuning,
     labelInk: Color,
     countInk: Color
 ) {
@@ -492,7 +516,7 @@ private fun PlateCell(
         val fit = fitCell(
             kind = TileKind.PLATE,
             height = maxHeight,
-            icon = palette.moduleIconSize,
+            icon = palette.moduleIconSize * tuning.iconScale,
             labelSize = palette.moduleLabelSize,
             padV = palette.moduleTilePadV
         )
@@ -500,6 +524,7 @@ private fun PlateCell(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .contentScale(tuning.tileScale)
                 .padding(horizontal = rhythm.tilePadH, vertical = fit.padV),
             horizontalAlignment = if (startAligned) Alignment.Start else Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
@@ -610,6 +635,7 @@ private fun MicroCell(
     item: BoardItem,
     layout: VaultLayout,
     rhythm: BoardRhythm,
+    tuning: LayoutTuning,
     modifier: Modifier,
     onClick: () -> Unit
 ) {
@@ -632,13 +658,14 @@ private fun MicroCell(
         val fit = fitCell(
             kind = TileKind.MICRO,
             height = maxHeight,
-            icon = palette.moduleIconSize,
+            icon = palette.moduleIconSize * tuning.iconScale,
             labelSize = palette.moduleLabelSize,
             padV = palette.moduleTilePadV
         )
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .contentScale(tuning.tileScale)
                 .padding(horizontal = rhythm.tilePadH, vertical = fit.padV),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center

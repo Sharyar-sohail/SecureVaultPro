@@ -1,9 +1,12 @@
 package com.securevault.pro.presentation.screens.email
 
+import android.content.ActivityNotFoundException
+import android.content.ClipData
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.provider.OpenableColumns
+import androidx.core.content.FileProvider
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.securevault.pro.data.email.MailFolder
@@ -247,7 +250,14 @@ class EmailViewModel @Inject constructor(
         when (val outcome = gmail.completeSignIn(result)) {
             is MailOutcome.Problem -> _state.update { it.copy(problem = EmailProblem.of(outcome)) }
             is MailOutcome.Ready -> {
-                val account = MailAccounts.googleAccount(outcome.value)
+                // The same rule as the manual path: an address already on this device is replaced,
+                // never duplicated. Two rows for one mailbox would disagree about folders, counts
+                // and sync state, and the owner would have to guess which one is live.
+                val existing = store.findByAddress(outcome.value)
+                val account = MailAccounts.googleAccount(
+                    outcome.value,
+                    id = existing?.id ?: MailAccounts.newId()
+                )
                 when (val saved = store.save(account, account.address, "")) {
                     is com.securevault.pro.data.email.repository.MailSaveResult.Rejected ->
                         _state.update { it.copy(problem = EmailProblem(
@@ -261,7 +271,11 @@ class EmailViewModel @Inject constructor(
                             it.copy(
                                 view = EmailView.ACCOUNTS,
                                 draft = MailSetupDraft(),
-                                notice = "Signed in as ${account.address}."
+                                notice = if (existing != null) {
+                                    "Signed in as ${account.address}; that entry was updated."
+                                } else {
+                                    "Signed in as ${account.address}."
+                                }
                             )
                         }
                         reloadRows()
@@ -481,10 +495,108 @@ class EmailViewModel @Inject constructor(
                     if (it.section == handle.section) it.copy(attachment = outcome.value) else it
                 }
                 _state.update {
-                    it.copy(opened = open.copy(parts = parts), notice = "Saved to the vault's cache.")
+                    it.copy(
+                        opened = open.copy(parts = parts),
+                        notice = "Saved to the vault's cache. Open or share it from the attachment row."
+                    )
                 }
             }
         }
+    }
+
+    /**
+     * Hand a saved attachment to the app the owner picks.
+     *
+     * The bytes stay in this app's cache; the provider grants the chosen app one read of that one
+     * file, and nothing about the message or the account travels with it. A start that Android
+     * refuses — no viewer, no chooser, no permission — becomes a sentence on the reader rather than
+     * a crash, and nothing about the file itself is written to a log.
+     */
+    fun openAttachment(handle: MailPartHandle) = launchAttachment(handle, share = false)
+
+    /** The same hand-over as [openAttachment], as an `ACTION_SEND` share instead of a viewer. */
+    fun shareAttachment(handle: MailPartHandle) = launchAttachment(handle, share = true)
+
+    private fun launchAttachment(handle: MailPartHandle, share: Boolean) {
+        val cached = java.io.File(handle.attachment.cachePath)
+        if (handle.attachment.cachePath.isBlank() || !cached.isFile) {
+            _state.update { it.copy(problem = EmailProblem(
+                headline = "That attachment is no longer saved",
+                sentence = "The cached copy of ${handle.fileName} is gone; this device may have " +
+                    "cleared its cache since it was saved.",
+                advice = "Save it again from this message, then use Open or Share.",
+                kind = com.securevault.pro.data.email.repository.MailFailureKind.UNKNOWN
+            )) }
+            return
+        }
+        val uri = runCatching {
+            FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", cached)
+        }.getOrNull()
+        if (uri == null) {
+            _state.update { it.copy(problem = attachmentProblem(
+                headline = "That attachment could not be handed over",
+                sentence = "This app's file provider refused to publish the saved copy of ${handle.fileName}.",
+                advice = "Nothing was changed. Save it again, or open it after restarting the app."
+            )) }
+            return
+        }
+        val mime = attachmentMimeType(handle.attachment.mimeType)
+        // The URI rides in ClipData as well as the flag: a chooser forwards the grant through the
+        // clip, and a target that only reads the clip still receives it.
+        val payload = (if (share) {
+            Intent(Intent.ACTION_SEND).apply {
+                type = mime
+                putExtra(Intent.EXTRA_STREAM, uri)
+            }
+        } else {
+            Intent(Intent.ACTION_VIEW).apply { setDataAndType(uri, mime) }
+        }).apply {
+            clipData = ClipData.newRawUri(handle.fileName, uri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        // A share is always a chooser. Open is handed to the default viewer directly, so Android
+        // raises its "no app" failure here — visible to this screen — instead of a chooser that
+        // would open with nothing in it.
+        val request = if (share) Intent.createChooser(payload, "Share ${handle.fileName}") else payload
+        request.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        val failure = runCatching { context.startActivity(request) }.exceptionOrNull()
+        if (failure != null) {
+            val noTarget = failure is ActivityNotFoundException
+            _state.update { it.copy(problem = attachmentProblem(
+                headline = when {
+                    !noTarget -> "That attachment could not be handed over"
+                    share -> "Nothing on this device can share that file"
+                    else -> "Nothing on this device can open that file"
+                },
+                sentence = if (noTarget) {
+                    "${handle.fileName} is saved, but no installed app accepted a $mime file."
+                } else {
+                    "Android refused to hand ${handle.fileName} to another app; nothing was changed."
+                },
+                advice = "Save the attachment and open it on another device if this one has no app for it."
+            )) }
+        }
+    }
+
+    private fun attachmentProblem(headline: String, sentence: String, advice: String) =
+        EmailProblem(
+            headline = headline,
+            sentence = sentence,
+            advice = advice,
+            kind = com.securevault.pro.data.email.repository.MailFailureKind.UNKNOWN
+        )
+
+    /**
+     * The part's MIME type, reduced to what a provider and a chooser accept.
+     *
+     * A server header may carry parameters (`text/plain; name="note.txt"`) or be missing entirely;
+     * handing either to `setType` would throw, so anything that is not `type/subtype` becomes the
+     * generic binary type. The file name is never part of a log line here.
+     */
+    private fun attachmentMimeType(raw: String): String {
+        val mime = raw.substringBefore(';').trim().lowercase()
+        val wellFormed = mime.substringBefore('/').isNotBlank() && mime.substringAfter('/', "").isNotBlank()
+        return if (wellFormed) mime else "application/octet-stream"
     }
 
     // ------------------------------------------------------------------ compose

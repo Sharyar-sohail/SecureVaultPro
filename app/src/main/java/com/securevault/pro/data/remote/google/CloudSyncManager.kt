@@ -145,7 +145,13 @@ class CloudSyncManager @Inject constructor(
         private const val RESTORE_TIMEOUT_MS = 60_000L
 
         /** Ceiling on the whole walk: primary slot plus the newest fallbacks, never every file ever. */
-        private const val MAX_WALK_FILES = 3
+        /**
+         * Copies a single login may open before giving up. Each file now costs at most the exact
+         * writer keys, so covering the primary slot, the XML mirror and the newest snapshots is
+         * cheap — and one of those snapshots is often the last copy of a vault that the slot no
+         * longer holds.
+         */
+        private const val MAX_WALK_FILES = 6
 
         /** How long a passphrase is allowed to fetch the account's vault key before the restore moves on. */
         private const val KEYRING_ATTACH_TIMEOUT_MS = 45_000L
@@ -1126,12 +1132,14 @@ class CloudSyncManager @Inject constructor(
     }
 
     /**
-     * The exact original derivation: one secret, one count, one attempt.
+     * The exact writers a v3 envelope could have come from: this account's vault key and the key
+     * 3.1.9 sealed every Drive copy with, at the one count both used.
      *
-     * The original app's writer used [LegacyKeyPlan.PRIMARY_CLOUD_KEY] at 600,000 rounds; the
-     * keyring-era writer uses this account's vault key at the same count. Offering both as a list is
-     * what produced the 60-step screen, while a wrong key can only ever cost one PBKDF2. The retry
-     * with a typed secret is the only place a list is justified, and even then it is one count.
+     * This is the v3.1.9 behaviour the owner asked back: a Google login opens the Drive copies with
+     * no prompt. Dropping [LegacyKeyPlan.PRIMARY_CLOUD_KEY] once keyring sealing arrived is what
+     * made an old backup fail on a newer install, and a device with no vault key still needs it to
+     * open anything at all. The chain is closed and bounded — one derivation on the common path,
+     * never more than the exact writers.
      */
     private fun openPrimary(
         salts: List<ByteArray>,
@@ -1140,12 +1148,12 @@ class CloudSyncManager @Inject constructor(
         preferPassphrase: Boolean,
         epoch: Long
     ): LegacyEnvelopeOpener.OpenAttempt {
-        val secret = LegacyKeyPlan.primary(
+        val chain = LegacyKeyPlan.restoreChain(
             passphrase = passphrase,
             vaultSecret = storedVaultSecret(),
             preferPassphrase = preferPassphrase
         )
-        val detail = when (secret.kind) {
+        val detail = when (chain.firstOrNull()?.kind) {
             OpeningSecretKind.VAULT_KEY -> "Opening with your account's vault key"
             OpeningSecretKind.PASSPHRASE -> "Opening with your passphrase"
             else -> "Opening with the original key"
@@ -1154,7 +1162,7 @@ class CloudSyncManager @Inject constructor(
         return legacyOpener.openWithSalts(
             salts = salts,
             data = data,
-            secrets = listOf(secret),
+            secrets = chain,
             shouldStop = { operationEpoch.get() != epoch }
         )
     }

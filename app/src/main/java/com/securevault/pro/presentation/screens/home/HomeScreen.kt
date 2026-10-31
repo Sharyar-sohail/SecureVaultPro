@@ -93,6 +93,8 @@ import com.securevault.pro.presentation.components.strengthLabel
 import com.securevault.pro.presentation.components.Glyph
 import com.securevault.pro.presentation.navigation.Routes
 import com.securevault.pro.presentation.theme.BoardRhythm
+import com.securevault.pro.presentation.theme.LayoutTuning
+import com.securevault.pro.presentation.theme.LayoutTuningController
 import com.securevault.pro.presentation.theme.TileKind
 import com.securevault.pro.presentation.theme.VaultColor
 import com.securevault.pro.presentation.theme.VaultContrast
@@ -155,6 +157,10 @@ fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    // The owner tunes the board per theme; the flow follows the active theme id, and the
+    // controller is the single snapshot every board reads (VaultApp may call it directly later).
+    val layoutTuning by viewModel.layoutTuning.collectAsStateWithLifecycle()
+    LaunchedEffect(layoutTuning) { LayoutTuningController.apply(layoutTuning) }
     var quickAdd by remember { mutableStateOf(false) }
     var syncSheet by remember { mutableStateOf(false) }
     val palette = VaultPaletteController.current
@@ -293,6 +299,7 @@ fun HomeScreen(
                             HomeModuleGrid(
                                 state = state,
                                 layout = layout,
+                                tuning = layoutTuning,
                                 showExpiryInHeader = fullComposition && !richCards,
                                 onNavigate = onNavigate,
                                 modifier = Modifier.fillMaxSize()
@@ -1270,15 +1277,19 @@ private fun boardItems(state: HomeUiState, layout: VaultLayout): List<BoardItem>
 private fun HomeModuleGrid(
     state: HomeUiState,
     layout: VaultLayout,
+    tuning: LayoutTuning,
     showExpiryInHeader: Boolean,
     onNavigate: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val items = boardItems(state, layout)
     // The board is built from the theme's own grammar: columns, spans, cell kinds and spacing
-    // all come from the layout, so two themes cannot resolve to the same composition.
-    val rhythm = BoardRhythm.of(layout)
-    val rows = boardGrid(layout, items.size)
+    // all come from the layout, so two themes cannot resolve to the same composition. The owner's
+    // tuning rides on top of it — columns re-cut the board, spacing re-times the rhythm, and the
+    // tile/icon multipliers reach BoardTile. Every one of them is a multiplier on the grammar,
+    // never a fixed size, so the rows still split the pane by weight and Home still never scrolls.
+    val rhythm = BoardRhythm.of(layout, tuning)
+    val rows = boardGrid(layout, items.size, columnsOverride = tuning.columns)
 
     Column(
         modifier = modifier,
@@ -1330,6 +1341,7 @@ private fun HomeModuleGrid(
                             kind = cell.kind,
                             layout = layout,
                             rhythm = rhythm,
+                            tuning = tuning,
                             modifier = Modifier
                                 .weight(cell.span.toFloat())
                                 .fillMaxHeight()

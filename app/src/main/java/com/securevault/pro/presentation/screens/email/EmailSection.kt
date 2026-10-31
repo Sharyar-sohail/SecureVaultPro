@@ -173,7 +173,9 @@ fun EmailSection(onBack: () -> Unit, viewModel: EmailViewModel = hiltViewModel()
                     state = state,
                     onReply = viewModel::replyTo,
                     onStar = viewModel::toggleStar,
-                    onDownload = viewModel::downloadAttachment
+                    onDownload = viewModel::downloadAttachment,
+                    onOpenAttachment = viewModel::openAttachment,
+                    onShareAttachment = viewModel::shareAttachment
                 )
                 EmailView.COMPOSE -> ComposeMessage(
                     state = state,
@@ -752,7 +754,9 @@ private fun MessageReader(
     state: EmailViewModel.UiState,
     onReply: (MailMessage) -> Unit,
     onStar: (MailMessage) -> Unit,
-    onDownload: (MailPartHandle) -> Unit
+    onDownload: (MailPartHandle) -> Unit,
+    onOpenAttachment: (MailPartHandle) -> Unit,
+    onShareAttachment: (MailPartHandle) -> Unit
 ) {
     val opened = state.opened ?: return
     val message = opened.message
@@ -821,6 +825,25 @@ private fun MessageReader(
                         }
                         TextButton(onClick = { onDownload(part) }) {
                             Text(if (part.saved) "Again" else "Save")
+                        }
+                    }
+                    if (part.saved) {
+                        Spacer(Modifier.height(8.dp))
+                        // Saving is not the end of the errand: the cached copy is only useful once
+                        // the owner can read it or send it on, without leaving this screen first.
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            GhostButton(
+                                text = "Open",
+                                icon = Glyph.openInNew,
+                                modifier = Modifier.weight(1f),
+                                onClick = { onOpenAttachment(part) }
+                            )
+                            GhostButton(
+                                text = "Share",
+                                icon = Glyph.share,
+                                modifier = Modifier.weight(1f),
+                                onClick = { onShareAttachment(part) }
+                            )
                         }
                     }
                 }

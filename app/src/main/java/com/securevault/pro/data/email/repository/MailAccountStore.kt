@@ -135,10 +135,15 @@ object MailAccounts {
     /** Stable, sortable, collision-free enough for a phone: `mail-<uuid>`. */
     fun newId(): String = "mail-" + UUID.randomUUID().toString().take(24)
 
-    /** The Gmail row: XOAUTH2, Google's fixed endpoints, no stored secret. */
-    fun googleAccount(email: String, label: String = ""): EmailAccount {
+    /**
+     * The Gmail row: XOAUTH2, Google's fixed endpoints, no stored secret.
+     *
+     * [id] is supplied by the caller so a repeat sign-in can overwrite the row that address already
+     * owns instead of adding a second one beside it. A fresh id is minted only for a new address.
+     */
+    fun googleAccount(email: String, label: String = "", id: String = newId()): EmailAccount {
         val template = EmailPresets.ALL.first { it.preset == ProviderPreset.GMAIL }
-        return built(email, label, template, AuthKind.OAUTH_XOAUTH2)
+        return built(id, email, label, template, AuthKind.OAUTH_XOAUTH2)
     }
 
     /** A manually configured row; the preset comes from the template the form used. */
@@ -171,9 +176,9 @@ object MailAccounts {
     /** True when the typed address could use the one-tap Google path instead of a password. */
     fun canUseGoogleSignIn(address: String): Boolean = EmailPresets.isGoogleMailbox(address)
 
-    private fun built(email: String, label: String, template: ProviderTemplate, auth: AuthKind): EmailAccount =
+    private fun built(id: String, email: String, label: String, template: ProviderTemplate, auth: AuthKind): EmailAccount =
         EmailAccount(
-            id = newId(),
+            id = id,
             address = email.trim(),
             label = label.trim().ifBlank { template.label },
             provider = template.preset,

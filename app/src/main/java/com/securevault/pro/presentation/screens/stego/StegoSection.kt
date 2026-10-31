@@ -243,13 +243,28 @@ private fun androidx.compose.foundation.lazy.LazyListScope.hubItems(
             FactLine(Glyph.pictureAsPdf, "Built for paper: a black-and-white photocopy at 16 grey levels still reads.")
             FactLine(Glyph.qrCodeScanner, "No QR, no barcode, no side channel — a lens app finds nothing to decode.")
             FactLine(Glyph.shuffle, "Deniability: two passphrases, two messages, and the file looks the same either way.")
-            FactLine(Glyph.timer, "Read once: carriers you save can be removed after the first successful read.")
+            FactLine(
+                Glyph.timer,
+                "Read once: copies this app saves are tracked here, and removal is offered after " +
+                    "you open a read-once one — never automatic."
+            )
             if (state.ledger.copies.isNotEmpty()) {
                 Spacer(Modifier.height(8.dp))
+                val tracked = state.ledger.copies.size
+                val opened = state.openedCopyCount
                 Text(
-                    text = "${state.ledger.copies.size} saved carrier" +
-                        if (state.ledger.copies.size == 1) " is" else "s are" +
-                        " tracked for read-once removal.",
+                    text = buildString {
+                        append(tracked).append(
+                            if (tracked == 1) {
+                                " saved carrier from this app is"
+                            } else {
+                                " saved carriers from this app are"
+                            }
+                        )
+                        append(" tracked on this device")
+                        if (opened > 0) append("; ").append(opened).append(" opened so far")
+                        append(".")
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = VaultColor.textBody
                 )
@@ -370,7 +385,8 @@ private fun androidx.compose.foundation.lazy.LazyListScope.hideItems(
         GlassCard {
             ToggleLine(
                 title = "Read once",
-                body = "Track the copy you save, and offer to remove it after the first read.",
+                body = "Track the copy you save on this device, and offer to remove it after the first " +
+                    "read. The image is only removed if you confirm; opening it never deletes it.",
                 checked = state.readOnce,
                 enabled = !state.busy,
                 onCheckedChange = viewModel::setReadOnce
@@ -1011,9 +1027,17 @@ private fun OutcomeCard(state: StegoUiState, outcome: StegoRevealOutcome, viewMo
             }
             if (outcome.readOnce) {
                 Spacer(Modifier.height(8.dp))
+                val offered = state.destructOffer.size
                 Text(
-                    text = "This carrier was sealed read-once. The saved copies are listed below; " +
-                        "nothing is deleted unless you confirm it.",
+                    text = if (offered == 0) {
+                        "This carrier was sealed read-once. No copy of it saved by this app is " +
+                            "tracked on this device, so there is nothing here to remove — the file " +
+                            "you opened was left as it was."
+                    } else {
+                        "This carrier was sealed read-once. " +
+                            (if (offered == 1) "One saved copy is" else "$offered saved copies are") +
+                            " listed below; nothing is deleted unless you confirm it."
+                    },
                     style = MaterialTheme.typography.labelSmall,
                     color = VaultColor.warning
                 )
@@ -1047,15 +1071,16 @@ private fun SelfDestructCard(state: StegoUiState, viewModel: StegoViewModel) {
         SectionHeader("Read-once copies on this device")
         Spacer(Modifier.height(6.dp))
         Text(
-            text = "These were saved by this app. Removing them is a choice, not a timer: nothing is " +
-                "deleted until you press the button, and files the app does not own are never touched.",
+            text = "These copies were saved by this app. Opening one only marks it here; it never " +
+                "deletes the file. Removing them is a choice, not a timer: nothing is deleted until " +
+                "you press the button, and files the app does not own are never touched.",
             style = MaterialTheme.typography.bodySmall,
             color = VaultColor.textBody
         )
         Spacer(Modifier.height(8.dp))
         state.destructOffer.forEach { copy ->
             Text(
-                text = "• ${copy.label}",
+                text = "• ${copy.label}" + if (state.ledger.isDue(copy.key)) " · opened" else "",
                 style = MaterialTheme.typography.bodySmall,
                 color = VaultColor.textStrong
             )

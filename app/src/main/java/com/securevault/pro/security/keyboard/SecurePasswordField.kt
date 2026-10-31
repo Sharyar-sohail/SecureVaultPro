@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -396,9 +397,10 @@ val LocalSecureKeyboardDock = staticCompositionLocalOf<SecureKeyboardDock?> { nu
 /**
  * Hosts the secure board once, at the bottom, for a whole screen.
  *
- * Content keeps its own layout; the board slides into the reserved strip while a [SecurePasswordField]
- * inside is engaged, which is what stops a long form from scrolling the field out of sight every time
- * the owner taps it.
+ * The board is a sibling of the content, not an overlay: while it is up, the content is measured
+ * against the height the board really takes (plus the gesture-bar inset), so a screen's own height
+ * tiers shrink the form instead of the board covering the action button. When no field is engaged
+ * the content gets the whole window back.
  */
 @Composable
 fun SecureKeyboardHost(
@@ -407,15 +409,24 @@ fun SecureKeyboardHost(
 ) {
     val dock = remember { SecureKeyboardDock() }
     CompositionLocalProvider(LocalSecureKeyboardDock provides dock) {
-        Box(modifier = modifier) {
-            content()
+        Column(modifier = modifier) {
             Box(
                 modifier = Modifier
-                    .align(Alignment.BottomCenter)
+                    .weight(1f)
                     .fillMaxWidth(),
             ) {
-                val layout = dock.layout
-                if (layout != null) {
+                content()
+            }
+            val layout = dock.layout
+            if (layout != null) {
+                // The surface fill is outside the inset padding so the strip under the gesture bar
+                // is part of the board rather than a hole in it.
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(VaultColor.surface.copy(alpha = 0.97f))
+                        .navigationBarsPadding(),
+                ) {
                     SecureKeyboardPanel(
                         layout = layout,
                         onKeyPress = { key -> dock.press(key) },

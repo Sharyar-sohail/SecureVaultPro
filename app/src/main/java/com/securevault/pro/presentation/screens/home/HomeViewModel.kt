@@ -10,10 +10,13 @@ import com.securevault.pro.domain.model.CategoryCounts
 import com.securevault.pro.domain.model.SearchHit
 import com.securevault.pro.domain.model.SecurityReport
 import com.securevault.pro.domain.model.VaultEntry
+import com.securevault.pro.presentation.theme.LayoutTuning
+import com.securevault.pro.presentation.theme.VaultPalettes
 import com.securevault.pro.security.AppLockManager
 import com.securevault.pro.security.SessionManager
 import com.securevault.pro.security.SessionMode
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,6 +27,8 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -143,6 +148,22 @@ class HomeViewModel @Inject constructor(
         // the next table invalidation brings the data back.
         emit(HomeUiState())
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUiState())
+
+    /**
+     * The owner's board tuning for whichever theme is active.
+     *
+     * It follows the theme id, not a fixed key: switching themes in Settings re-reads the four
+     * numbers stored under the new id, so each theme keeps its own column count and scales. The
+     * initial value is [LayoutTuning.DEFAULT] — the theme's own board — which is what a phone with
+     * no stored tuning must draw anyway.
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val layoutTuning: StateFlow<LayoutTuning> = appLockManager.themeId
+        .map { VaultPalettes.find(it).id }
+        .distinctUntilChanged()
+        .flatMapLatest { id -> appLockManager.layoutTuning(id) }
+        .catch { emit(LayoutTuning.DEFAULT) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), LayoutTuning.DEFAULT)
 
     init {
         viewModelScope.launch {

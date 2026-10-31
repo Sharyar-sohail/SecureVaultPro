@@ -16,15 +16,22 @@ package com.securevault.pro.presentation.screens.stego
  *  3. **A refusal is reported, not swallowed.** If the owner asks to destroy the set and one of the
  *     three carriers was already exported somewhere else, the screen says which one it will not
  *     touch and why.
+ *  4. **The list survives the process.** What is persisted is this metadata only — key, label,
+ *     saved location, created-at, read flag — in the app's private `stego_ledger` preferences, and
+ *     never pixels, payload text or keys. It is capped at [SelfDestructLedger.MAX_ENTRIES] so the
+ *     store cannot grow without bound; nothing is dropped before that cap is reached.
  *
  * All of this is pure bookkeeping so the guard can be tested without a device: no `File`, no
- * repository, no Android anywhere in this file.
+ * repository, no Android anywhere in this file. [StegoLedgerCodec] is the wire form, and
+ * `StegoLedgerStore` (a different file) is the only Android part.
  */
 data class OwnedCopy(
     val key: String,
     val label: String,
     val path: String? = null,
-    val vaultFileId: String? = null
+    val vaultFileId: String? = null,
+    /** When this app wrote the copy; 0 when an older record did not carry one. */
+    val createdAt: Long = 0L
 ) {
     /** A copy is only real if it has somewhere to remove it from. */
     val removable: Boolean get() = !path.isNullOrBlank() || !vaultFileId.isNullOrBlank()
@@ -65,7 +72,7 @@ class SelfDestructLedger private constructor(
     fun register(copy: OwnedCopy): SelfDestructLedger {
         require(copy.key.isNotBlank()) { "A ledger entry needs a key to refuse by" }
         val kept = entries.filterNot { it.key == copy.key }
-        return SelfDestructLedger(kept + copy, markedDue)
+        return SelfDestructLedger(kept + copy, markedDue).capped()
     }
 
     fun registerAll(copies: List<OwnedCopy>): SelfDestructLedger =
@@ -78,10 +85,29 @@ class SelfDestructLedger private constructor(
     fun markRead(key: String): SelfDestructLedger =
         if (entries.any { it.key == key }) SelfDestructLedger(entries, markedDue + key) else this
 
+    /**
+     * Records the copies whose file name is in [labels], the identity a saved copy keeps when it
+     * comes back through the photo picker. Nothing else is matched: a photo the owner already had is
+     * not on the ledger, so its name can never mark a copy as opened.
+     *
+     * Returns `this` when nothing changed, which is what lets the caller skip a pointless write.
+     */
+    fun markReadNamed(labels: Collection<String>): SelfDestructLedger {
+        if (entries.isEmpty()) return this
+        val names = labels.filter { it.isNotBlank() }.toSet()
+        if (names.isEmpty()) return this
+        val opened = entries.filter { it.label in names }.map { it.key }
+        if (opened.isEmpty() || opened.all { it in markedDue }) return this
+        return opened.fold(this) { ledger, key -> ledger.markRead(key) }
+    }
+
     fun markAllRead(): SelfDestructLedger =
         SelfDestructLedger(entries, entries.map { it.key }.toSet())
 
     fun isDue(key: String): Boolean = key in markedDue
+
+    /** Which keys were opened on this device; the read half of the persisted record. */
+    internal val readKeys: Set<String> get() = markedDue
 
     /** Copies that were opened and are now waiting on the owner's answer. */
     val dueCopies: List<OwnedCopy> get() = entries.filter { it.key in markedDue }
@@ -118,5 +144,123 @@ class SelfDestructLedger private constructor(
         val due = dueCopies
         if (due.isEmpty()) return "Nothing in this session is waiting to be removed."
         return due.joinToString(" · ") { it.label }
+    }
+
+    /**
+     * The cap, applied on every registration and on every restore: the oldest entries fall off the
+     * end, and a read flag whose copy is gone goes with it. Fifty is per ledger and metadata only.
+     */
+    private fun capped(): SelfDestructLedger {
+        val withinCap = entries.size <= MAX_ENTRIES
+        val readIsOwned = markedDue.all { key -> entries.any { it.key == key } }
+        if (withinCap && readIsOwned) return this
+        val trimmed = if (withinCap) entries else entries.takeLast(MAX_ENTRIES)
+        val present = trimmed.mapTo(HashSet()) { it.key }
+        return SelfDestructLedger(trimmed, markedDue.filterTo(HashSet()) { it in present })
+    }
+
+    companion object {
+        /** How many saved copies one device remembers. Older entries are metadata, not files. */
+        const val MAX_ENTRIES = 50
+
+        /**
+         * Rebuilds a ledger from persisted metadata. Duplicate keys keep their last record, and the
+         * cap is applied again so a hand-edited or truncated file cannot grow the ledger.
+         */
+        fun restore(entries: List<OwnedCopy>, readKeys: Set<String>): SelfDestructLedger {
+            val ordered = ArrayList<OwnedCopy>(minOf(entries.size, MAX_ENTRIES))
+            for (entry in entries) {
+                if (entry.key.isBlank()) continue
+                ordered.removeAll { it.key == entry.key }
+                ordered += entry
+                // Trim as we go, so an oversized or hand-edited file stays linear to read.
+                while (ordered.size > MAX_ENTRIES) ordered.removeAt(0)
+            }
+            return SelfDestructLedger(ordered, readKeys.filterTo(HashSet()) { it.isNotBlank() }).capped()
+        }
+    }
+}
+
+/**
+ * The ledger's wire form: one header line, then one tab-separated record per copy.
+ *
+ * Fields are key, label, saved location, vault file id, created-at, read flag. `%`, tab and the two
+ * line breaks are percent-escaped so a file name can never forge a record, and anything that does not
+ * start with the version header decodes as an empty ledger rather than as half-parsed data. Pure
+ * Kotlin on purpose: the round trip and the cap are tested on a bare JVM.
+ */
+internal object StegoLedgerCodec {
+
+    private const val HEADER = "stego-ledger/1"
+    private const val FIELD_COUNT = 6
+
+    fun encode(ledger: SelfDestructLedger): String = buildString {
+        append(HEADER)
+        for (copy in ledger.copies) {
+            append('\n')
+            append(escape(copy.key)).append('\t')
+            append(escape(copy.label)).append('\t')
+            append(escape(copy.path.orEmpty())).append('\t')
+            append(escape(copy.vaultFileId.orEmpty())).append('\t')
+            append(copy.createdAt).append('\t')
+            append(if (copy.key in ledger.readKeys) '1' else '0')
+        }
+    }
+
+    fun decode(raw: String?): SelfDestructLedger {
+        if (raw.isNullOrBlank()) return SelfDestructLedger()
+        val lines = raw.split('\n')
+        if (lines.firstOrNull()?.trim() != HEADER) return SelfDestructLedger()
+        val copies = ArrayList<OwnedCopy>()
+        val read = HashSet<String>()
+        for (line in lines.drop(1)) {
+            if (line.isBlank()) continue
+            val parts = line.split('\t')
+            if (parts.size < FIELD_COUNT) continue
+            val key = unescape(parts[0])
+            if (key.isBlank()) continue
+            copies += OwnedCopy(
+                key = key,
+                label = unescape(parts[1]),
+                path = unescape(parts[2]).takeIf { it.isNotBlank() },
+                vaultFileId = unescape(parts[3]).takeIf { it.isNotBlank() },
+                createdAt = parts[4].toLongOrNull() ?: 0L
+            )
+            if (parts[5].trim() == "1") read += key
+        }
+        return SelfDestructLedger.restore(copies, read)
+    }
+
+    private fun escape(value: String): String {
+        if (value.none { it == '%' || it == '\t' || it == '\n' || it == '\r' }) return value
+        return buildString(value.length + 8) {
+            for (ch in value) when (ch) {
+                '%' -> append("%25")
+                '\t' -> append("%09")
+                '\n' -> append("%0A")
+                '\r' -> append("%0D")
+                else -> append(ch)
+            }
+        }
+    }
+
+    private fun unescape(value: String): String {
+        if ('%' !in value) return value
+        return buildString(value.length) {
+            var at = 0
+            while (at < value.length) {
+                val ch = value[at]
+                if (ch == '%' && at + 2 < value.length) {
+                    val code = value.substring(at + 1, at + 3).toIntOrNull(16)
+                    if (code != null) {
+                        append(code.toChar())
+                        at += 3
+                        continue
+                    }
+                }
+                append(ch)
+                at += 1
+            }
+        }
     }
 }

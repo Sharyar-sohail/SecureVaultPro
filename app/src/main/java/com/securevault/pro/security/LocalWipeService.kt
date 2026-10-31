@@ -183,6 +183,12 @@ class LocalWipeService @Inject constructor(
             runCatching { mailAccountDao.deleteAll() }
             runCatching { crypto.deleteKeystoreKey() }
             runCatching { appLockManager.wipeSecurityPrefs() }
+            // The stego read-once ledger is metadata about saved carriers, and "all data" includes
+            // it. The name is owned by StegoLedgerStore; StegoWipeCoverageTest keeps them in step.
+            runCatching {
+                context.getSharedPreferences("stego_ledger", Context.MODE_PRIVATE)
+                    .edit().clear().commit()
+            }
             clearTransientFiles()
             WipeArchiveStore.markWiped(context)
 

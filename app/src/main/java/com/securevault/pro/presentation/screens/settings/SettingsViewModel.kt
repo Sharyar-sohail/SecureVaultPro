@@ -11,6 +11,8 @@ import com.securevault.pro.data.remote.google.LocalExportData
 import com.securevault.pro.data.remote.google.XmlExportData
 import com.securevault.pro.data.remote.realtime.RealtimeEngine
 import com.securevault.pro.presentation.components.BiometricUtils
+import com.securevault.pro.presentation.theme.LayoutTuning
+import com.securevault.pro.presentation.theme.LayoutTuningController
 import com.securevault.pro.presentation.theme.VaultFontController
 import com.securevault.pro.presentation.theme.VaultFonts
 import com.securevault.pro.presentation.theme.VaultPaletteController
@@ -25,17 +27,27 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import java.net.URL
 import javax.inject.Inject
+
+/** The tuning of the theme whose layout controls the sheet is editing. */
+data class ThemeTuning(
+    val themeId: String = VaultPalettes.DEFAULT_ID,
+    val tuning: LayoutTuning = LayoutTuning()
+)
 
 data class SettingsUiState(
     val decoy: Boolean = false,
@@ -57,6 +69,7 @@ data class SettingsUiState(
     val companionEnabled: Boolean = false,
     val companionPairCode: String = "",
     val themeId: String = VaultPalettes.DEFAULT_ID,
+    val themeTuning: ThemeTuning = ThemeTuning(),
     val fontId: String = VaultFonts.DEFAULT_ID,
     val working: Boolean = false,
     val exportPassphrase: String = "",
@@ -105,6 +118,7 @@ class SettingsViewModel @Inject constructor(
             biometricAvailable = BiometricUtils.canAuthenticate(context),
             cloudEmail = cloudSyncManager.signedInEmail(),
             themeId = VaultPaletteController.current.id,
+            themeTuning = ThemeTuning(VaultPaletteController.current.id),
             fontId = VaultFontController.current.id
         )
     )
@@ -212,6 +226,7 @@ class SettingsViewModel @Inject constructor(
                 _state.update { it.copy(fontId = VaultFonts.find(value).id) }
             }
         }
+        observeLayoutTuning()
         // The realtime engine publishes the live numbers; the failure sentence is shown verbatim.
         viewModelScope.launch {
             realtimeEngine.status.collect { rt ->
@@ -308,6 +323,42 @@ class SettingsViewModel @Inject constructor(
         _state.update { it.copy(themeId = palette.id) }
         viewModelScope.launch { appLockManager.setThemeId(palette.id) }
     }
+
+    /**
+     * Reloads the tuning of whichever theme is active. Home owns the same subscription; this one
+     * also pushes [LayoutTuningController] so a theme switch made inside the sheet repaints the
+     * board behind it before the sheet is dismissed.
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private fun observeLayoutTuning() {
+        viewModelScope.launch {
+            appLockManager.themeId
+                .map { VaultPalettes.find(it).id }
+                .distinctUntilChanged()
+                .flatMapLatest { id -> appLockManager.layoutTuning(id).map { ThemeTuning(id, it) } }
+                .collect { snapshot ->
+                    LayoutTuningController.apply(snapshot.tuning)
+                    _state.update {
+                        if (it.themeId == snapshot.themeId) it.copy(themeTuning = snapshot) else it
+                    }
+                }
+        }
+    }
+
+    /**
+     * Board tuning is visual only, like the theme, so it stays available in a decoy session. The
+     * value is applied at once — the preview behind the sheet moves with the slider — and persisted
+     * under the active theme's own keys, so two themes keep two boards.
+     */
+    fun setLayoutTuning(tuning: LayoutTuning) {
+        val themeId = state.value.themeId
+        LayoutTuningController.apply(tuning)
+        _state.update { it.copy(themeTuning = ThemeTuning(themeId, tuning)) }
+        viewModelScope.launch { appLockManager.setLayoutTuning(themeId, tuning) }
+    }
+
+    /** Drops the active theme's overrides; its own board returns. */
+    fun resetLayoutTuning() = setLayoutTuning(LayoutTuning.DEFAULT)
 
     fun setBiometricEnabled(enabled: Boolean) {
         if (!ensureWritable()) return

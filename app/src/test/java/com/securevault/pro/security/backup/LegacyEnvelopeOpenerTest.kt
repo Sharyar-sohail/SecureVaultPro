@@ -306,19 +306,32 @@ class LegacyEnvelopeOpenerTest {
     }
 
     @Test
-    fun `the primary key is the original writer's exact key at one count`() {
-        val secret = LegacyKeyPlan.primary()
-        assertEquals(PRIMARY_CLOUD_KEY, secret.value)
-        assertEquals(OpeningSecretKind.RETIRED_UNIVERSAL_KEY, secret.kind)
-        assertEquals(listOf(600_000), secret.iterationProfiles)
+    fun `the restore chain is the exact writers, 3 point 1 point 9 first among them`() {
+        val alone = LegacyKeyPlan.restoreChain()
+        assertEquals(
+            "a device with no vault key opens the backup with the exact key 3.1.9 wrote it with",
+            listOf(PRIMARY_CLOUD_KEY),
+            alone.map { it.value }
+        )
+        assertEquals(OpeningSecretKind.RETIRED_UNIVERSAL_KEY, alone.first().kind)
+        assertEquals(listOf(600_000), alone.first().iterationProfiles)
 
-        val withVault = LegacyKeyPlan.primary(vaultSecret = "account-vault-key")
-        assertEquals("account-vault-key", withVault.value)
-        assertEquals(OpeningSecretKind.VAULT_KEY, withVault.kind)
+        val withVault = LegacyKeyPlan.restoreChain(vaultSecret = "account-vault-key")
+        assertEquals("account-vault-key", withVault.first().value)
+        assertEquals(OpeningSecretKind.VAULT_KEY, withVault.first().kind)
+        assertEquals(
+            "a 3.1.9-era copy still opens on a newer install that holds a vault key",
+            PRIMARY_CLOUD_KEY,
+            withVault[1].value
+        )
+        assertEquals("no sweep: only the exact writers", 2, withVault.size)
 
-        val export = LegacyKeyPlan.primary(passphrase = "typed-export-passphrase", preferPassphrase = true)
-        assertEquals("typed-export-passphrase", export.value)
-        assertEquals(OpeningSecretKind.PASSPHRASE, export.kind)
+        val export = LegacyKeyPlan.restoreChain(
+            passphrase = "typed-export-passphrase",
+            preferPassphrase = true
+        )
+        assertEquals("typed-export-passphrase", export.first().value)
+        assertEquals(OpeningSecretKind.PASSPHRASE, export.first().kind)
     }
 
     /**
@@ -338,22 +351,43 @@ class LegacyEnvelopeOpenerTest {
         val without = opener.openWithSalts(
             salts = listOf(salt),
             data = data,
-            secrets = listOf(LegacyKeyPlan.primary(vaultSecret = null)),
+            secrets = LegacyKeyPlan.restoreChain(vaultSecret = null),
             iterationProfiles = listOf(600_000)
         )
         assertNull("no literal or address can open a keyring-sealed file", without.opened)
-        assertEquals("the common path is one exact derivation, never a 60-step sweep", 1, without.candidatesTried)
+        assertEquals("a device without the key spends one exact derivation, never a sweep", 1, without.candidatesTried)
 
         val with = opener.openWithSalts(
             salts = listOf(salt),
             data = data,
-            secrets = listOf(LegacyKeyPlan.primary(vaultSecret = vaultKey)),
+            secrets = LegacyKeyPlan.restoreChain(vaultSecret = vaultKey),
             iterationProfiles = listOf(600_000)
         )
         assertEquals(json, with.opened?.json)
         assertEquals(OpeningSecretKind.VAULT_KEY, with.opened?.kind)
         assertEquals(600_000, with.opened?.iterations)
-        assertEquals(1, with.candidatesTried)
+        assertEquals("the vault key is offered first, so the file opens on attempt one", 1, with.candidatesTried)
+    }
+
+    /**
+     * The 3.1.9 writer's own shape, run through the chain a newer install uses: the vault key is
+     * wrong for it, then the exact literal opens it. Two derivations, never a sweep.
+     */
+    @Test
+    fun `a 3 point 1 point 9 drive copy opens on a device that already holds a newer vault key`() {
+        val json = """{"entries":[{"id":"e-legacy"}]}"""
+        val salt = derivation.generateSalt()
+        val data = seal(json, PRIMARY_CLOUD_KEY, salt, 600_000)
+
+        val attempt = opener.openWithSalts(
+            salts = listOf(salt),
+            data = data,
+            secrets = LegacyKeyPlan.restoreChain(vaultSecret = "a-newer-account-vault-key"),
+            iterationProfiles = listOf(600_000)
+        )
+        assertEquals(json, attempt.opened?.json)
+        assertEquals(OpeningSecretKind.RETIRED_UNIVERSAL_KEY, attempt.opened?.kind)
+        assertEquals(2, attempt.candidatesTried)
     }
 
     private fun seal(json: String, secret: String, salt: ByteArray, iterations: Int): String {

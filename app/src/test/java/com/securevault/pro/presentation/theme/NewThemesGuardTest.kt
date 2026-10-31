@@ -16,8 +16,10 @@ class NewThemesGuardTest {
 
     private val newIds = listOf(
         "noir", "mint", "sunset", "arctic", "voltra",
-        "terra", "royal", "slate", "sakura", "carbon"
+        "royal", "sakura", "neon_cyan", "neon_magenta", "neon_plasma"
     )
+
+    private val neonIds = listOf("neon_cyan", "neon_magenta", "neon_plasma")
 
     @Test
     fun `exactly fifteen themes ship with unique ids`() {
@@ -75,14 +77,40 @@ class NewThemesGuardTest {
 
     @Test
     fun `the light and dark split of the new ten matches the brief`() {
-        val shouldLight = setOf("mint", "arctic", "terra", "slate", "sakura")
+        val shouldLight = setOf("mint", "arctic", "sakura")
         for (id in newIds) {
             val palette = VaultPalettes.find(id)
             assertEquals("$id isLight", id in shouldLight, palette.isLight)
         }
         // The five originals keep their flags; nothing in the lineup flips by accident.
         val lightIds = VaultPalettes.all.filter { it.isLight }.map { it.id }
-        assertEquals(listOf("solstice", "oneui", "lime", "mint", "arctic", "terra", "slate", "sakura"), lightIds)
+        assertEquals(listOf("solstice", "oneui", "lime", "mint", "arctic", "sakura"), lightIds)
+    }
+
+    @Test
+    fun `the neon trio is hard outlined, glowing and nocturnal`() {
+        for (id in neonIds) {
+            val palette = VaultPalettes.find(id)
+            assertEquals("$id must resolve to itself", id, palette.id)
+            assertTrue("$id must glow", palette.glow)
+            assertTrue("$id must be hard outlined", palette.hardOutline)
+            assertTrue("$id must be a dark theme", !palette.isLight)
+            assertEquals("$id must sit on the neon mesh", VaultBackdrop.NEON_MESH, palette.backdrop)
+            assertTrue("$id must keep its own board", palette.layout in VaultLayout.entries)
+        }
+        // The neon trio took over the three freed layouts, so no board is shared.
+        val neonLayouts = neonIds.map { VaultPalettes.find(it).layout }
+        assertEquals("each neon theme owns a distinct board", neonLayouts.size, neonLayouts.distinct().size)
+    }
+
+    @Test
+    fun `removed themes still resolve through the alias map`() {
+        mapOf("terra" to "sakura", "slate" to "dark", "carbon" to "noir").forEach { (removed, survivor) ->
+            assertEquals(survivor, VaultPalettes.find(removed).id)
+            assertTrue("$survivor must ship", survivor in VaultPalettes.all.map { it.id })
+        }
+        assertEquals("aqua", VaultPalettes.DEFAULT_ID)
+        assertEquals("aqua", VaultPalettes.find(null).id)
     }
 
     @Test

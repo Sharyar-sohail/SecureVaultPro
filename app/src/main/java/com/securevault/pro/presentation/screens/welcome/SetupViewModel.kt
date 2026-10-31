@@ -304,11 +304,13 @@ class SetupViewModel @Inject constructor(
      * Restore every copy in Drive with the keys this app holds.
      *
      * Nothing is asked for up front: the account authorises the download and
-     * [CloudSyncManager.restoreAnyCloudBackup] sweeps the vault key, the retired universal keys and
-     * the account address itself. A build from 3.3.4 on seals Drive copies with this account's own
-     * random vault key, which is not derivable from any of those: it is only recoverable by
-     * unwrapping the cloud keyring with the master password. That is why [secret] exists — when the
-     * keyless walk fails, the owner types the password they set on the phone that wrote the copies.
+     * [CloudSyncManager.restoreAnyCloudBackup] opens each copy with the exact writers — this
+     * account's vault key and the key 3.1.9 sealed Drive copies with — so a Google login restores an
+     * old vault with no prompt, exactly as 3.1.9 did. A build from 3.3.4 on seals Drive copies with
+     * this account's own random vault key, which is not derivable from any literal: it is only
+     * recoverable by unwrapping the cloud keyring with the master password. That is why [secret]
+     * exists — when the keyless walk fails, the owner types the password they set on the phone that
+     * wrote the copies.
      */
     private suspend fun restoreFromDrive(email: String, secret: String? = null) {
         _state.update {

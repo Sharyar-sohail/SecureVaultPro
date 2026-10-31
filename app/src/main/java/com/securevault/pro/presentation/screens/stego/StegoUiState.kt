@@ -95,7 +95,7 @@ fun stegoBranchOf(
 /** Headline for a branch. Every one of these is reachable from the table above. */
 fun stegoBranchTitle(branch: StegoBranch): String = when (branch) {
     StegoBranch.REVEALED -> "Secret revealed"
-    StegoBranch.READ_ONCE_REVEALED -> "Secret revealed — read once"
+    StegoBranch.READ_ONCE_REVEALED -> "Secret revealed — marked read-once"
     StegoBranch.SHARE_PARTIAL -> "One share recovered"
     StegoBranch.SHARE_COMPLETE -> "All shares recovered"
     StegoBranch.DAMAGED -> "Too damaged to read"
@@ -264,7 +264,8 @@ data class StegoHandoff(
 
 /**
  * The screen's whole snapshot: which flow is open, what has been picked, what has been sealed or
- * read, and what the read-once ledger currently owns.
+ * read, and what the read-once ledger owns — restored at start from the private ledger record, so a
+ * copy saved in an earlier session is still listed here.
  *
  * Immutable, because a recomposing composable must not be able to lose a ledger entry or half-update
  * a sealed set. The derived properties below are what the buttons read, so a disabled control always
@@ -337,6 +338,9 @@ data class StegoUiState(
 
     /** The read-once question is only ever asked when the ledger holds copies the owner opened. */
     val awaitingSelfDestruct: Boolean get() = destructOffer.isNotEmpty()
+
+    /** Saved copies this device has seen opened. Bookkeeping only: no file is touched by opening. */
+    val openedCopyCount: Int get() = ledger.copies.count { ledger.isDue(it.key) }
 
     val hasArtifacts: Boolean get() = artifacts.isNotEmpty()
 }

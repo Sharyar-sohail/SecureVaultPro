@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.securevault.pro.data.remote.google.CloudSyncManager
 import com.securevault.pro.data.repository.VaultRepository
 import com.securevault.pro.security.AppLockManager
+import com.securevault.pro.security.DeadManOutcome
 import com.securevault.pro.security.DeadManSwitchManager
 import com.securevault.pro.security.SessionManager
 import com.securevault.pro.presentation.theme.VaultFonts
@@ -16,6 +17,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
@@ -97,6 +99,16 @@ class AppViewModel @Inject constructor(
 
     val cloudState = cloudSyncManager.state
 
+    private val _deadManNotice = MutableStateFlow<String?>(null)
+
+    /**
+     * One sentence about what the dead man's switch actually did on this launch (archived and
+     * erased, refused because Drive was not connected, or aborted with nothing erased). Null on
+     * every ordinary launch. Dismissing it only hides the text - it is not consent, so it does
+     * not restart the countdown or cancel a pending enforcement.
+     */
+    val deadManNotice: StateFlow<String?> = _deadManNotice.asStateFlow()
+
     init {
         viewModelScope.launch {
             delay(1_250)
@@ -109,7 +121,18 @@ class AppViewModel @Inject constructor(
             // exception here would take the process down on the lock screen instead.
             val setupIsComplete = runCatching { appLockManager.setupComplete.first { it } }.getOrDefault(false)
             if (!setupIsComplete) return@launch
-            runCatching { deadManSwitchManager.evaluateOnStartup() }
+            val deadManOverdue = runCatching { deadManSwitchManager.evaluateOnStartup() }
+                .getOrDefault(false)
+            if (deadManOverdue) {
+                // Lock before enforcing so no live sync observer can re-upload what is about to
+                // be deleted (LocalWipeService locks again itself; this closes the earlier gap).
+                sessionManager.lock()
+                val result = runCatching { deadManSwitchManager.enforce() }
+                _deadManNotice.value = describeDeadManResult(result)
+                // A completed erase left no vault to hydrate, and hydration would try to pull
+                // the emptied account straight back in.
+                if (result.getOrNull() is DeadManOutcome.ArchivedAndErased) return@launch
+            }
             // Never hold the UI hostage to a network hydration pass. Local data is
             // already available; the Drive merge streams in and recomposes flows.
             hydrated.value = true
@@ -151,4 +174,37 @@ class AppViewModel @Inject constructor(
     fun lockNow() {
         sessionManager.lock()
     }
+
+    /** Hides the switch report. Deliberately not an acknowledgement: see [deadManNotice]. */
+    fun dismissDeadManNotice() {
+        _deadManNotice.value = null
+    }
+
+    private fun describeDeadManResult(result: Result<DeadManOutcome>): String? =
+        result.fold(
+            onSuccess = { outcome ->
+                when (outcome) {
+                    DeadManOutcome.NotDue -> null
+                    DeadManOutcome.NeedsDrive ->
+                        "Dead man's switch: the deadline passed. Connect Google Drive so the " +
+                            "switch can archive before erasing. Nothing has been erased."
+                    is DeadManOutcome.ArchivedAndErased -> {
+                        val name = outcome.outcome.archiveName ?: "a new archive in Google Drive"
+                        "Dead man's switch: the deadline passed. Your vault was archived to " +
+                            "Google Drive as $name, then erased from this device. The Drive " +
+                            "copies were kept."
+                    }
+                    is DeadManOutcome.ArchiveFailed ->
+                        "Dead man's switch: the deadline passed, but your vault is intact. " +
+                            outcome.reason
+                }
+            },
+            onFailure = { error ->
+                // Never claim "nothing was erased" here: an unexpected failure could have
+                // happened after the local wipe had already started.
+                "Dead man's switch: it could not finish (" +
+                    (error.message?.take(200) ?: "unknown reason") +
+                    "). Reopen the app to see the current state."
+            }
+        )
 }

@@ -21,15 +21,19 @@ import java.io.File
  */
 class BrandIconCatalogTest {
 
+    /**
+     * The ids with their own generated vector set and baked plate ink. The three neon themes ship
+     * a palette and a board without re-cutting 42 plates, so they alias the closest vivid ramp in
+     * `BrandIconCatalog` and are checked through the palette-list test below instead.
+     */
     private val themeIds = listOf(
         "solstice", "oneui", "aqua", "lime", "dark",
         "noir", "mint", "sunset", "arctic", "voltra",
-        "terra", "royal", "slate", "sakura", "carbon"
+        "royal", "sakura"
     )
 
-    // "slate" is a shipped theme id again (Slate Grid), so it left this list; the
-    // legacy alias "slate" -> "dark" in VaultPalettes still exists but find()
-    // matches the shipped palette first.
+    private val aliasedIds = listOf("neon_cyan", "neon_magenta", "neon_plasma")
+
     private val retiredIds = listOf("lumen", "hyper", "funtouch", "volt")
 
     @Test
@@ -49,14 +53,20 @@ class BrandIconCatalogTest {
 
     @Test
     fun `palette list and icon catalog ship the same themes`() {
-        assertEquals(themeIds, VaultPalettes.all.map { it.id })
-        for (id in themeIds) {
+        // Fifteen palettes ship; twelve own a generated plate set and three alias one.
+        assertEquals(15, VaultPalettes.all.size)
+        assertTrue(
+            "every generated id must still ship",
+            VaultPalettes.all.map { it.id }.containsAll(themeIds)
+        )
+        for (id in aliasedIds) assertTrue("$id must ship", id in VaultPalettes.all.map { it.id })
+        for (palette in VaultPalettes.all) {
             for (module in VaultModule.entries) {
                 // An id the catalog does not know silently redraws the default brand.
                 assertNotEquals(
-                    "$id/$module must not fall through to the default theme",
+                    "${palette.id}/$module must not fall through to the default theme",
                     0,
-                    BrandIconCatalog.icon(id, module)
+                    BrandIconCatalog.icon(palette.id, module)
                 )
             }
         }
@@ -104,9 +114,11 @@ class BrandIconCatalogTest {
             // Re-cut by tools/brand-icons/vibrancy-pass.mjs to hold white ink and the chroma floor.
             Triple("noir", VaultModule.PASSWORDS, 0xFF926C22),
             Triple("voltra", VaultModule.PASSWORDS, 0xFF687D1D),
-            Triple("slate", VaultModule.PASSWORDS, 0xFFC21807),
             Triple("sakura", VaultModule.PASSWORDS, 0xFFCF3374),
-            Triple("carbon", VaultModule.PASSWORDS, 0xFFBA5912),
+            // The neon trio borrows the closest generated ramp instead of shipping its own plates.
+            Triple("neon_cyan", VaultModule.PASSWORDS, 0xFF687D1D),
+            Triple("neon_magenta", VaultModule.PASSWORDS, 0xFF6E4BD5),
+            Triple("neon_plasma", VaultModule.PASSWORDS, 0xFF7757D8),
         )
         for ((theme, module, argb) in expected) {
             assertMatches(theme, module, BrandIconCatalog.accent(theme, module), argb.toLong())

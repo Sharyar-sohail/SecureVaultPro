@@ -27,14 +27,19 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -79,6 +84,7 @@ import com.securevault.pro.presentation.components.VaultTextField
 import com.securevault.pro.presentation.components.vaultGutter
 import com.securevault.pro.presentation.theme.DockStyle
 import com.securevault.pro.presentation.theme.HeaderStyle
+import com.securevault.pro.presentation.theme.LayoutTuning
 import com.securevault.pro.presentation.theme.NavIndicator
 import com.securevault.pro.presentation.theme.VaultPalette
 import com.securevault.pro.presentation.theme.VaultPalettes
@@ -119,6 +125,7 @@ fun SettingsScreen(
     var showPairingDialog by remember { mutableStateOf(false) }
     var pairingOpenError by remember { mutableStateOf<String?>(null) }
     var showExportDialog by remember { mutableStateOf(false) }
+    var showThemes by remember { mutableStateOf(false) }
 
     var exportPayload by remember { mutableStateOf<LocalExportData?>(null) }
     var bloggerPayload by remember { mutableStateOf<BloggerThemeFile?>(null) }
@@ -341,35 +348,18 @@ fun SettingsScreen(
 
             val writable = !state.decoy && !state.working
 
+            val activeTheme = VaultPalettes.find(state.themeId)
             SettingsSection(
                 title = "Theme switcher",
-                subtitle = "Fifteen themes · one icon board per theme, its own plate colours, plain light and dark",
+                subtitle = "Fifteen themes · one board per theme, its own plate colours, glow and grain",
                 accent = VaultColor.accent
             ) {
-                VaultPalettes.all.chunked(2).forEach { rowThemes ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        rowThemes.forEach { theme ->
-                            ThemePreviewTile(
-                                palette = theme,
-                                selected = state.themeId == theme.id,
-                                modifier = Modifier.weight(1f),
-                                onSelect = { viewModel.setTheme(theme.id) }
-                            )
-                        }
-                        if (rowThemes.size == 1) Spacer(Modifier.weight(1f))
-                    }
-                }
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    text = "Every screen, card, button, icon set and the navigation bar re-skin immediately — no restart required.",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = VaultColor.textFaint,
-                    lineHeight = 15.sp
+                SettingsActionRow(
+                    icon = Glyph.palette,
+                    accent = VaultColor.decorative,
+                    title = "Themes",
+                    subtitle = "${activeTheme.name} · ${activeTheme.tagline}",
+                    onClick = { showThemes = true }
                 )
             }
 
@@ -462,7 +452,7 @@ fun SettingsScreen(
 
             SettingsSection(
                 title = "Dead man's switch",
-                subtitle = "Local-only destruction · Drive backups stay untouched",
+                subtitle = "Archives to Drive first · then erases this device only",
                 accent = VaultColor.debit
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -475,9 +465,9 @@ fun SettingsScreen(
                     Spacer(Modifier.width(8.dp))
                     Text(
                         text = if (state.deadManArmed) {
-                            "Armed · ${state.deadManDaysLeft} day(s) until the local vault is wiped."
+                            "Armed · ${state.deadManDaysLeft} day(s) until this device is archived to Drive and erased."
                         } else {
-                            "Disarmed. No automatic wipe will run."
+                            "Disarmed. No automatic erase will run."
                         },
                         style = MaterialTheme.typography.bodySmall,
                         color = if (state.deadManArmed) VaultColor.warning else VaultColor.textBody,
@@ -512,7 +502,7 @@ fun SettingsScreen(
                         icon = Glyph.security,
                         accent = VaultColor.debit,
                         title = "Arm dead man's switch",
-                        subtitle = "If this app is not unlocked within the interval, local data is destroyed",
+                        subtitle = "Past the interval, this device is archived to Drive and then erased",
                         value = "${state.deadManIntervalDays}d",
                         enabled = writable,
                         onClick = {
@@ -524,7 +514,7 @@ fun SettingsScreen(
                 }
                 Spacer(Modifier.height(6.dp))
                 Text(
-                    text = "Only this device is wiped (vault tables, attachments, offline backups and the Keystore key). Encrypted Google Drive envelopes are never deleted by this switch.",
+                    text = "On the first launch after the deadline the vault is uploaded to a visible Google Drive ZIP, and only then is this device erased (vault tables, attachments, offline backups and the Keystore key). Google Drive must be connected; if the archive fails nothing is erased. Encrypted Drive envelopes are never deleted by this switch.",
                     style = MaterialTheme.typography.labelSmall,
                     color = VaultColor.textFaint,
                     lineHeight = 15.sp
@@ -1612,7 +1602,7 @@ fun SettingsScreen(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(
-                        text = "If this app is not unlocked within the interval, the next launch destroys all local vault data. Encrypted Drive backups are never touched.",
+                        text = "If this app is not unlocked within the interval, the next launch first uploads your vault to a visible Google Drive ZIP, then erases this device only. Drive must be connected; if the archive fails, nothing is erased.",
                         style = MaterialTheme.typography.bodySmall,
                         color = VaultColor.textBody,
                         lineHeight = 18.sp
@@ -1751,6 +1741,284 @@ fun SettingsScreen(
                 showClipboardDialog = false
             },
             onDismiss = { showClipboardDialog = false }
+        )
+    }
+
+    if (showThemes) {
+        ThemesSheet(
+            activeId = state.themeId,
+            tuning = state.themeTuning.tuning,
+            onSelect = viewModel::setTheme,
+            onTuningChange = viewModel::setLayoutTuning,
+            onReset = viewModel::resetLayoutTuning,
+            onDismiss = { showThemes = false }
+        )
+    }
+}
+
+/**
+ * The theme drawer. One row in Settings opens it, so the fifteen boards no longer push the rest of
+ * the screen below the fold; the grid stays two per row, and the layout dials under it tune the
+ * board of whichever theme is selected, saved per theme id the moment they move.
+ *
+ * The sheet stays open on selection: picking a theme is a preview, not a commit. [draft] is seeded
+ * from the saved tuning and only re-adopted when the incoming value did not come from this sheet,
+ * so a theme switch reseeds the sliders while a slider's own echo never snaps the thumb back.
+ */
+@Composable
+private fun ThemesSheet(
+    activeId: String,
+    tuning: LayoutTuning,
+    onSelect: (String) -> Unit,
+    onTuningChange: (LayoutTuning) -> Unit,
+    onReset: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val palette = VaultPalettes.find(activeId)
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    var draft by remember { mutableStateOf(tuning) }
+    var sent by remember { mutableStateOf<LayoutTuning?>(null) }
+    LaunchedEffect(tuning) {
+        if (tuning != sent) {
+            draft = tuning
+            sent = null
+        }
+    }
+
+    fun apply(next: LayoutTuning) {
+        draft = next
+        sent = next
+        onTuningChange(next)
+    }
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = VaultColor.surface,
+        contentColor = VaultColor.textStrong,
+        shape = palette.cardShape,
+        dragHandle = { BottomSheetDefaults.DragHandle(color = palette.outlineColor) }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 22.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        text = "Themes",
+                        style = MaterialTheme.typography.headlineSmall,
+                        color = VaultColor.textStrong
+                    )
+                    Text(
+                        text = "${palette.name} · ${palette.tagline}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = VaultColor.textFaint,
+                        lineHeight = 17.sp
+                    )
+                }
+                TextButton(onClick = onDismiss) {
+                    Text(
+                        text = "Done",
+                        color = VaultColor.accent,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+            Spacer(Modifier.height(4.dp))
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    // A grid of eight rows plus the dials is taller than any sheet; the body
+                    // scrolls inside a bounded height so "Done" never leaves the screen.
+                    .heightIn(max = 460.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                VaultPalettes.all.chunked(2).forEach { rowThemes ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        rowThemes.forEach { theme ->
+                            ThemePreviewTile(
+                                palette = theme,
+                                selected = activeId == theme.id,
+                                modifier = Modifier.weight(1f),
+                                onSelect = { onSelect(theme.id) }
+                            )
+                        }
+                        if (rowThemes.size == 1) Spacer(Modifier.weight(1f))
+                    }
+                }
+
+                Spacer(Modifier.height(18.dp))
+                Text(
+                    text = "Board layout",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = VaultColor.textStrong
+                )
+                Text(
+                    text = "Saved for ${palette.name} only · the board behind this sheet updates as you move",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = VaultColor.textFaint,
+                    lineHeight = 15.sp
+                )
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    text = "Columns",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = VaultColor.textStrong
+                )
+                Spacer(Modifier.height(6.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    LayoutTuning.COLUMN_CHOICES.forEach { choice ->
+                        TuningChip(
+                            label = choice?.toString() ?: "Theme default",
+                            selected = draft.columns == choice,
+                            modifier = Modifier.weight(1f),
+                            onClick = { apply(draft.copy(columns = choice)) }
+                        )
+                    }
+                }
+                TuningSlider(
+                    label = "Tile size",
+                    value = draft.tileScale,
+                    range = 0.85f..1.25f,
+                    steps = 7,
+                    onValueChange = { apply(draft.copy(tileScale = it)) }
+                )
+                TuningSlider(
+                    label = "Icon scale",
+                    value = draft.iconScale,
+                    range = 0.80f..1.40f,
+                    steps = 11,
+                    onValueChange = { apply(draft.copy(iconScale = it)) }
+                )
+                TuningSlider(
+                    label = "Padding & spacing",
+                    value = draft.spacingScale,
+                    range = 0.60f..1.60f,
+                    steps = 19,
+                    onValueChange = { apply(draft.copy(spacingScale = it)) }
+                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = if (draft.isDefault) {
+                            "Using the theme's own board"
+                        } else {
+                            "Custom board for ${palette.name}"
+                        },
+                        style = MaterialTheme.typography.labelSmall,
+                        color = VaultColor.textFaint,
+                        modifier = Modifier.weight(1f)
+                    )
+                    TextButton(
+                        onClick = {
+                            draft = LayoutTuning.DEFAULT
+                            sent = LayoutTuning.DEFAULT
+                            onReset()
+                        },
+                        enabled = !draft.isDefault
+                    ) {
+                        Text(
+                            text = "Reset layout",
+                            color = if (draft.isDefault) VaultColor.textFaint else VaultColor.warning,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+                Text(
+                    text = "Every screen, card, button, icon set and the navigation bar re-skin immediately — no restart required.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = VaultColor.textFaint,
+                    lineHeight = 15.sp
+                )
+                Spacer(Modifier.height(8.dp))
+            }
+        }
+    }
+}
+
+/** One segmented choice in the theme sheet. */
+@Composable
+private fun TuningChip(
+    label: String,
+    selected: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    val shape = RoundedCornerShape(VaultRadius.sm)
+    Box(
+        modifier = modifier
+            .clip(shape)
+            .background(if (selected) VaultColor.accent.copy(alpha = 0.18f) else VaultColor.elevated)
+            .border(1.dp, if (selected) VaultColor.accent else VaultColor.hairline, shape)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 9.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = if (selected) VaultColor.textStrong else VaultColor.textBody,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center
+        )
+    }
+}
+
+/** One 0.05-stepped multiplier dial. The value snaps on the way in, never after it is saved. */
+@Composable
+private fun TuningSlider(
+    label: String,
+    value: Float,
+    range: ClosedFloatingPointRange<Float>,
+    steps: Int,
+    onValueChange: (Float) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 10.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium,
+                color = VaultColor.textStrong,
+                modifier = Modifier.weight(1f)
+            )
+            Text(
+                text = String.format(java.util.Locale.US, "%.2f×", value),
+                style = MaterialTheme.typography.labelMedium,
+                color = VaultColor.accent
+            )
+        }
+        Slider(
+            value = value,
+            onValueChange = { onValueChange(LayoutTuning.snap(it, range.start, range.endInclusive)) },
+            valueRange = range,
+            steps = steps,
+            colors = SliderDefaults.colors(
+                thumbColor = VaultColor.accent,
+                activeTrackColor = VaultColor.accent,
+                inactiveTrackColor = VaultColor.elevated
+            )
         )
     }
 }

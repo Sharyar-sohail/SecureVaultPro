@@ -11,6 +11,7 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.math.max
+import kotlin.math.roundToInt
 
 /* =====================================================================================
  * LAYOUT GRAMMAR
@@ -47,6 +48,9 @@ data class BoardCell(val index: Int, val span: Int, val kind: TileKind) {
         require(span >= 1) { "a cell must own at least one column" }
     }
 }
+
+/** The widest board the packer will build, so a corrupt override can never ask for more. */
+private const val MAX_BOARD_COLUMNS = 6
 
 /** How many weight units one row of a board owns. Every row always fills them exactly. */
 fun boardColumns(layout: VaultLayout): Int = when (layout) {
@@ -128,10 +132,18 @@ private fun kindFor(layout: VaultLayout, index: Int, span: Int, count: Int, colu
  * The closing cell of a board is therefore allowed to take the whole pane, and `kindFor` reads it
  * as a bar. Cells are re-kinded after widening, which is what stops a two-column feature drawing
  * with a one-column plate's content.
+ *
+ * [columnsOverride] is the owner's per-theme column tuning. When it is non-null it replaces the
+ * layout's own [boardColumns] *and* the span planner is fed the same number, so every guarantee
+ * above still holds — only the pane's division changes. Null (the default) is the untouched path.
  */
-fun boardGrid(layout: VaultLayout, count: Int): List<List<BoardCell>> {
+fun boardGrid(
+    layout: VaultLayout,
+    count: Int,
+    columnsOverride: Int? = null
+): List<List<BoardCell>> {
     if (count <= 0) return emptyList()
-    val columns = boardColumns(layout)
+    val columns = (columnsOverride ?: boardColumns(layout)).coerceIn(1, MAX_BOARD_COLUMNS)
     val spans = planSpans(layout, count, columns).map { it.coerceIn(1, columns) }.toMutableList()
 
     val rows = mutableListOf<MutableList<Int>>()
@@ -283,6 +295,29 @@ data class BoardRhythm(
             VaultLayout.GALLERY -> BoardRhythm(3, 8.dp, 14.dp, 6.dp, 94.dp, 82.dp, 12.dp)
             VaultLayout.STRIP -> BoardRhythm(4, 7.dp, 9.dp, 8.dp, 74.dp, 58.dp, 11.dp)
             VaultLayout.TRIAD -> BoardRhythm(4, 12.dp, 12.dp, 12.dp, 100.dp, 90.dp, 18.dp)
+        }
+
+        /**
+         * The same rhythm, breathing at the owner's own [tuning] spacing.
+         *
+         * Only the four air values move — row gap, cell gap, inner horizontal padding and the
+         * section gap — each multiplied by `spacingScale` and rounded to a whole dp so a stored
+         * multiplier cannot produce sub-pixel seams between two rows. The column count is *not*
+         * read from the tuning: the board itself is re-cut by [boardGrid]'s `columnsOverride`,
+         * and the two must never disagree. A default tuning returns the untouched rhythm, so
+         * every existing call site keeps its exact numbers.
+         */
+        fun of(layout: VaultLayout, tuning: LayoutTuning): BoardRhythm {
+            val base = of(layout)
+            if (tuning.isDefault) return base
+            val scale = tuning.spacingScale.coerceIn(0.6f, 1.6f)
+            fun Dp.breathe(): Dp = (value * scale).roundToInt().coerceAtLeast(0).dp
+            return base.copy(
+                rowGap = base.rowGap.breathe(),
+                cellGap = base.cellGap.breathe(),
+                tilePadH = base.tilePadH.breathe(),
+                sectionGap = base.sectionGap.breathe()
+            )
         }
     }
 }

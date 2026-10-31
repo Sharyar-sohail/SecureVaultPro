@@ -2,4 +2,6 @@
 <paths>
     <cache-path name="secure_share" path="secure_share/" />
     <cache-path name="secure_viewer" path="secure_viewer/" />
+    <!-- Mail attachments saved by the reader: cache/mail/attachments/<account>-<uid>/<file>. -->
+    <cache-path name="mail_attachments" path="mail/attachments/" />
 </paths>

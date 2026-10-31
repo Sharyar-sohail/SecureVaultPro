@@ -5,11 +5,13 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.securevault.pro.data.remote.firebase.Keyring
+import com.securevault.pro.presentation.theme.LayoutTuning
 import com.securevault.pro.diagnostics.CrashLogger
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -342,6 +344,57 @@ class AppLockManager @Inject constructor(
     suspend fun setFontId(id: String) = store.edit {
         it[Keys.FONT_ID] = id.trim().ifBlank { DEFAULT_FONT }
     }
+
+    // ---------------------------------------------------------------------------------------
+    // Per-theme Home board tuning.
+    //
+    // The owner tunes the module grid per theme — "Neon Cyan wants three columns, Aqua wants
+    // wide glyphs" — so the four numbers live under the theme id they belong to. Nothing here
+    // is security state, but it shares this DataStore so the look and the theme id are written
+    // by the same owner and survive the same restore path. Missing keys mean "the theme's own
+    // board", which is why a fresh install reads as a default tuning rather than as an event.
+    // ---------------------------------------------------------------------------------------
+
+    /** One theme's tuning: its key family, read and written as a single record. */
+    private class TuningKeys(themeId: String) {
+        private val prefix = "layout_${themeId.trim().lowercase().ifBlank { DEFAULT_THEME }}"
+        val columns = intPreferencesKey("${prefix}_cols")
+        val tile = floatPreferencesKey("${prefix}_tile")
+        val icon = floatPreferencesKey("${prefix}_icon")
+        val space = floatPreferencesKey("${prefix}_space")
+        val all = listOf<Preferences.Key<*>>(columns, tile, icon, space)
+    }
+
+    /**
+     * The tuning saved for [themeId]. Defaults are the theme's own board: no column override and
+     * every multiplier at 1f, so an untouched install recomposes exactly as before.
+     */
+    fun layoutTuning(themeId: String): Flow<LayoutTuning> {
+        val keys = TuningKeys(themeId)
+        return data.map { prefs ->
+            LayoutTuning(
+                columns = prefs[keys.columns]?.takeIf { it in 2..6 },
+                tileScale = prefs[keys.tile]?.coerceIn(0.85f, 1.25f) ?: 1f,
+                iconScale = prefs[keys.icon]?.coerceIn(0.80f, 1.40f) ?: 1f,
+                spacingScale = prefs[keys.space]?.coerceIn(0.60f, 1.60f) ?: 1f
+            )
+        }
+    }
+
+    suspend fun setLayoutTuning(themeId: String, tuning: LayoutTuning) = store.edit { prefs ->
+        val keys = TuningKeys(themeId)
+        val columns = tuning.columns
+        if (columns == null) prefs.remove(keys.columns) else prefs[keys.columns] = columns.coerceIn(2, 6)
+        prefs[keys.tile] = tuning.tileScale.coerceIn(0.85f, 1.25f)
+        prefs[keys.icon] = tuning.iconScale.coerceIn(0.80f, 1.40f)
+        prefs[keys.space] = tuning.spacingScale.coerceIn(0.60f, 1.60f)
+    }
+
+    /** Drops this theme's overrides so it draws its own board again. */
+    suspend fun resetLayoutTuning(themeId: String) = store.edit { prefs ->
+        TuningKeys(themeId).all.forEach { key -> prefs.remove(key) }
+    }
+
     suspend fun setPanicShakeEnabled(enabled: Boolean) = store.edit { it[Keys.PANIC_SHAKE] = enabled }
     suspend fun setAutoSyncEnabled(enabled: Boolean) = store.edit { it[Keys.AUTO_SYNC] = enabled }
 

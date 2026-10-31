@@ -97,13 +97,21 @@ data class AccountRow(
     val canConnect: Boolean get() = state == AccountNeed.READY || state == AccountNeed.OAUTH_READY
 }
 
-/** The account list in display order: newest write first, so an account just added sits on top. */
+/**
+ * The account list in display order: newest write first, so an account just added sits on top.
+ *
+ * A row written before the "reuse the id" rule landed can still be in the table beside the newer row
+ * for the same address. Those older copies are hidden from this list — the newest write is the one
+ * whose folders and sync state are live — but they are never deleted here: dropping data on the
+ * owner's behalf is a decision this screen has no right to make.
+ */
 fun accountRowsOf(
     records: List<MailAccountRecord>,
     folderCounts: Map<String, List<MailFolder>>,
     timeLabel: (Long) -> String
 ): List<AccountRow> = records
     .sortedByDescending { it.account.updatedAt }
+    .distinctBy { it.address.trim().lowercase() }
     .map { record ->
         val folders = folderCounts[record.id].orEmpty()
         AccountRow(

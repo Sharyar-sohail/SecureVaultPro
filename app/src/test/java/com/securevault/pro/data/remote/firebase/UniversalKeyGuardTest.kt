@@ -120,13 +120,18 @@ class UniversalKeyGuardTest {
         assertTrue("the sync manager must use the shared plan", sync.contains("LegacyKeyPlan.ordered("))
     }
 
-    /** The owner's rule: one exact key on the common path, never a numbered sweep. */
+    /** The owner's rule: the exact writers only, never a numbered sweep. */
     @Test
-    fun `the common restore is one exact key, not a sweep`() {
+    fun `the common restore is the exact writer keys, not a sweep`() {
         val sync = syncManagerSource().readText()
         assertTrue(
-            "a v3 copy must be opened with the single primary key",
-            sync.contains("LegacyKeyPlan.primary(")
+            "a v3 copy must be opened with the bounded writer chain",
+            sync.contains("LegacyKeyPlan.restoreChain(")
+        )
+        assertTrue(
+            "the exact key 3.1.9 wrote Drive copies with must stay in that chain",
+            (sourceFile("java/com/securevault/pro/security/backup/LegacyKeyPlan.kt")?.readText() ?: sync)
+                .contains("PRIMARY_CLOUD_KEY, OpeningSecretKind.RETIRED_UNIVERSAL_KEY")
         )
         assertFalse(
             "the overlay must never print a key counter again",

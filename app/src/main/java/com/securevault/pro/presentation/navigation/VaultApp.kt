@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.ContextWrapper
 import android.os.SystemClock
 import android.view.WindowManager
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -12,6 +13,7 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -30,6 +32,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -37,6 +40,7 @@ import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -81,6 +85,7 @@ import com.securevault.pro.presentation.components.BrandModuleIcon
 import com.securevault.pro.presentation.components.CrashReportBanner
 import com.securevault.pro.presentation.components.LocalSecureClipboard
 import com.securevault.pro.presentation.components.PanicShakeEffect
+import com.securevault.pro.presentation.components.ThemedIcon
 import com.securevault.pro.presentation.components.VaultModule
 import com.securevault.pro.presentation.components.secureClipboard
 import kotlinx.coroutines.delay
@@ -127,6 +132,7 @@ import com.securevault.pro.presentation.theme.NavIndicator
 import com.securevault.pro.presentation.theme.SecureWalletTheme
 import com.securevault.pro.presentation.theme.VaultPaletteController
 import com.securevault.pro.presentation.theme.VaultColor
+import com.securevault.pro.presentation.theme.VaultMotion
 import com.securevault.pro.presentation.theme.VaultShapes
 import com.securevault.pro.presentation.theme.VaultRadius
 import com.securevault.pro.presentation.components.Glyph
@@ -149,6 +155,7 @@ private fun VaultAppScaffold(viewModel: AppViewModel) {
     val inactivityLockSeconds by viewModel.inactivityLockSeconds.collectAsStateWithLifecycle()
     val panicShakeEnabled by viewModel.panicShakeEnabled.collectAsStateWithLifecycle()
     val cloudState by viewModel.cloudState.collectAsStateWithLifecycle()
+    val deadManNotice by viewModel.deadManNotice.collectAsStateWithLifecycle()
 
     val context = LocalContext.current
     val view = LocalView.current
@@ -195,24 +202,106 @@ private fun VaultAppScaffold(viewModel: AppViewModel) {
 
     androidx.compose.runtime.CompositionLocalProvider(LocalSecureClipboard provides clipboard) {
         Box(Modifier.fillMaxSize()) {
-            when (state.stage) {
-                AppStage.LOADING -> SplashScreen(
-                    status = cloudState.detail.takeIf { it.isNotBlank() },
-                    title = cloudState.title.takeIf { cloudState.active && it.isNotBlank() },
-                    progress = cloudState.percent.takeIf { cloudState.active }
-                )
-                AppStage.ONBOARDING -> OnboardingScreen(onFinished = viewModel::completeOnboarding)
-                AppStage.INTRO -> IntroScreen(onFinished = viewModel::completeIntro)
-                AppStage.SETUP -> SetupScreen()
-                AppStage.LOCKED -> LockScreen()
-                AppStage.UNLOCKED -> UnlockedApp(
-                    autoLockSeconds = autoLockSeconds,
-                    inactivityLockSeconds = inactivityLockSeconds,
-                    onLock = viewModel::lockNow,
-                    onToggleTheme = viewModel::toggleLightMode
+            // A short fade + lift as the app moves between major stages (boot, onboarding, lock,
+            // vault). Navigation, routes and back handling are untouched: only the stage body
+            // is wrapped, and the outgoing screen is disposed as soon as the 180-240 ms hop ends.
+            val stageEnter = VaultMotion.fadeEnter(durationMillis = 240) +
+                VaultMotion.slideEnterVertically(durationMillis = 240) { it / 30 }
+            val stageExit = VaultMotion.fadeExit(durationMillis = VaultMotion.SHORT)
+            AnimatedContent(
+                targetState = state.stage,
+                modifier = Modifier.fillMaxSize(),
+                transitionSpec = { stageEnter togetherWith stageExit },
+                label = "appStage"
+            ) { stage ->
+                when (stage) {
+                    AppStage.LOADING -> SplashScreen(
+                        status = cloudState.detail.takeIf { it.isNotBlank() },
+                        title = cloudState.title.takeIf { cloudState.active && it.isNotBlank() },
+                        progress = cloudState.percent.takeIf { cloudState.active }
+                    )
+                    AppStage.ONBOARDING -> OnboardingScreen(onFinished = viewModel::completeOnboarding)
+                    AppStage.INTRO -> IntroScreen(onFinished = viewModel::completeIntro)
+                    AppStage.SETUP -> SetupScreen()
+                    AppStage.LOCKED -> LockScreen()
+                    AppStage.UNLOCKED -> UnlockedApp(
+                        autoLockSeconds = autoLockSeconds,
+                        inactivityLockSeconds = inactivityLockSeconds,
+                        onLock = viewModel::lockNow,
+                        onToggleTheme = viewModel::toggleLightMode
+                    )
+                }
+            }
+            // App-level notices share one column so a crash report and a dead man's switch
+            // report never sit on top of each other. The switch report is hidden in a decoy
+            // session: a decoy must look like an ordinary vault.
+            Column(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .fillMaxWidth()
+            ) {
+                if (!state.decoy) {
+                    DeadManNoticeBanner(
+                        notice = deadManNotice,
+                        onDismiss = viewModel::dismissDeadManNotice
+                    )
+                }
+                CrashReportBanner()
+            }
+        }
+    }
+}
+
+/**
+ * Says what the dead man's switch actually did on this launch. Rendered above the stage, never
+ * as a dialog: after a real erase the vault is back at Setup, and the report has to survive that
+ * hop and be readable before anything else.
+ */
+@Composable
+private fun DeadManNoticeBanner(notice: String?, onDismiss: () -> Unit) {
+    if (notice.isNullOrBlank()) return
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .statusBarsPadding()
+            .padding(horizontal = 14.dp)
+            .clip(VaultShapes.button)
+            .background(VaultColor.elevated.copy(alpha = 0.97f))
+            .border(1.dp, VaultColor.warning.copy(alpha = 0.55f), VaultShapes.button)
+            .padding(start = 14.dp, end = 8.dp, top = 12.dp, bottom = 6.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            ThemedIcon(
+                glyph = Glyph.warning,
+                contentDescription = null,
+                tint = VaultColor.warning,
+                modifier = Modifier.size(17.dp)
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(
+                text = "Dead man's switch",
+                style = MaterialTheme.typography.titleSmall,
+                color = VaultColor.textStrong
+            )
+        }
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = notice,
+            style = MaterialTheme.typography.labelSmall,
+            color = VaultColor.textFaint,
+            lineHeight = 16.sp
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.End
+        ) {
+            TextButton(onClick = onDismiss) {
+                Text(
+                    text = "Dismiss",
+                    color = VaultColor.textFaint,
+                    style = MaterialTheme.typography.labelLarge
                 )
             }
-            CrashReportBanner(modifier = Modifier.align(Alignment.TopCenter))
         }
     }
 }
