@@ -26,7 +26,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.text.style.TextAlign
-import com.securevault.pro.presentation.components.QrCodeImage
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
@@ -54,7 +53,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -72,6 +70,7 @@ import com.securevault.pro.presentation.components.GlassCard
 import com.securevault.pro.presentation.components.GlassScaffold
 import com.securevault.pro.presentation.components.GradientButton
 import com.securevault.pro.presentation.components.PieLegendMarker
+import com.securevault.pro.presentation.components.QrCodeImage
 import com.securevault.pro.presentation.components.TagChip
 import com.securevault.pro.presentation.components.ThemedIcon
 import com.securevault.pro.presentation.components.VaultDivider
@@ -86,7 +85,6 @@ import com.securevault.pro.presentation.theme.VaultPalettes
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.net.URL
 import com.securevault.pro.presentation.theme.VaultColor
 import com.securevault.pro.presentation.theme.VaultShapes
 import com.securevault.pro.presentation.theme.VaultRadius
@@ -697,7 +695,7 @@ fun SettingsScreen(
                     accent = VaultColor.credit,
                     title = "Pair browser mirror",
                     subtitle = "Show a QR to the site, or scan the code it displays",
-                    enabled = writable && state.companionUrl.isNotBlank(),
+                    enabled = writable,
                     onClick = {
                         viewModel.ensurePairCode()
                         companionError = null
@@ -942,7 +940,7 @@ fun SettingsScreen(
             }
 
             Text(
-                text = "Five failed unlocks trigger a 30-second lockout. Screenshot blocking is enabled by default. The master password cannot be recovered by anyone, including the developer.",
+                text = "Five failed unlocks trigger a 30-second lockout. The master password cannot be recovered by anyone, including the developer.",
                 style = MaterialTheme.typography.labelSmall,
                 color = VaultColor.textFaint.copy(alpha = 0.8f),
                 lineHeight = 15.sp
@@ -1352,7 +1350,12 @@ fun SettingsScreen(
             textContentColor = VaultColor.textBody,
             title = { Text("Encrypted export", style = MaterialTheme.typography.titleLarge) },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(
+                    modifier = Modifier
+                        .heightIn(max = 440.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
                     Text(
                         text = "Sealed with the password you type here — never your master password. Keep the two apart; without this password the file cannot be opened again.",
                         style = MaterialTheme.typography.bodySmall,
@@ -1493,6 +1496,9 @@ fun SettingsScreen(
             title = { Text("Pair the browser mirror", style = MaterialTheme.typography.titleLarge) },
             text = {
                 Column(
+                    modifier = Modifier
+                        .heightIn(max = 480.dp)
+                        .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {

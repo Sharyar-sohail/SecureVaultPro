@@ -120,6 +120,24 @@ class UniversalKeyGuardTest {
         assertTrue("the sync manager must use the shared plan", sync.contains("LegacyKeyPlan.ordered("))
     }
 
+    /** The owner's rule: one exact key on the common path, never a numbered sweep. */
+    @Test
+    fun `the common restore is one exact key, not a sweep`() {
+        val sync = syncManagerSource().readText()
+        assertTrue(
+            "a v3 copy must be opened with the single primary key",
+            sync.contains("LegacyKeyPlan.primary(")
+        )
+        assertFalse(
+            "the overlay must never print a key counter again",
+            sync.contains("Exact legacy key")
+        )
+        assertFalse(
+            "the progress overlay must not advertise a derivation total",
+            sync.contains("of \$total")
+        )
+    }
+
     /**
      * Replacing the backup slot in place is how an owner's vault got overwritten by a vault they had
      * not restored. Every slot write now goes through the guard, which preserves bytes it cannot open

@@ -827,13 +827,18 @@ private fun isWhatsAppInstalled(context: Context, packageId: String): Boolean =
  * still works when they do.
  */
 private class WhatsAppTreeGrant : ActivityResultContracts.OpenDocumentTree() {
-    override fun createIntent(context: Context, input: Uri?): Intent =
-        super.createIntent(context, input).putExtra(
+    override fun createIntent(context: Context, input: Uri?): Intent {
+        // Business-only phones have no com.whatsapp folder, so the hint has to name the package
+        // that is actually installed or the picker opens somewhere with nothing to grant.
+        val packageId = WhatsAppPackages.launchable
+            .firstOrNull { (id, _) -> isWhatsAppInstalled(context, id) }
+            ?.first
+            ?: WhatsAppPackages.MAIN
+        return super.createIntent(context, input).putExtra(
             DocumentsContract.EXTRA_INITIAL_URI,
-            Uri.parse(
-                WhatsAppTree.initialTreeUri(WhatsAppTree.rootRelativePath(WhatsAppPackages.MAIN))
-            )
+            Uri.parse(WhatsAppTree.initialTreeUri(WhatsAppTree.rootRelativePath(packageId)))
         )
+    }
 }
 
 /**
@@ -901,8 +906,9 @@ private fun WhatsAppImportDialog(
     onDismiss: () -> Unit
 ) {
     if (!visible) return
-    // The folder hub is the fallback, so it stays folded unless this device already granted it.
-    var showFolder by remember { mutableStateOf(hub.granted) }
+    // The folder list is the import; folding it away was why the first tap looked empty on a phone
+    // with no grant yet.
+    var showFolder by remember { mutableStateOf(true) }
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
@@ -1039,8 +1045,11 @@ private fun WhatsAppImportDialog(
                             WhatsAppNote(
                                 icon = Glyph.folderOpen,
                                 tint = WhatsAppGreen,
-                                text = hub.error
-                                    ?: "Allow one folder to read exports WhatsApp already saved on this phone."
+                                text = when {
+                                    hub.scanning -> "Looking inside WhatsApp's own folders on this phone…"
+                                    hub.error != null -> hub.error.orEmpty()
+                                    else -> "Allow one folder to read exports WhatsApp already saved on this phone."
+                                }
                             )
                             Spacer(Modifier.height(8.dp))
                             GradientButton(
@@ -1203,12 +1212,14 @@ private fun WhatsAppImportDialog(
                                 )
                             }
                             Spacer(Modifier.height(6.dp))
-                            GhostButton(
-                                text = "Stop reading that folder",
-                                icon = Glyph.delete,
-                                accent = NeonCoral,
-                                onClick = onForgetFolder
-                            )
+                            if (!hub.local) {
+                                GhostButton(
+                                    text = "Stop reading that folder",
+                                    icon = Glyph.delete,
+                                    accent = NeonCoral,
+                                    onClick = onForgetFolder
+                                )
+                            }
                         }
                     }
                     Spacer(Modifier.height(6.dp))

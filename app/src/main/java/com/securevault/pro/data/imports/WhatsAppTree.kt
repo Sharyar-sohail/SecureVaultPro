@@ -17,11 +17,22 @@ object WhatsAppTree {
     /** WhatsApp writes exports here; Business uses the same name inside its own package folder. */
     const val EXPORTS_DIR = "WhatsApp Exports"
 
-    /** Photos, videos, voice notes and documents, grouped by type. */
+    /** What older installs called the media container; also the label when no type folder applies. */
     const val MEDIA_DIR = "WhatsApp Media"
+
+    /** Current WhatsApp writes media under `<pkg>/WhatsApp/Media/…`, not `WhatsApp Media`. */
+    const val MEDIA_CONTAINER = "Media"
+
+    /** "Export chat" writes its .txt/.zip into this type folder inside the media container. */
+    const val DOCUMENTS_DIR = "WhatsApp Documents"
 
     /** The real tree is container/type/file — deeper than this is not WhatsApp's layout. */
     const val MAX_DEPTH = 4
+
+    /** Folders a broader grant has to be walked through before WhatsApp's own tree starts. */
+    private val WRAPPER_DIRS = setOf(
+        "Android", "media", "WhatsApp", "WhatsApp Business"
+    )
 
     /** The folder the picker should open on: `<pkg>/WhatsApp` under shared storage. */
     fun rootRelativePath(packageId: String): String =
@@ -52,31 +63,74 @@ object WhatsAppTree {
      * How a folder or file found inside the granted tree should be treated.
      *
      * The container names are matched anywhere in the path, not at a fixed depth: current
-     * WhatsApp writes to `Android/media/<pkg>/WhatsApp/…` while older installs keep the same
-     * folders under a `WhatsApp` folder at the root of shared storage, and either may be the
-     * folder the user grants. Subfolders of `WhatsApp Media` are named per type ("Images",
-     * "Voice Notes", …) and vary by version and locale, so everything in that container is
-     * taken as media rather than matched by folder name.
+     * WhatsApp writes to `Android/media/<pkg>/WhatsApp/Media/…` while older installs keep the
+     * same folders under a `WhatsApp Media` folder, and either may be the folder the user grants.
+     * Subfolders of that container are named per type ("Images", "Voice Notes", …) and vary by
+     * version and locale, so everything in it is taken as media rather than matched by folder name.
      */
     fun classify(relativePath: String, isDirectory: Boolean): Kind {
         val segments = relativePath.split('/').filter { it.isNotBlank() }
         val name = segments.lastOrNull().orEmpty()
         val inExports = segments.contains(EXPORTS_DIR)
-        val inMedia = segments.contains(MEDIA_DIR)
+        val inMedia = mediaContainerIndex(segments) >= 0
+        val inDocuments = segments.contains(DOCUMENTS_DIR)
         val route = if (isDirectory) null else WhatsAppChat.route(name, null)
         val junk = name.startsWith(".") || name.endsWith(".tmb", ignoreCase = true) ||
             segments.any { it.endsWith("Thumbnails", ignoreCase = true) }
         return when {
             isDirectory && name == EXPORTS_DIR -> Kind.ExportsFolder
             isDirectory && inMedia -> Kind.MediaFolder
-            isDirectory && segments.size == 1 -> Kind.RootFolder
+            isDirectory && navigable(name, segments) -> Kind.RootFolder
             isDirectory -> Kind.Skip
             route == WhatsAppPick.Ignored -> Kind.Unreadable
             junk -> Kind.Skip
             route == WhatsAppPick.Conversation && inExports -> Kind.ChatExport
+            route == WhatsAppPick.Conversation && inDocuments && WhatsAppChat.isExportName(name) ->
+                Kind.ChatExport
             inMedia -> Kind.MediaFile
             else -> Kind.Skip
         }
+    }
+
+    /**
+     * A folder worth opening: the top of whatever was granted, plus the fixed folders between a
+     * broad grant (`Android/media`) and `com.whatsapp/WhatsApp`. Other packages and other apps'
+     * media folders are not on the way to WhatsApp, so a whole-storage grant does not walk them.
+     */
+    private fun navigable(name: String, segments: List<String>): Boolean =
+        segments.size == 1 || name in WRAPPER_DIRS || name.startsWith("com.whatsapp")
+
+    /**
+     * Position of the container segment, or -1. A bare `Media` only counts when it is the granted
+     * root's first folder or a WhatsApp folder sits in front of it, so granting all of shared
+     * storage does not turn another app's `Media` folder into WhatsApp photos.
+     */
+    private fun mediaContainerIndex(segments: List<String>): Int {
+        val legacy = segments.indexOf(MEDIA_DIR)
+        if (legacy >= 0) return legacy
+        val current = segments.indexOf(MEDIA_CONTAINER)
+        if (current < 0) return -1
+        val qualified = current == 0 || segments.take(current).any { it.contains("WhatsApp", ignoreCase = true) }
+        return if (qualified) current else -1
+    }
+
+    /** "Media/WhatsApp Images/IMG-1.jpg" → "WhatsApp Images"; null when not inside the container. */
+    fun mediaGroup(relativePath: String): String? {
+        val parts = relativePath.split('/').filter { it.isNotBlank() }
+        val index = mediaContainerIndex(parts)
+        if (index < 0) return null
+        return if (index + 1 < parts.size - 1) parts[index + 1] else MEDIA_DIR
+    }
+
+    /**
+     * Depth counted from the `WhatsApp` folder, not from whatever was granted: a grant made one
+     * level up (`Android/media/com.whatsapp`) must walk as deep as a grant made on `WhatsApp`
+     * itself, or the type folders vanish.
+     */
+    fun depthBelowRoot(relativePath: String): Int {
+        val segments = relativePath.split('/').filter { it.isNotBlank() }
+        val at = segments.indexOfLast { it == "WhatsApp" || it == "WhatsApp Business" }
+        return if (at >= 0) segments.size - at - 1 else segments.size
     }
 
     /** True when the walker should open this directory and look inside it. */

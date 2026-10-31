@@ -305,14 +305,30 @@ class LegacyEnvelopeOpenerTest {
         assertEquals(3, attempt.candidatesTried)
     }
 
+    @Test
+    fun `the primary key is the original writer's exact key at one count`() {
+        val secret = LegacyKeyPlan.primary()
+        assertEquals(PRIMARY_CLOUD_KEY, secret.value)
+        assertEquals(OpeningSecretKind.RETIRED_UNIVERSAL_KEY, secret.kind)
+        assertEquals(listOf(600_000), secret.iterationProfiles)
+
+        val withVault = LegacyKeyPlan.primary(vaultSecret = "account-vault-key")
+        assertEquals("account-vault-key", withVault.value)
+        assertEquals(OpeningSecretKind.VAULT_KEY, withVault.kind)
+
+        val export = LegacyKeyPlan.primary(passphrase = "typed-export-passphrase", preferPassphrase = true)
+        assertEquals("typed-export-passphrase", export.value)
+        assertEquals(OpeningSecretKind.PASSPHRASE, export.kind)
+    }
+
     /**
      * The exact shape the owner's Drive copies have: sealed with the account's random 256-bit vault
-     * key (the keyring secret, base64), not with any literal or address. Sixty derivations — the
-     * number the failure screen printed — cannot open it, and the only fix is to offer the key the
-     * keyring returns after the master password unwraps it.
+     * key (the keyring secret, base64), not with any literal or address. The promise on screen is
+     * one exact attempt, so this asserts exactly that — and that the key the keyring returns after
+     * the master password unwraps it is the one that opens the file.
      */
     @Test
-    fun `a keyring-sealed backup opens only when the account vault key is offered`() {
+    fun `a keyring-sealed backup costs one attempt and opens with the account vault key`() {
         val json = """{"entries":[{"id":"e-vault-key"}]}"""
         val salt = derivation.generateSalt()
         val vaultKey = ByteArray(32).also { java.security.SecureRandom().nextBytes(it) }
@@ -322,29 +338,22 @@ class LegacyEnvelopeOpenerTest {
         val without = opener.openWithSalts(
             salts = listOf(salt),
             data = data,
-            secrets = LegacyKeyPlan.ordered(
-                emails = listOf("owner@example.com"),
-                vaultSecret = null,
-                version = 3
-            ),
-            iterationProfiles = LegacyEnvelopeOpener.exactProfiles(3)
+            secrets = listOf(LegacyKeyPlan.primary(vaultSecret = null)),
+            iterationProfiles = listOf(600_000)
         )
         assertNull("no literal or address can open a keyring-sealed file", without.opened)
-        assertEquals("15 keys × 4 counts is what the overlay must report", 60, without.candidatesTried)
+        assertEquals("the common path is one exact derivation, never a 60-step sweep", 1, without.candidatesTried)
 
         val with = opener.openWithSalts(
             salts = listOf(salt),
             data = data,
-            secrets = LegacyKeyPlan.ordered(
-                emails = listOf("owner@example.com"),
-                vaultSecret = vaultKey,
-                version = 3
-            ),
-            iterationProfiles = LegacyEnvelopeOpener.exactProfiles(3)
+            secrets = listOf(LegacyKeyPlan.primary(vaultSecret = vaultKey)),
+            iterationProfiles = listOf(600_000)
         )
         assertEquals(json, with.opened?.json)
         assertEquals(OpeningSecretKind.VAULT_KEY, with.opened?.kind)
         assertEquals(600_000, with.opened?.iterations)
+        assertEquals(1, with.candidatesTried)
     }
 
     private fun seal(json: String, secret: String, salt: ByteArray, iterations: Int): String {

@@ -591,6 +591,9 @@ class WhatsAppStreamingImporter(
         }
         if (transcriptFile == null) {
             transcriptFile?.delete()
+            // The media of an archive without a transcript was sealed before the winner was known;
+            // nothing will link it to a chat, so it is taken back instead of left in the vault.
+            sealedIds.forEach { id -> runCatching { media.discard(id) } }
             throw IllegalArgumentException(
                 if (mediaNames.isEmpty() && sealed == 0) WhatsAppZipReader.NO_TRANSCRIPT_HINT
                 else WhatsAppImporter.NO_TIMESTAMPS_HINT

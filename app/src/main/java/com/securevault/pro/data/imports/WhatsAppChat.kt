@@ -64,13 +64,16 @@ object WhatsAppChat {
      */
     fun deepLink(number: String): String = "https://wa.me/$number"
 
+    /** True when the name carries WhatsApp's export scaffolding, not just a .txt extension. */
+    fun isExportName(fileName: String): Boolean = EXPORT_NAME.containsMatchIn(fileName)
+
     fun route(fileName: String, mime: String?): WhatsAppPick {
         val name = fileName.substringAfterLast('/')
         if (BACKUP.containsMatchIn(name)) return WhatsAppPick.Ignored
         val lowered = name.lowercase()
         if (lowered.endsWith(".txt")) return WhatsAppPick.Conversation
         if (lowered.endsWith(".zip")) {
-            return if (EXPORT_NAME.containsMatchIn(name)) WhatsAppPick.Conversation else WhatsAppPick.Media
+            return if (isExportName(name)) WhatsAppPick.Conversation else WhatsAppPick.Media
         }
         if (mime != null && (mime.startsWith("video/") || mime.startsWith("audio/") ||
                 mime.startsWith("image/") || mime == "application/pdf")

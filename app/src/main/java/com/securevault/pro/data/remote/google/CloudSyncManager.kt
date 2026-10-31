@@ -374,7 +374,7 @@ class CloudSyncManager @Inject constructor(
             if (bytes.size > MAX_BACKUP_BYTES) {
                 throw CloudSyncException("Backup is larger than the supported 120 MB limit")
             }
-            update("Decrypting vault...", "Your account key, then the retired universal keys", 45)
+            update("Decrypting vault...", "The exact key this copy was written with", 45)
             val decoded = try {
                 decryptBackup(bytes, accountEmail, passphrase, epoch)
             } catch (e: CancellationException) {
@@ -431,9 +431,9 @@ class CloudSyncManager @Inject constructor(
             return Result.failure(CloudSyncException("No encrypted backup was found in Google Drive."))
         }
         val ordered = RestoreWalkOrder.order(files)
-        // One credential decides every file. The key list is exact now, so a file fails on its own
-        // merits in a bounded number of derivations instead of a wall-clock sweep; only the primary
-        // slot and the newest fallbacks are walked.
+        // Each copy is opened with its one exact key, so a failed walk costs one derivation per
+        // file rather than a minute of guessing. Only the primary slot and the newest fallbacks
+        // are walked.
         val candidates = ordered.take(MAX_WALK_FILES)
         val epoch = operationEpoch.get()
         var lastReason: String? = null
@@ -466,8 +466,8 @@ class CloudSyncManager @Inject constructor(
         }
         return Result.failure(
             CloudSyncException(
-                "None of the ${candidates.size} backups in Drive could be opened with the keys held " +
-                    "on this device. ${lastReason ?: ""}".trim()
+                "None of the ${candidates.size} backups in Drive could be opened with the exact " +
+                    "key each was written with. ${lastReason ?: ""}".trim()
             )
         )
     }
@@ -499,7 +499,7 @@ class CloudSyncManager @Inject constructor(
                 // passphrase may still open the file directly, and saying "no key in the cloud"
                 // here would read as a failure while the vault is being recovered fine.
                 if (reason?.contains("no vault key in the cloud", ignoreCase = true) == true) null
-                else reason ?: "That passphrase did not open the account's vault key; the restore kept trying the other keys."
+                else reason ?: "That passphrase did not open the account's vault key, so the copy was opened with its exact key instead."
             }
         }
     }
@@ -514,8 +514,13 @@ class CloudSyncManager @Inject constructor(
         try {
             if (bytes.isEmpty()) throw CloudSyncException("The selected backup is empty")
             if (bytes.size > MAX_BACKUP_BYTES) throw CloudSyncException("Backup exceeds the 120 MB limit")
-            update("Decrypting vault...", "Your vault key, then the retired universal keys", 35)
-            val decoded = decryptBackup(bytes, accountEmail, passphrase = passphrase)
+            update("Decrypting vault...", "The exact key this export was written with", 35)
+            val decoded = decryptBackup(
+                bytes,
+                accountEmail,
+                passphrase = passphrase,
+                preferPassphrase = true
+            )
             update(
                 if (replace) "Replacing vault from file" else "Importing data into app...",
                 if (replace) "The current records are cleared first" else "Resilient v3 parser",
@@ -1017,19 +1022,48 @@ class CloudSyncManager @Inject constructor(
         bytes: ByteArray,
         email: String,
         passphrase: String? = null,
-        epoch: Long = operationEpoch.get()
+        epoch: Long = operationEpoch.get(),
+        preferPassphrase: Boolean = false
     ): DecodedBackup = withContext(Dispatchers.Default) {
         val text = bytes.toString(Charsets.UTF_8).trim()
         if (text.isBlank()) throw CloudSyncException("The backup file is empty")
         val envelope = BackupEnvelopeFormat.parse(bytes)
         if (envelope != null && envelope.recognised && envelope.salt.size >= 8) {
-            val secrets = buildSecrets(email, passphrase, version = envelope.version)
-            val attempt = sweep(
-                salts = LegacySaltPlan.variants(envelope.salt),
-                data = envelope.data,
-                secrets = secrets,
-                epoch = epoch
-            )
+            val salts = LegacySaltPlan.variants(envelope.salt)
+            val attempt = if (envelope.version == null || envelope.version < 3) {
+                // Only a pre-v3 envelope needs the original reader's wider list; its own version
+                // says so in the file, so this is history, not guessing.
+                openSecrets(
+                    salts = salts,
+                    data = envelope.data,
+                    secrets = buildSecrets(email, passphrase, version = envelope.version),
+                    epoch = epoch,
+                    detail = "Opening an older backup the way its reader did"
+                )
+            } else {
+                val first = openPrimary(
+                    salts = salts,
+                    data = envelope.data,
+                    passphrase = passphrase,
+                    preferPassphrase = preferPassphrase,
+                    epoch = epoch
+                )
+                // A typed secret means the owner deliberately retried. Only then is the original
+                // reader's historical list worth its handful of derivations; the common path is
+                // one exact key, never a 60-step sweep.
+                if (first.opened != null || passphrase.isNullOrBlank()) {
+                    first
+                } else {
+                    openSecrets(
+                        salts = salts,
+                        data = envelope.data,
+                        secrets = buildSecrets(email, passphrase, version = envelope.version)
+                            .map { it.copy(iterationProfiles = listOf(LegacyEnvelopeOpener.CURRENT_ITERATIONS)) },
+                        epoch = epoch,
+                        detail = "Checking the keys this account has used"
+                    )
+                }
+            }
             if (operationEpoch.get() != epoch) {
                 throw CancellationException("Restore stopped by the owner")
             }
@@ -1058,11 +1092,12 @@ class CloudSyncManager @Inject constructor(
             ?: text.takeIf { looksLikeCiphertext(it) }
         if (bare != null) {
             val legacySalt = driveLegacySalt()
-            val attempt = sweep(
+            val attempt = openSecrets(
                 salts = LegacySaltPlan.fallback(legacySalt, addressCandidates(email)),
                 data = bare,
                 secrets = buildSecrets(email, passphrase, version = null),
-                epoch = epoch
+                epoch = epoch,
+                detail = "Opening a salt-less backup the way its reader did"
             )
             if (operationEpoch.get() != epoch) {
                 throw CancellationException("Restore stopped by the owner")
@@ -1091,17 +1126,51 @@ class CloudSyncManager @Inject constructor(
     }
 
     /**
-     * One pass over the exact key list, inside the per-restore epoch. Every secret carries the
-     * derivation counts the old code used for this file's version — there is no count sweep.
+     * The exact original derivation: one secret, one count, one attempt.
+     *
+     * The original app's writer used [LegacyKeyPlan.PRIMARY_CLOUD_KEY] at 600,000 rounds; the
+     * keyring-era writer uses this account's vault key at the same count. Offering both as a list is
+     * what produced the 60-step screen, while a wrong key can only ever cost one PBKDF2. The retry
+     * with a typed secret is the only place a list is justified, and even then it is one count.
      */
-    private fun sweep(
+    private fun openPrimary(
+        salts: List<ByteArray>,
+        data: String,
+        passphrase: String?,
+        preferPassphrase: Boolean,
+        epoch: Long
+    ): LegacyEnvelopeOpener.OpenAttempt {
+        val secret = LegacyKeyPlan.primary(
+            passphrase = passphrase,
+            vaultSecret = storedVaultSecret(),
+            preferPassphrase = preferPassphrase
+        )
+        val detail = when (secret.kind) {
+            OpeningSecretKind.VAULT_KEY -> "Opening with your account's vault key"
+            OpeningSecretKind.PASSPHRASE -> "Opening with your passphrase"
+            else -> "Opening with the original key"
+        }
+        update("Decrypting vault...", detail, 48)
+        return legacyOpener.openWithSalts(
+            salts = salts,
+            data = data,
+            secrets = listOf(secret),
+            shouldStop = { operationEpoch.get() != epoch }
+        )
+    }
+
+    /**
+     * The original reader's candidate list for a file that predates the one-key format, or for a
+     * deliberate retry after the owner supplied a secret. Progress moves but never prints a count:
+     * the owner asked to stop watching key numbers, and a count is not information they can act on.
+     */
+    private fun openSecrets(
         salts: List<ByteArray>,
         data: String,
         secrets: List<OpeningSecret>,
-        epoch: Long
+        epoch: Long,
+        detail: String
     ): LegacyEnvelopeOpener.OpenAttempt {
-        // The opener reports one step per derivation, not per secret. Counting only `secrets.size`
-        // is what printed "Exact legacy key 21 of 15": 15 keys × 4 counts is 60 derivations.
         val perSalt = secrets.sumOf { it.iterationProfiles?.size?.takeIf { size -> size > 0 } ?: 1 }
         val total = (perSalt * salts.size).coerceAtLeast(1)
         return legacyOpener.openWithSalts(
@@ -1112,7 +1181,7 @@ class CloudSyncManager @Inject constructor(
             onAttempt = { tried ->
                 update(
                     "Decrypting vault...",
-                    "Exact legacy key ${tried.coerceAtMost(total)} of $total",
+                    detail,
                     45 + (tried * 9 / total)
                 )
             }

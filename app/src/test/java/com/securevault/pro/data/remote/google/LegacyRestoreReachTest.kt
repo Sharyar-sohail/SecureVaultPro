@@ -62,8 +62,12 @@ class LegacyRestoreReachTest {
             description.contains("mismatch")
         )
         assertTrue(
-            "the failure must still report how many derivations ran",
-            description.contains("key derivations")
+            "the failure must name the exact key the file was written with",
+            description.contains("exact key")
+        )
+        assertFalse(
+            "the owner asked to stop counting keys in the failure sentence",
+            description.contains("derivations")
         )
     }
 

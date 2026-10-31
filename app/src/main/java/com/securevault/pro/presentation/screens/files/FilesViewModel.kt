@@ -2,6 +2,7 @@ package com.securevault.pro.presentation.screens.files
 
 import android.content.Context
 import android.net.Uri
+import android.os.Environment
 import android.provider.DocumentsContract
 import android.webkit.MimeTypeMap
 import androidx.lifecycle.ViewModel
@@ -20,6 +21,7 @@ import com.securevault.pro.data.imports.WhatsAppChat
 import com.securevault.pro.data.imports.WhatsAppChatLink
 import com.securevault.pro.data.imports.WhatsAppChatReader
 import com.securevault.pro.data.imports.WhatsAppChatUnit
+import com.securevault.pro.data.imports.WhatsAppPackages
 import com.securevault.pro.data.imports.WhatsAppPick
 import com.securevault.pro.data.imports.WhatsAppStreamingImporter
 import com.securevault.pro.data.imports.WhatsAppTranscript
@@ -53,6 +55,7 @@ import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import java.io.File
+import java.io.FileInputStream
 import java.io.FileOutputStream
 import javax.inject.Inject
 import kotlin.coroutines.coroutineContext
@@ -105,6 +108,8 @@ data class WhatsAppMediaRow(val folder: String, val docs: List<WhatsAppDoc>) {
 /** What the walk of the granted folder found, ready to be listed without another scan. */
 data class WhatsAppHubState(
     val granted: Boolean = false,
+    /** True when the rows came from the filesystem walk, so their [WhatsAppDoc.docId] is a path. */
+    val local: Boolean = false,
     val folder: String = "",
     val app: String = "WhatsApp",
     val scanning: Boolean = false,
@@ -601,23 +606,27 @@ class FilesViewModel @Inject constructor(
             sourceName = displayName
         )
         val outcome = try {
-            withTimeout(GENERIC_IMPORT_TIMEOUT_MS) {
-                if (isArchive) {
-                    whatsAppStreaming.importArchive(
-                        request = request,
-                        source = {
-                            source() ?: throw IllegalStateException("The selected file could not be opened")
-                        },
-                        onProgress = onStage
-                    )
-                } else {
-                    whatsAppStreaming.importTranscript(
-                        request = request,
-                        source = {
-                            source() ?: throw IllegalStateException("The selected file could not be opened")
-                        },
-                        onProgress = onStage
-                    )
+            // The parser is a blocking byte loop and its listener writes to Room: left on the main
+            // dispatcher, a large export froze the screen until Android killed the process.
+            withContext(Dispatchers.IO) {
+                withTimeout(GENERIC_IMPORT_TIMEOUT_MS) {
+                    if (isArchive) {
+                        whatsAppStreaming.importArchive(
+                            request = request,
+                            source = {
+                                source() ?: throw IllegalStateException("The selected file could not be opened")
+                            },
+                            onProgress = onStage
+                        )
+                    } else {
+                        whatsAppStreaming.importTranscript(
+                            request = request,
+                            source = {
+                                source() ?: throw IllegalStateException("The selected file could not be opened")
+                            },
+                            onProgress = onStage
+                        )
+                    }
                 }
             }
         } catch (timeout: TimeoutCancellationException) {
@@ -733,39 +742,21 @@ class FilesViewModel @Inject constructor(
             error.value = "A transfer is already running. Wait for it to finish, then pick the file again."
             return
         }
+        val hub = whatsAppHub.value
+        if (hub.local) {
+            importFromLocalHub(mode, selector, hub)
+            return
+        }
         val grant = WhatsAppAccess.current(context)
         if (grant == null) {
             error.value = "Secure Wallet needs the WhatsApp folder once — tap “Allow WhatsApp folder” below."
             refreshWhatsAppHub()
             return
         }
-        val hub = whatsAppHub.value
-        val chatRows = when (mode) {
-            WhatsAppImport.AllChats, WhatsAppImport.Everything -> hub.chats
-            WhatsAppImport.OneChat -> hub.chats.filter {
-                it.key == WhatsAppTree.searchKey(selector) || WhatsAppTree.matchesChat(it.title, selector)
-            }
-
-            WhatsAppImport.ChatFiles, WhatsAppImport.AllMedia -> emptyList()
-        }
-        val mediaRows = when (mode) {
-            WhatsAppImport.ChatFiles -> hub.media.filter { WhatsAppTree.folderMatchesQuery(it.folder, selector) }
-            WhatsAppImport.Everything -> hub.media
-            WhatsAppImport.AllMedia -> hub.media
-            WhatsAppImport.OneChat, WhatsAppImport.AllChats -> emptyList()
-        }
+        val chatRows = chatRowsFor(mode, selector, hub)
+        val mediaRows = mediaRowsFor(mode, selector, hub)
         if (chatRows.isEmpty() && mediaRows.isEmpty()) {
-            error.value = if (mode == WhatsAppImport.OneChat || mode == WhatsAppImport.ChatFiles) {
-                "Nothing in ${hub.folder} matches “$selector”. WhatsApp only ever writes a folder " +
-                    "when you export: open that chat → ⋮ → More → Export chat → Without media, then " +
-                    "refresh this list. The live conversation itself sits in WhatsApp's private " +
-                    "storage, which no app but WhatsApp can read."
-            } else {
-                "No exported chats or media files in ${hub.folder} yet. In WhatsApp open a chat → " +
-                    "⋮ → More → Export chat → Without media → Share → Secure Wallet Pro, which needs " +
-                    "no folder at all — or export it there, tap the refresh arrow, and this list " +
-                    "fills in."
-            }
+            error.value = nothingFoundHint(mode, hub)
             return
         }
         runningJob = viewModelScope.launch {
@@ -784,6 +775,176 @@ class FilesViewModel @Inject constructor(
             )
         }
     }
+
+    /** The rows a mode selects, shared by the folder-grant path and the direct-file walk. */
+    private fun chatRowsFor(
+        mode: WhatsAppImport,
+        selector: String,
+        hub: WhatsAppHubState
+    ): List<WhatsAppChatRow> = when (mode) {
+        WhatsAppImport.AllChats, WhatsAppImport.Everything -> hub.chats
+        WhatsAppImport.OneChat -> hub.chats.filter {
+            it.key == WhatsAppTree.searchKey(selector) || WhatsAppTree.matchesChat(it.title, selector)
+        }
+
+        WhatsAppImport.ChatFiles, WhatsAppImport.AllMedia -> emptyList()
+    }
+
+    private fun mediaRowsFor(
+        mode: WhatsAppImport,
+        selector: String,
+        hub: WhatsAppHubState
+    ): List<WhatsAppMediaRow> = when (mode) {
+        WhatsAppImport.ChatFiles -> hub.media.filter { WhatsAppTree.folderMatchesQuery(it.folder, selector) }
+        WhatsAppImport.Everything -> hub.media
+        WhatsAppImport.AllMedia -> hub.media
+        WhatsAppImport.OneChat, WhatsAppImport.AllChats -> emptyList()
+    }
+
+    private fun nothingFoundHint(mode: WhatsAppImport, hub: WhatsAppHubState): String =
+        if (mode == WhatsAppImport.OneChat || mode == WhatsAppImport.ChatFiles) {
+            "Nothing in ${hub.folder} matches that choice. WhatsApp only writes a folder when you " +
+                "export: open that chat → ⋮ → More → Export chat → Without media, then refresh this " +
+                "list. The live conversation itself sits in WhatsApp's private storage, which no app " +
+                "but WhatsApp can read."
+        } else {
+            "No exported chats or media files in ${hub.folder} yet. In WhatsApp open a chat → " +
+                "⋮ → More → Export chat → Without media → Share → Secure Wallet Pro, which needs no " +
+                "folder at all — or export it there, tap the refresh arrow, and this list fills in."
+        }
+
+    /** The direct-file half of the hub: no SAF grant, so the chat goes through the streaming importer. */
+    private fun importFromLocalHub(mode: WhatsAppImport, selector: String, hub: WhatsAppHubState) {
+        val chatRows = chatRowsFor(mode, selector, hub)
+        val mediaRows = mediaRowsFor(mode, selector, hub)
+        if (chatRows.isEmpty() && mediaRows.isEmpty()) {
+            error.value = nothingFoundHint(mode, hub)
+            return
+        }
+        runningJob = viewModelScope.launch {
+            importLocalRows(
+                heading = when (mode) {
+                    WhatsAppImport.AllChats -> "Archiving every chat"
+                    WhatsAppImport.OneChat -> "Archiving the chat"
+                    WhatsAppImport.ChatFiles -> "Archiving WhatsApp files"
+                    WhatsAppImport.AllMedia -> "Archiving WhatsApp media"
+                    WhatsAppImport.Everything -> "Archiving all of WhatsApp"
+                },
+                chatRows = chatRows,
+                mediaRows = mediaRows,
+                mediaDocs = hub.media.flatMap { it.docs }
+            )
+        }
+    }
+
+    private fun localRoots(): List<Pair<String, File>> = WhatsAppPackages.launchable.map { (id, _) ->
+        id to File(Environment.getExternalStorageDirectory(), WhatsAppTree.rootRelativePath(id))
+    }
+
+    /**
+     * The same walk as [readWhatsAppTree], over both packages' real directories instead of a SAF
+     * tree. A root the OS refuses to list answers `null` and is counted, not thrown: that is the
+     * Android 11+ answer, and the caller then offers the one-time folder grant.
+     */
+    private suspend fun scanLocalWhatsApp(): LocalScan {
+        val exports = linkedMapOf<String, MutableList<WhatsAppDoc>>()
+        val media = linkedMapOf<String, MutableList<WhatsAppDoc>>()
+        val apps = linkedSetOf<String>()
+        var roots = 0
+        var readable = 0
+        var unreadable = 0
+        var capped = false
+        var filesSeen = 0
+        var folders = 0
+        for ((packageId, root) in localRoots()) {
+            val installed = runCatching { context.packageManager.getPackageInfo(packageId, 0) }.isSuccess
+            if (!installed && !root.isDirectory) continue
+            // An installed app whose folder cannot even be stat'ed is the Android 11+ case: count
+            // it so the owner is told the OS blocked the read, not that WhatsApp is missing.
+            roots++
+            root.listFiles() ?: continue
+            readable++
+            apps += WhatsAppChat.folderName(packageId)
+            val queue = ArrayDeque<Pair<File, String>>()
+            queue.add(root to "")
+            while (queue.isNotEmpty()) {
+                coroutineContext[Job]?.ensureActive()
+                if (folders >= WHATSAPP_FOLDER_CAP || filesSeen >= WHATSAPP_FILE_CAP) {
+                    capped = true
+                    break
+                }
+                val (dir, relative) = queue.removeFirst()
+                folders++
+                for (entry in dir.listFiles() ?: continue) {
+                    coroutineContext[Job]?.ensureActive()
+                    if (filesSeen >= WHATSAPP_FILE_CAP) {
+                        capped = true
+                        break
+                    }
+                    val path = if (relative.isBlank()) entry.name else "$relative/${entry.name}"
+                    when (WhatsAppTree.classify(path, entry.isDirectory)) {
+                        WhatsAppTree.Kind.RootFolder,
+                        WhatsAppTree.Kind.MediaFolder,
+                        WhatsAppTree.Kind.ExportsFolder ->
+                            if (WhatsAppTree.depthBelowRoot(path) <= WhatsAppTree.MAX_DEPTH - 1) {
+                                queue.add(entry to path)
+                            }
+
+                        WhatsAppTree.Kind.ChatExport -> {
+                            filesSeen++
+                            exports.getOrPut(WhatsAppTree.chatKey(entry.name)) { mutableListOf() }
+                                .add(entry.toLocalDoc())
+                        }
+
+                        WhatsAppTree.Kind.MediaFile -> {
+                            filesSeen++
+                            media.getOrPut(whatsAppMediaGroup(path)) { mutableListOf() }
+                                .add(entry.toLocalDoc())
+                        }
+
+                        WhatsAppTree.Kind.Unreadable -> unreadable++
+                        WhatsAppTree.Kind.Skip -> Unit
+                    }
+                }
+            }
+        }
+        return LocalScan(
+            label = apps.joinToString(" & "),
+            chats = exports.entries
+                .map { (key, docs) ->
+                    WhatsAppChatRow(
+                        key = key,
+                        title = WhatsAppTree.displayName(docs.maxBy { it.modifiedAt }.name),
+                        docs = docs.sortedByDescending { it.modifiedAt }
+                    )
+                }
+                .sortedBy { it.title.lowercase() },
+            media = media.entries
+                .map { (folder, docs) -> WhatsAppMediaRow(folder, docs.sortedByDescending { it.modifiedAt }) }
+                .sortedByDescending { it.docs.size },
+            unreadable = unreadable,
+            capped = capped,
+            roots = roots,
+            readable = readable
+        )
+    }
+
+    private fun File.toLocalDoc() = WhatsAppDoc(
+        docId = absolutePath,
+        name = name,
+        size = length(),
+        modifiedAt = lastModified()
+    )
+
+    private class LocalScan(
+        val label: String,
+        val chats: List<WhatsAppChatRow>,
+        val media: List<WhatsAppMediaRow>,
+        val unreadable: Int,
+        val capped: Boolean,
+        val roots: Int,
+        val readable: Int
+    )
 
     /**
      * The chat-centric path behind the folder hub: one tap hands over whole conversations — the
@@ -905,7 +1066,9 @@ class FilesViewModel @Inject constructor(
             percent = 100
         )
         _importSummary.value = summary
-        if (chatResults.size == 1) openNoteId.value = chatResults.single().noteId
+        // The archiver writes the same conversation rows as a picked export, so the chat is what
+        // opens; the note it mirrors stays in Notes.
+        if (chatResults.size == 1) openChatId.value = chatResults.single().noteId
         val mirrored = repository.fileVault.listFiles()
             .filter { it.createdAt >= startedAt }
             .any { it.size <= FileVaultRepository.CLOUD_MIRROR_MAX_BYTES }
@@ -916,6 +1079,226 @@ class FilesViewModel @Inject constructor(
             upload.value = FileUploadState()
         }
         if (complaints.isNotEmpty()) error.value = summarize(complaints)
+    }
+
+    /**
+     * One selection found by the direct-file walk: chats are streamed into the conversation tables
+     * (so they land in the chat list and open in the viewer), their named media is sealed beside
+     * them, and media folders are sealed file by file with the overlay naming each one.
+     */
+    private suspend fun importLocalRows(
+        heading: String,
+        chatRows: List<WhatsAppChatRow>,
+        mediaRows: List<WhatsAppMediaRow>,
+        mediaDocs: List<WhatsAppDoc>
+    ) {
+        val total = chatRows.size + mediaRows.size
+        val complaints = mutableListOf<String>()
+        val mediaByKey = withContext(Dispatchers.IO) {
+            mediaDocs.associateBy { WhatsAppTranscript.equivalenceKey(it.name).lowercase() }
+        }
+        var step = 0
+        var chats = 0
+        var messages = 0
+        var sealed = 0
+        var openedChat: String? = null
+
+        chatRows.forEach { row ->
+            val base = stepBase(step, total)
+            val export = row.latest
+            val stage = "${step + 1} of $total · ${row.title}"
+            upload.value = FileUploadState(active = true, title = heading, detail = stage, percent = base)
+            bounded(row.title, HUB_ITEM_TIMEOUT_MS) {
+                withContext(Dispatchers.IO) {
+                    val source = File(export.docId)
+                    if (!source.isFile) {
+                        return@withContext Result.failure<Pair<WhatsAppStreamingImporter.Outcome, Int>>(
+                            IllegalArgumentException("${export.name} is no longer in that folder.")
+                        )
+                    }
+                    val outcome = importLocalFile(source) { inside, percent ->
+                        upload.update { it.copy(detail = "$stage · $inside", percent = blend(base, percent)) }
+                    }
+                    val imported = outcome.getOrNull()
+                    if (imported == null) {
+                        outcome.map { it to 0 }
+                    } else {
+                        val joined = if (export.name.lowercase().endsWith(".zip")) {
+                            0
+                        } else {
+                            sealLocalReferences(source, imported, mediaByKey) { inside, percent ->
+                                upload.update { it.copy(detail = "$stage · $inside", percent = blend(base, percent)) }
+                            }
+                        }
+                        Result.success(imported to joined)
+                    }
+                }
+            }.fold(
+                onSuccess = { (outcome, joined) ->
+                    chats++
+                    messages += outcome.messages
+                    sealed += outcome.mediaSealed + joined
+                    openedChat = outcome.chatId
+                    complaints += outcome.warnings
+                },
+                onFailure = { complaints += "${row.title}: ${it.message ?: "could not be imported"}" }
+            )
+            step++
+        }
+
+        mediaRows.forEach { folder ->
+            val base = stepBase(step, total)
+            val title = mediaNoteTitle(folder.folder)
+            upload.value = FileUploadState(
+                active = true,
+                title = heading,
+                detail = "${step + 1} of $total · $title",
+                percent = base
+            )
+            bounded(title, HUB_ITEM_TIMEOUT_MS) {
+                sealLocalFolder(folder, title, base)
+            }.fold(
+                onSuccess = { sealed += it },
+                onFailure = { complaints += "$title: ${it.message ?: "could not be sealed"}" }
+            )
+            step++
+        }
+
+        files.value = repository.fileVault.listFiles()
+        repository.refreshFileCount()
+        refreshDriveStorage()
+        val summary = listOfNotNull(
+            if (chats > 0) "$chats chat${if (chats == 1) "" else "s"} · $messages messages" else null,
+            if (sealed > 0) "$sealed file${if (sealed == 1) "" else "s"} sealed" else null
+        ).joinToString(" · ").ifBlank { "Nothing importable in that selection" }
+        if (chats == 0 && sealed == 0) {
+            val message = complaints.firstOrNull() ?: "Nothing in that selection could be read."
+            error.value = message
+            upload.value = FileUploadState(
+                active = true,
+                title = "Nothing imported",
+                detail = message,
+                percent = 100,
+                failed = true
+            )
+            delay(2_600)
+            upload.value = FileUploadState()
+            return
+        }
+        upload.value = FileUploadState(
+            active = true,
+            title = "WhatsApp import sealed",
+            detail = summary,
+            percent = 100
+        )
+        _importSummary.value = summary
+        // One conversation means the owner wanted that conversation: open it in the viewer.
+        if (chats == 1) openedChat?.let { openChatId.value = it }
+        delay(1_400)
+        upload.value = FileUploadState()
+        if (complaints.isNotEmpty()) error.value = summarize(complaints)
+    }
+
+    /** One export read straight off shared storage, through the same streaming engine as a pick. */
+    private suspend fun importLocalFile(
+        file: File,
+        onStage: (String, Int) -> Unit
+    ): Result<WhatsAppStreamingImporter.Outcome> {
+        val isArchive = file.name.lowercase().endsWith(".zip")
+        val title = WhatsAppTranscript.titleFrom(if (isArchive) file.name.removeSuffix(".zip") else file.name)
+        val request = WhatsAppStreamingImporter.Request(
+            chatId = WhatsAppChatUnit.idFor(title, file.name),
+            title = title,
+            sourceName = file.name
+        )
+        return try {
+            withTimeout(GENERIC_IMPORT_TIMEOUT_MS) {
+                if (isArchive) {
+                    whatsAppStreaming.importArchive(request, { FileInputStream(file) }, onStage)
+                } else {
+                    whatsAppStreaming.importTranscript(request, { FileInputStream(file) }, onStage)
+                }
+            }
+        } catch (timeout: TimeoutCancellationException) {
+            Result.failure(IllegalArgumentException(ImportTimeoutHint))
+        }
+    }
+
+    /** A plain `.txt` export names its files but carries none: seal the ones this phone still holds. */
+    private suspend fun sealLocalReferences(
+        transcript: File,
+        outcome: WhatsAppStreamingImporter.Outcome,
+        mediaByKey: Map<String, WhatsAppDoc>,
+        onStage: (String, Int) -> Unit
+    ): Int = withContext(Dispatchers.IO) {
+        if (mediaByKey.isEmpty() || transcript.length() > TRANSCRIPT_JOIN_BYTES) return@withContext 0
+        val text = runCatching {
+            transcript.inputStream().bufferedReader(Charsets.UTF_8).use { it.readText() }
+        }.getOrNull() ?: return@withContext 0
+        val references = runCatching { WhatsAppTranscript.parse(text).references }
+            .getOrDefault(emptyList())
+        if (references.isEmpty()) return@withContext 0
+        val already = runCatching { repository.fileVault.listFiles() }
+            .getOrDefault(emptyList())
+            .filter { it.noteId == outcome.chatId }
+            .map { it.name.lowercase() }
+            .toHashSet()
+        var sealed = 0
+        references.forEach { reference ->
+            coroutineContext[Job]?.ensureActive()
+            val doc = mediaByKey[WhatsAppTranscript.equivalenceKey(reference.fileName).lowercase()]
+                ?: return@forEach
+            if (!already.add(doc.name.lowercase())) return@forEach
+            val source = File(doc.docId)
+            if (!source.isFile) return@forEach
+            onStage("Sealing ${doc.name}", 92)
+            val saved = runCatching {
+                repository.fileVault.saveStream(
+                    source = source,
+                    displayName = doc.name,
+                    mimeType = repository.fileVault.guessMime(doc.name),
+                    category = repository.fileVault.guessCategory(doc.name),
+                    noteId = outcome.chatId,
+                    folder = outcome.container
+                ).getOrThrow()
+            }.isSuccess
+            if (saved) sealed++
+        }
+        sealed
+    }
+
+    /** Every file of one media folder, sealed into that folder's own container, one at a time. */
+    private suspend fun sealLocalFolder(
+        row: WhatsAppMediaRow,
+        title: String,
+        base: Int
+    ): Result<Int> = withContext(Dispatchers.IO) {
+        runCatching {
+            val noteId = WhatsAppChatUnit.idFor(title, "")
+            val container = WhatsAppChatUnit.containerOf(noteId)
+            var sealed = 0
+            row.docs.forEachIndexed { index, doc ->
+                coroutineContext[Job]?.ensureActive()
+                val source = File(doc.docId)
+                if (!source.isFile) return@forEachIndexed
+                upload.update {
+                    it.copy(
+                        detail = "$title · ${index + 1} of ${row.docs.size} · ${doc.name}",
+                        percent = blend(base, (index + 1) * 100 / row.docs.size.coerceAtLeast(1))
+                    )
+                }
+                repository.fileVault.saveStream(
+                    source = source,
+                    displayName = doc.name,
+                    mimeType = repository.fileVault.guessMime(doc.name),
+                    category = repository.fileVault.guessCategory(doc.name),
+                    noteId = noteId,
+                    folder = container
+                ).getOrThrow()
+                sealed++
+            }
+            sealed
+        }
     }
 
     /**
@@ -975,25 +1358,24 @@ class FilesViewModel @Inject constructor(
     fun forgetWhatsAppFolder() {
         WhatsAppAccess.forget(context)
         whatsAppHub.value = WhatsAppHubState()
+        // The filesystem walk needs no grant, so dropping the grant must not empty the picker.
+        refreshWhatsAppHub()
     }
 
     /**
      * Reads the granted folder again. Safe to call on every dialog open: the permission is
      * checked rather than trusted, because the system can revoke it and a stale grant would
      * otherwise list chats that then fail one by one.
+     *
+     * With no grant it reads WhatsApp's own directories straight off shared storage first, so the
+     * one tap from Files already lists the chats; the grant is only asked for when Android blocks
+     * that direct read.
      */
     fun refreshWhatsAppHub() {
         if (whatsAppScanning) return
         val grant = WhatsAppAccess.current(context)
         if (grant == null) {
-            val wasGranted = whatsAppHub.value.granted
-            whatsAppHub.value = WhatsAppHubState(
-                error = if (wasGranted) {
-                    "Secure Wallet lost access to the WhatsApp folder. Allow it again."
-                } else {
-                    "Allow the WhatsApp folder once and every chat on this phone becomes importable."
-                }
-            )
+            refreshLocalWhatsApp()
             return
         }
         whatsAppScanning = true
@@ -1062,6 +1444,73 @@ class FilesViewModel @Inject constructor(
         }
     }
 
+    /** No folder grant: list WhatsApp's own directories read straight off shared storage. */
+    private fun refreshLocalWhatsApp() {
+        whatsAppScanning = true
+        whatsAppHub.value = WhatsAppHubState(scanning = true)
+        runningJob = viewModelScope.launch {
+            val found = try {
+                withTimeout(HUB_SCAN_TIMEOUT_MS) {
+                    withContext(Dispatchers.IO) { scanLocalWhatsApp() }
+                }
+            } catch (timedOut: TimeoutCancellationException) {
+                null
+            } catch (cancelled: CancellationException) {
+                whatsAppScanning = false
+                whatsAppHub.value = WhatsAppHubState(error = "The WhatsApp scan was stopped.")
+                throw cancelled
+            } catch (failure: Throwable) {
+                // Without this the scan flag stays set and every later open spins forever.
+                whatsAppScanning = false
+                whatsAppHub.value = WhatsAppHubState(
+                    error = "WhatsApp's folder could not be listed (${failure.message ?: "unknown reason"}). " +
+                        "Allow the folder once instead — the picker opens inside it."
+                )
+                return@launch
+            }
+            whatsAppScanning = false
+            whatsAppHub.value = when {
+                found == null -> WhatsAppHubState(
+                    error = "WhatsApp's folders took too long to list and the scan was stopped. " +
+                        "Allow the folder once instead — the picker opens inside it."
+                )
+
+                found.readable == 0 -> WhatsAppHubState(error = localBlockedHint(found.roots))
+
+                found.chats.isEmpty() && found.media.isEmpty() -> WhatsAppHubState(
+                    granted = true,
+                    local = true,
+                    app = found.label.ifBlank { "WhatsApp" },
+                    folder = "Android/media",
+                    error = "No exported chats or WhatsApp media were found on this phone. A chat " +
+                        "appears here after WhatsApp writes an export (⋮ → More → Export chat), or " +
+                        "allow the folder once to read it through the system picker.",
+                    unreadable = found.unreadable,
+                    capped = found.capped
+                )
+
+                else -> WhatsAppHubState(
+                    granted = true,
+                    local = true,
+                    app = found.label.ifBlank { "WhatsApp" },
+                    folder = "Android/media",
+                    chats = found.chats,
+                    media = found.media,
+                    unreadable = found.unreadable,
+                    capped = found.capped
+                )
+            }
+        }
+    }
+
+    private fun localBlockedHint(roots: Int): String = if (roots == 0) {
+        "No WhatsApp folder was found on this phone. Install WhatsApp and export a chat, or share " +
+            "the export straight into Secure Wallet — that needs no folder at all."
+    } else {
+        "Android 11+ keeps WhatsApp's folder out of direct reach. Allow it once and every chat it " +
+            "holds is listed here — the picker opens inside the folder."
+    }
+
     /** A walk that failed is reported, never thrown: a folder that cannot be read is not a crash. */
     private data class HubRead(val scan: WhatsAppScan, val refused: Boolean)
 
@@ -1115,7 +1564,7 @@ class FilesViewModel @Inject constructor(
                     WhatsAppTree.Kind.RootFolder,
                     WhatsAppTree.Kind.MediaFolder,
                     WhatsAppTree.Kind.ExportsFolder ->
-                        if (path.count { it == '/' } < WhatsAppTree.MAX_DEPTH - 1) {
+                        if (WhatsAppTree.depthBelowRoot(path) <= WhatsAppTree.MAX_DEPTH - 1) {
                             queue.add(child.docId to path)
                         }
 
@@ -1184,12 +1633,9 @@ class FilesViewModel @Inject constructor(
         }.getOrDefault(emptyList())
     }
 
-    /** "WhatsApp Media/Voice Notes/PTT.aac" → "Voice Notes"; the type folder is what the user recognises. */
-    private fun whatsAppMediaGroup(relativePath: String): String {
-        val parts = relativePath.split('/')
-        val index = parts.indexOf(WhatsAppTree.MEDIA_DIR)
-        return if (index >= 0 && index + 1 < parts.size - 1) parts[index + 1] else WhatsAppTree.MEDIA_DIR
-    }
+    /** "Media/WhatsApp Voice Notes/PTT.aac" → "WhatsApp Voice Notes"; the type folder is what the user recognises. */
+    private fun whatsAppMediaGroup(relativePath: String): String =
+        WhatsAppTree.mediaGroup(relativePath) ?: WhatsAppTree.MEDIA_DIR
 
     /**
      * One pass over a list of found files: exports go to the chat importer, everything else is
@@ -1342,11 +1788,15 @@ class FilesViewModel @Inject constructor(
             error.value = "A transfer is already running. Wait for it to finish, then pick them again."
             return
         }
-        val jobs = uris.map { uri ->
-            val name = queryDisplayName(context, uri, "whatsapp_item")
-            WhatsAppJob(uri, name, WhatsAppChat.route(name, context.contentResolver.getType(uri)))
+        runningJob = viewModelScope.launch {
+            val jobs = withContext(Dispatchers.IO) {
+                uris.map { uri ->
+                    val name = queryDisplayName(context, uri, "whatsapp_item")
+                    WhatsAppJob(uri, name, WhatsAppChat.route(name, context.contentResolver.getType(uri)))
+                }
+            }
+            runWhatsAppBatch(jobs, "Importing from WhatsApp")
         }
-        runningJob = viewModelScope.launch { runWhatsAppBatch(jobs, "Importing from WhatsApp") }
     }
 
     /**
@@ -1573,5 +2023,8 @@ class FilesViewModel @Inject constructor(
 
         /** One chat or one folder of a multi-chat run: a stalled entry must not stall the rest. */
         const val HUB_ITEM_TIMEOUT_MS = 5L * 60L * 1000L
+
+        /** A `.txt` export is joined to its media by reading it once; anything larger is not one. */
+        const val TRANSCRIPT_JOIN_BYTES = 25L * 1024L * 1024L
     }
 }

@@ -102,8 +102,7 @@ object EnvelopeDiagnostics {
                 "format — not your account key — is the mismatch."
         }
         return "Invalid Legacy Key. $layout Salt, IV and tag widths all match the format this app " +
-            "writes, so the key is the mismatch. All $secretsTried exact legacy key derivations " +
-            "were rejected by the GCM tag; this file was sealed with a key this device does not hold."
+            "writes, so the key is the mismatch: ${rejection(secretsTried)}."
     }
 
     /**
@@ -152,9 +151,17 @@ object EnvelopeDiagnostics {
                 "not your account key — is the mismatch."
         }
         return "Invalid Legacy Key. $layout IV and tag widths match the format this app writes, " +
-            "so the key is the mismatch. All $secretsTried exact legacy key derivations were " +
-            "rejected by the GCM tag; this file was sealed with a key this device does not hold."
+            "so the key is the mismatch: ${rejection(secretsTried)}."
     }
+
+    private fun rejection(secretsTried: Int): String =
+        if (secretsTried <= 1) {
+            "the one exact key this file was written with was rejected by the GCM tag, and this " +
+                "device does not hold it. Nothing was guessed"
+        } else {
+            "$secretsTried keys this account has used were rejected by the GCM tag, so this " +
+                "device does not hold the key this file was written with"
+        }
 
     private fun decode(value: String): ByteArray? {
         val clean = value.trim().replace("\n", "").replace("\r", "").replace(" ", "")

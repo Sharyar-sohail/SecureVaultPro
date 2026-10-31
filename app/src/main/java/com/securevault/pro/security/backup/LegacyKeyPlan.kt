@@ -58,6 +58,39 @@ object LegacyKeyPlan {
     )
 
     /**
+     * The **one** secret a v3 envelope could have been written with, at the one count every writer
+     * used. No list, no sweep.
+     *
+     * The original app's writer sealed with [PRIMARY_CLOUD_KEY] at 600,000 rounds. The keyring-era
+     * writer seals with this account's vault key at the same count. An export sealed with a
+     * passphrase uses that passphrase, also at 600,000. There is no fourth writer, so a v3 file
+     * that this single derivation cannot open was not written for this account, and the honest
+     * answer is to ask for the master password — not to spend a minute guessing.
+     *
+     * [preferPassphrase] is for a local export: the owner typed a passphrase precisely because that
+     * is the file's key, so it is offered before a vault key this device happens to hold.
+     */
+    fun primary(
+        passphrase: String? = null,
+        vaultSecret: String? = null,
+        preferPassphrase: Boolean = false
+    ): OpeningSecret {
+        val rounds = listOf(LegacyEnvelopeOpener.CURRENT_ITERATIONS)
+        val typed = passphrase?.trim()?.takeIf { it.isNotBlank() }
+        val vault = vaultSecret?.trim()?.takeIf { it.isNotBlank() }
+        return when {
+            preferPassphrase && typed != null ->
+                OpeningSecret(typed, OpeningSecretKind.PASSPHRASE, rounds)
+            vault != null -> OpeningSecret(vault, OpeningSecretKind.VAULT_KEY, rounds)
+            typed != null -> OpeningSecret(typed, OpeningSecretKind.PASSPHRASE, rounds)
+            else -> OpeningSecret(PRIMARY_CLOUD_KEY, OpeningSecretKind.RETIRED_UNIVERSAL_KEY, rounds)
+        }
+    }
+
+    /**
+     * The original reader's full candidate list. Only a pre-v3 envelope, or a deliberate last
+     * resort after the owner has supplied a secret, is ever offered this.
+     *
      * @param version the envelope's `v` field, or null for the salt-less `iv.ciphertext` blob that
      *   predates envelopes.
      */

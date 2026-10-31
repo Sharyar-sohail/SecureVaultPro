@@ -10,6 +10,7 @@ import com.securevault.pro.data.repository.VaultRepository
 import com.securevault.pro.domain.model.NoteAttachment
 import com.securevault.pro.domain.model.SecureNote
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
@@ -52,7 +53,8 @@ data class ChatArchive(
 class WhatsAppArchiver @Inject constructor(
     @ApplicationContext private val context: Context,
     private val fileVault: FileVaultRepository,
-    private val repository: VaultRepository
+    private val repository: VaultRepository,
+    private val whatsAppStreaming: WhatsAppStreamingImporter
 ) {
 
     /** Staging area for one file at a time, so a 400 MB video never has to fit in memory. */
@@ -110,6 +112,32 @@ class WhatsAppArchiver @Inject constructor(
                     NoteAttachment(id = it.id, name = it.name, mimeType = it.mimeType, size = it.size)
                 }
             )
+            // A note is not a conversation: the chat list and its viewer read the message tables,
+            // so the same parsed transcript is written there too, under the same id the media was
+            // just sealed into. Without this the import opened a note and the chat list stayed empty.
+            val mirrorFailure = if (parsed.messageCount > 0) {
+                runCatching {
+                    whatsAppStreaming.importParsed(
+                        request = WhatsAppStreamingImporter.Request(
+                            chatId = noteId,
+                            title = title,
+                            sourceName = sourceName
+                        ),
+                        messages = WhatsAppTranscript.messages(source.transcript),
+                        participants = parsed.participants,
+                        transcriptSha = parsed.sha256,
+                        firstStamp = parsed.firstStamp,
+                        lastStamp = parsed.lastStamp,
+                        mediaSealed = outcome.sealed.size
+                    ).exceptionOrNull()
+                }.getOrElse { it }
+            } else {
+                null
+            }
+            if (mirrorFailure is CancellationException) throw mirrorFailure
+            val mirrorWarning = mirrorFailure?.let {
+                "The conversation list could not be updated: ${it.message ?: "unknown reason"}."
+            }
             ChatArchive(
                 chat = title,
                 noteId = noteId,
@@ -118,7 +146,9 @@ class WhatsAppArchiver @Inject constructor(
                 alreadyInVault = outcome.reused,
                 missing = plan.missing,
                 bytes = outcome.sealed.sumOf { it.size },
-                warnings = (source.warnings + outcome.warnings).filter { it.isNotBlank() }.take(8)
+                warnings = (source.warnings + outcome.warnings + listOfNotNull(mirrorWarning))
+                    .filter { it.isNotBlank() }
+                    .take(8)
             )
         }
     }

@@ -96,10 +96,15 @@ class EnvelopeDiagnosticsTest {
     }
 
     @Test
-    fun `a failure names an invalid legacy key and the exact derivations that were tried`() {
-        val message = EnvelopeDiagnostics.describe(shippedVector(), secretsTried = 6)
-        assertTrue(message, message.startsWith("Invalid Legacy Key"))
-        assertTrue(message, message.contains("6 exact legacy key derivations"))
+    fun `a failure names an invalid legacy key without advertising a sweep`() {
+        val one = EnvelopeDiagnostics.describe(shippedVector(), secretsTried = 1)
+        assertTrue(one, one.startsWith("Invalid Legacy Key"))
+        assertTrue(one, one.contains("one exact key"))
+        assertTrue(one, one.contains("Nothing was guessed"))
+        assertFalse(one, one.contains("derivations"))
+
+        val retried = EnvelopeDiagnostics.describe(shippedVector(), secretsTried = 6)
+        assertTrue(retried, retried.contains("6 keys this account has used"))
     }
 
     @Test
@@ -111,7 +116,7 @@ class EnvelopeDiagnosticsTest {
         )
         assertTrue(message, message.contains("key.salt on Drive"))
         assertTrue(message, message.contains("key is"))
-        assertTrue(message, message.contains("6 exact legacy key derivations"))
+        assertTrue(message, message.contains("6 keys this account has used"))
         assertFalse(message, message.contains("passphrase", ignoreCase = true))
     }
 

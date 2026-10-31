@@ -43,6 +43,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -99,6 +100,7 @@ import com.securevault.pro.presentation.theme.VaultLayout
 import com.securevault.pro.presentation.theme.VaultMotion
 import com.securevault.pro.presentation.theme.VaultPaletteController
 import com.securevault.pro.presentation.theme.VaultType
+import kotlinx.coroutines.delay
 import com.securevault.pro.presentation.theme.boardColumns
 import com.securevault.pro.presentation.theme.boardGrid
 import com.securevault.pro.presentation.theme.themeSwitchEnter
@@ -357,6 +359,24 @@ private fun SyncNowSheet(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val syncCounts = state.syncCounts
     val localTotal = state.counts
+    // A finished push should not leave the owner staring at a sheet that is already up to date.
+    var wasRunning by remember { mutableStateOf(state.syncRunning) }
+    LaunchedEffect(state.syncRunning) {
+        if (wasRunning && !state.syncRunning && state.syncError == null) {
+            delay(1400)
+            onDismiss()
+        }
+        wasRunning = state.syncRunning
+    }
+    val runningFill = rememberInfiniteTransition(label = "sync-fill").animateFloat(
+        initialValue = 0.18f,
+        targetValue = 0.9f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1100, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "sync-fill"
+    )
     val status = when {
         state.syncRunning -> "Pushing now"
         state.syncError != null -> "Last attempt failed"
@@ -436,7 +456,7 @@ private fun SyncNowSheet(
                     .background(VaultColor.textFaint.copy(alpha = 0.18f))
             ) {
                 val fill = when {
-                    state.syncRunning -> 0.62f
+                    state.syncRunning -> runningFill.value
                     state.syncError != null -> 0.35f
                     state.syncPending -> 0.55f
                     state.syncLastAt > 0L -> 1f
