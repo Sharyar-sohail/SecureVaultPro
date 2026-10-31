@@ -106,6 +106,13 @@ class RealtimeEngine @Inject constructor(
 
     private val attachPumpRunning = AtomicBoolean(false)
 
+    /**
+     * `quiet()` clears [started] but does not cancel the scope, so the reconcile and push loops it
+     * launched are still alive. This guard is never reset: a later `start()` must not add a second
+     * pair, or two consumers would drain the same wake channels and every push would run twice.
+     */
+    private val pumpsRunning = AtomicBoolean(false)
+
     /** In-memory monotonic fallback when the `meta/rev` transaction cannot reach the server. */
     private val revFallback = AtomicLong(0L)
 
@@ -154,8 +161,10 @@ class RealtimeEngine @Inject constructor(
             scope.launch { for (ignored in attachWake) attachForCurrentUid() }
         }
         attachWake.trySend(Unit)
-        scope.launch { reconcileLoop() }
-        scope.launch { pushLoop() }
+        if (pumpsRunning.compareAndSet(false, true)) {
+            scope.launch { reconcileLoop() }
+            scope.launch { pushLoop() }
+        }
         scope.launch {
             keyring.status.collect { st ->
                 val uid = st.uid ?: auth.cachedUid()

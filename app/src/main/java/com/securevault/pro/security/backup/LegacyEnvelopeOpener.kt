@@ -83,19 +83,28 @@ class LegacyEnvelopeOpener @Inject constructor(
         const val LEGACY_V2_ITERATIONS_120K = 120_000
 
         /**
+         * The four counts the original `CloudSyncManager` restore loop actually iterated over.
+         *
+         * Copied from the shipped reader (`for (iter in listOf(600_000, 100_000, 10_000, 1_000))`)
+         * rather than derived from current writers: a file sealed at any of these counts the old app
+         * could open, so this app must too, or a restore that worked on the old build reports
+         * "corrupted" on this one.
+         */
+        val ORIGINAL_READER_PROFILES = listOf(CURRENT_ITERATIONS, 100_000, 10_000, 1_000)
+
+        /**
          * The exact derivation counts the old code used for a file of [version] — nothing else.
          *
-         * `CloudSyncManager` used `PBKDF2_ITERATIONS` (600,000) for every candidate; for
-         * `envelope.version < 3` it then tried 210,000 and 120,000 on the universal strings. Those
-         * three numbers are the whole history. Deriving at counts no shipped writer used cannot
-         * open a file and only delays the honest answer, so the opener is given this list verbatim
-         * instead of sweeping.
+         * Every shipped writer used `PBKDF2_ITERATIONS` (600,000), but the original reader also
+         * derived at 100,000, 10,000 and 1,000 for every file, and at 210,000 and 120,000 for
+         * envelopes older than v3. Those numbers are the whole history; the list is the reader's
+         * own, so a file it could open still opens here.
          */
         fun exactProfiles(version: Int?): List<Int> =
             if (version != null && version in 1..2) {
-                listOf(CURRENT_ITERATIONS, LEGACY_V2_ITERATIONS_210K, LEGACY_V2_ITERATIONS_120K)
+                ORIGINAL_READER_PROFILES + listOf(LEGACY_V2_ITERATIONS_210K, LEGACY_V2_ITERATIONS_120K)
             } else {
-                listOf(CURRENT_ITERATIONS)
+                ORIGINAL_READER_PROFILES
             }
     }
 

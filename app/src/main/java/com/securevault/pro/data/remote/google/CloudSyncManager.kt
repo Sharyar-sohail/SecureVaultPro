@@ -436,7 +436,17 @@ class CloudSyncManager @Inject constructor(
                 passphrase = passphrase,
                 seedSafetyNet = false
             )
-            if (outcome.isSuccess) return outcome
+            if (outcome.isSuccess) {
+                // A backup that opens but carries no records is not the vault: the original drive
+                // copy could be malformed or the XML mirror empty, and the real slot is still ahead
+                // in the walk. Returning "restored" here used to stop the walk on an empty file.
+                val opened = outcome.getOrNull()
+                if (opened == null || opened.incoming.total > 0 || file === candidates.last()) {
+                    return outcome
+                }
+                lastReason = "That copy opened but held no records"
+                continue
+            }
             lastReason = outcome.exceptionOrNull()?.message ?: lastReason
             // Every remaining copy is behind the same credential. Retrying them turns one consent
             // fault into N slow failures and reads to the owner as a loop; stop and let the caller
@@ -445,7 +455,7 @@ class CloudSyncManager @Inject constructor(
         }
         return Result.failure(
             CloudSyncException(
-                "None of the ${ordered.size} backups in Drive could be opened with the keys held " +
+                "None of the ${candidates.size} backups in Drive could be opened with the keys held " +
                     "on this device. ${lastReason ?: ""}".trim()
             )
         )

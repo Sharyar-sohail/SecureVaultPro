@@ -31,7 +31,7 @@ class LegacyKeyPlanTest {
     }
 
     @Test
-    fun `a v3 file is derived at exactly 600000 rounds, never a sweep`() {
+    fun `a v3 file carries the original reader's four counts`() {
         val plan = LegacyKeyPlan.ordered(
             emails = listOf("owner@example.com"),
             passphrase = "typed",
@@ -40,42 +40,60 @@ class LegacyKeyPlanTest {
             version = 3
         )
         assertTrue(plan.isNotEmpty())
+        val original = listOf(600_000, 100_000, 10_000, 1_000)
         for (secret in plan) {
             assertEquals(
-                "${secret.value} must carry the old v3 count and nothing else",
-                listOf(600_000),
+                "${secret.value} must carry the old reader's counts",
+                original,
                 secret.iterationProfiles
             )
         }
     }
 
     @Test
-    fun `an older envelope carries the three counts the old reader used for it`() {
+    fun `an older envelope carries the counts the old reader used for it`() {
         val plan = LegacyKeyPlan.ordered(
             emails = listOf("owner@example.com"),
             vaultSecret = null,
             version = 2
         )
+        val expected = listOf(600_000, 100_000, 10_000, 1_000, 210_000, 120_000)
         for (secret in plan) {
-            assertEquals(listOf(600_000, 210_000, 120_000), secret.iterationProfiles)
+            assertEquals(expected, secret.iterationProfiles)
         }
     }
 
     @Test
-    fun `a v3 file is not offered the older universal strings or invented addresses`() {
+    fun `a v3 file is still offered v2 and v1 but not the v0 strings`() {
         val plan = LegacyKeyPlan.ordered(
             emails = listOf("owner@example.com"),
             vaultSecret = null,
             version = 3
         )
         val values = plan.map { it.value }
-        for (key in listOf(LEGACY_CLOUD_KEY_V2, LEGACY_CLOUD_KEY_V1, LEGACY_CLOUD_KEY)) {
-            assertFalse("$key belongs to the pre-v3 reader", values.contains(key))
+        for (key in listOf(LEGACY_CLOUD_KEY_V2, LEGACY_CLOUD_KEY_V1)) {
+            assertTrue("the old reader offered $key to every file", values.contains(key))
         }
+        assertFalse("$LEGACY_CLOUD_KEY belongs to the pre-v3 reader", values.contains(LEGACY_CLOUD_KEY))
         for (key in LegacyKeyPlan.SHARED_LEGACY_KEYS) {
             assertFalse("$key belongs to the pre-v3 reader", values.contains(key))
         }
-        assertFalse(values.any { LegacyKeyPlan.HISTORICAL_OWNER_ADDRESSES.contains(it) })
+    }
+
+    @Test
+    fun `a v3 file still offers the addresses the original reader hard-coded`() {
+        val plan = LegacyKeyPlan.ordered(
+            emails = listOf("owner@example.com"),
+            vaultSecret = null,
+            version = 3
+        )
+        val values = plan.map { it.value }
+        for (address in LegacyKeyPlan.HISTORICAL_OWNER_ADDRESSES) {
+            assertTrue(
+                "the old reader offered $address to every file, whatever its version",
+                values.contains(address)
+            )
+        }
     }
 
     @Test
@@ -140,6 +158,9 @@ class LegacyKeyPlanTest {
         val plan = LegacyKeyPlan.ordered(emails = listOf("owner@example.com"), vaultSecret = null, version = null)
         val values = plan.map { it.value }
         assertTrue(values.contains(LEGACY_CLOUD_KEY))
-        assertEquals(listOf(600_000), plan.first().iterationProfiles)
+        assertEquals(
+            listOf(600_000, 100_000, 10_000, 1_000),
+            plan.first().iterationProfiles
+        )
     }
 }

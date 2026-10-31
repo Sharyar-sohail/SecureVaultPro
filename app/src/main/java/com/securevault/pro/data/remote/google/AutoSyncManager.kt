@@ -146,6 +146,9 @@ class AutoSyncManager @Inject constructor(
             return failure
         }
         _state.update { it.copy(running = true, lastError = null) }
+        // Both halves of "sync": the realtime delta the web page reads, and the Drive archive below.
+        // Manual sync used to skip this, so the sheet said "pushed" while the web copy stayed stale.
+        realtimeEngine.scheduleReconcile()
         val result = cloudSyncManager.syncNowSilently()
         result.fold(
             onSuccess = { outcome ->

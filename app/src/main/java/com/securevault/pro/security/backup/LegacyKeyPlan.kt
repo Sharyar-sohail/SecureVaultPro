@@ -91,6 +91,13 @@ object LegacyKeyPlan {
                 .filter { it.isNotBlank() }
                 .distinct()
                 .forEach { add(secret(it, OpeningSecretKind.ACCOUNT_ID)) }
+            // The original reader offered v2 and v1 to every file it found, not only to envelopes
+            // stamped older than v3. A v3 envelope sealed by a build that still used an older
+            // literal is precisely the "it used to open" case, so they stay on the list.
+            if (!olderThanV3) {
+                add(secret(LEGACY_CLOUD_KEY_V2, OpeningSecretKind.RETIRED_UNIVERSAL_KEY))
+                add(secret(LEGACY_CLOUD_KEY_V1, OpeningSecretKind.RETIRED_UNIVERSAL_KEY))
+            }
             if (olderThanV3) {
                 add(secret(LEGACY_CLOUD_KEY_V2, OpeningSecretKind.RETIRED_UNIVERSAL_KEY))
                 add(secret(LEGACY_CLOUD_KEY_V1, OpeningSecretKind.RETIRED_UNIVERSAL_KEY))
@@ -113,10 +120,12 @@ object LegacyKeyPlan {
             displayName?.trim()?.takeIf { it.isNotBlank() }?.let {
                 add(secret(it, OpeningSecretKind.ACCOUNT_EMAIL))
             }
-            if (olderThanV3) {
-                (HISTORICAL_OWNER_ADDRESSES + HISTORICAL_HANDLES).forEach {
-                    add(secret(it, OpeningSecretKind.ACCOUNT_EMAIL))
-                }
+            // The original reader's candidate list was version-blind: it offered the account
+            // address, the display name and its hard-coded historical addresses to every file it
+            // found, including v3 envelopes. They stay last so a wrong guess cannot delay the
+            // common keys, but a file sealed that way still opens.
+            (HISTORICAL_OWNER_ADDRESSES + HISTORICAL_HANDLES).forEach {
+                add(secret(it, OpeningSecretKind.ACCOUNT_EMAIL))
             }
         }
         val seen = mutableSetOf<String>()

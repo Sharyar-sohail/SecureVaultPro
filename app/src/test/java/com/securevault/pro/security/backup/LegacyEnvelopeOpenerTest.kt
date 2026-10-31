@@ -182,14 +182,18 @@ class LegacyEnvelopeOpenerTest {
     }
 
     @Test
-    fun `the derivation counts are the old code's own, never a sweep`() {
-        assertEquals(listOf(600_000), LegacyEnvelopeOpener.exactProfiles(3))
-        assertEquals(listOf(600_000), LegacyEnvelopeOpener.exactProfiles(4))
-        assertEquals(listOf(600_000), LegacyEnvelopeOpener.exactProfiles(null))
+    fun `the derivation counts are the old reader's own list, never a sweep`() {
+        // Copied verbatim from the shipped restore loop:
+        // for (iter in listOf(600_000, 100_000, 10_000, 1_000)).
+        val original = listOf(600_000, 100_000, 10_000, 1_000)
+        assertEquals(original, LegacyEnvelopeOpener.exactProfiles(3))
+        assertEquals(original, LegacyEnvelopeOpener.exactProfiles(4))
+        assertEquals(original, LegacyEnvelopeOpener.exactProfiles(null))
         assertEquals(
-            listOf(600_000, 210_000, 120_000),
+            original + listOf(210_000, 120_000),
             LegacyEnvelopeOpener.exactProfiles(2)
         )
+        assertEquals(original, LegacyEnvelopeOpener.ORIGINAL_READER_PROFILES)
         assertEquals(600_000, LegacyEnvelopeOpener.CURRENT_ITERATIONS)
         assertEquals(210_000, LegacyEnvelopeOpener.LEGACY_V2_ITERATIONS_210K)
         assertEquals(120_000, LegacyEnvelopeOpener.LEGACY_V2_ITERATIONS_120K)
