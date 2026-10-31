@@ -3,24 +3,23 @@ package com.securevault.pro.security.backup
 import java.util.Locale
 
 /**
- * The order in which stored envelopes are offered their keys.
+ * The keys a stored envelope is offered, and the exact counts it is derived at.
  *
- * This is the one place the order lives, and it mirrors the writers this product has actually
- * shipped rather than a hunch:
+ * The derivation never changed with the seed-phrase feature: every v3 writer sealed with either
+ * the retired universal v3 literal (builds up to 3.3.x) or this user's keyring vault key (3.3.4+),
+ * always at 600,000 rounds. Exported files used the passphrase the owner typed. Only envelopes
+ * older than v3 have extra counts in the old reader (210,000 and 120,000), and only those files
+ * get them. There is no count sweep: a count no writer used cannot open a file, it can only make
+ * the failure slower.
  *
- *  1. the passphrase the owner typed, if any;
- *  2. the Google **account ID** — the same-package original app (`com.securevault.app`) sealed its
- *     Drive backup with it, and it is not derivable from the address;
- *  3. `SecureVaultPro_Universal_Cloud_Key_v3` — every build up to 3.3.x seals with it;
- *  4. this device's own vault key, when the keyring already holds one;
- *  5. the older retired universal strings and the shared legacy literals;
- *  6. the account address (exact, lowercase, local part), the display name, and the addresses the
- *     original reader hard-coded.
+ * The version decides which keys are *plausible*:
+ *  - v3 and newer: the two v3 writers, the passphrase, the account ID and the account address.
+ *  - older envelopes and the salt-less blob: the same plus the v2/v1/v0 strings, the shared legacy
+ *    literals and the historical addresses the original reader hard-coded.
  *
  * Asking the keyring for a sealing secret when it holds none *generates* a fresh key that can never
  * open the owner's file; that regression is why [ordered] takes a nullable `vaultSecret` and why
- * `CloudSyncManager` only passes one when `hasDeviceKey()` is true. Keep this order pinned by
- * `LegacyKeyPlanTest`.
+ * `CloudSyncManager` only passes one when `hasDeviceKey()` is true.
  *
  * Everything here is a **read** candidate. `UniversalKeyGuardTest` fails the build if any of these
  * strings reaches a write path, because a shared literal in a writer is the one change that would
@@ -58,70 +57,66 @@ object LegacyKeyPlan {
         "1234"
     )
 
+    /**
+     * @param version the envelope's `v` field, or null for the salt-less `iv.ciphertext` blob that
+     *   predates envelopes.
+     */
     fun ordered(
         emails: List<String>,
         passphrase: String? = null,
-        statedIterations: Int? = null,
         vaultSecret: String? = null,
         accountIds: List<String> = emptyList(),
-        displayName: String? = null
+        displayName: String? = null,
+        version: Int? = null
     ): List<OpeningSecret> {
-        val stated = statedIterations?.takeIf { it > 0 }
+        val profiles = LegacyEnvelopeOpener.exactProfiles(version)
+        // The salt-less blob is older than v3 even though it carries no version field.
+        val olderThanV3 = version == null || version < 3
 
-        // A count stated in the file leads but never replaces the sweep: the original reader did not
-        // read a count at all, it tried all four every time, and a file whose field disagrees with
-        // the rounds it was actually sealed at must still open.
-        fun withStated(defaults: List<Int>): List<Int> =
-            stated?.let { listOf(it) + defaults }?.distinct() ?: defaults
-
-        val universalProfiles = withStated(LegacyEnvelopeOpener.ITERATION_PROFILES)
-        // Everything the address-era and literal-era writers could have paired with their key:
-        // the original reader's exact four counts. 210k/120k stay off these because those counts
-        // were only ever paired with the universal keys.
-        val legacyProfiles = withStated(LegacyEnvelopeOpener.ADDRESS_ERA_PROFILES)
-        // The keyring era only ever wrote 600,000, plus whatever the file states.
-        val vaultProfiles = withStated(listOf(LegacyEnvelopeOpener.CURRENT_ITERATIONS))
+        fun secret(value: String, kind: OpeningSecretKind) =
+            OpeningSecret(value, kind, profiles)
 
         val ordered = buildList {
+            // Every v3 writer up to 3.3.x sealed with this literal; it is the old derivation.
+            add(secret(PRIMARY_CLOUD_KEY, OpeningSecretKind.RETIRED_UNIVERSAL_KEY))
+            // 3.3.4+ seals with the keyring's own key.
+            if (!vaultSecret.isNullOrBlank()) {
+                add(secret(vaultSecret, OpeningSecretKind.VAULT_KEY))
+            }
+            // An exported file is sealed with the passphrase the owner chose.
             if (!passphrase.isNullOrBlank()) {
-                add(OpeningSecret(passphrase.trim(), OpeningSecretKind.PASSPHRASE, legacyProfiles))
+                add(secret(passphrase.trim(), OpeningSecretKind.PASSPHRASE))
             }
             accountIds.map { it.trim() }
                 .filter { it.isNotBlank() }
                 .distinct()
-                .forEach { add(OpeningSecret(it, OpeningSecretKind.ACCOUNT_ID, legacyProfiles)) }
-            add(OpeningSecret(PRIMARY_CLOUD_KEY, OpeningSecretKind.RETIRED_UNIVERSAL_KEY, universalProfiles))
-            if (!vaultSecret.isNullOrBlank()) {
-                add(OpeningSecret(vaultSecret, OpeningSecretKind.VAULT_KEY, vaultProfiles))
-            }
-            add(OpeningSecret(LEGACY_CLOUD_KEY_V2, OpeningSecretKind.RETIRED_UNIVERSAL_KEY, universalProfiles))
-            add(OpeningSecret(LEGACY_CLOUD_KEY_V1, OpeningSecretKind.RETIRED_UNIVERSAL_KEY, universalProfiles))
-            add(OpeningSecret(LEGACY_CLOUD_KEY, OpeningSecretKind.RETIRED_UNIVERSAL_KEY, universalProfiles))
-            SHARED_LEGACY_KEYS.forEach {
-                add(OpeningSecret(it, OpeningSecretKind.SHARED_LEGACY_KEY, legacyProfiles))
+                .forEach { add(secret(it, OpeningSecretKind.ACCOUNT_ID)) }
+            if (olderThanV3) {
+                add(secret(LEGACY_CLOUD_KEY_V2, OpeningSecretKind.RETIRED_UNIVERSAL_KEY))
+                add(secret(LEGACY_CLOUD_KEY_V1, OpeningSecretKind.RETIRED_UNIVERSAL_KEY))
+                add(secret(LEGACY_CLOUD_KEY, OpeningSecretKind.RETIRED_UNIVERSAL_KEY))
+                SHARED_LEGACY_KEYS.forEach {
+                    add(secret(it, OpeningSecretKind.SHARED_LEGACY_KEY))
+                }
             }
             emails.map { it.trim() }
                 .filter { it.isNotBlank() }
                 .distinct()
                 .forEach {
-                    add(OpeningSecret(it, OpeningSecretKind.ACCOUNT_EMAIL, legacyProfiles))
-                    add(
-                        OpeningSecret(
-                            it.lowercase(Locale.US),
-                            OpeningSecretKind.ACCOUNT_EMAIL,
-                            legacyProfiles
-                        )
-                    )
+                    add(secret(it, OpeningSecretKind.ACCOUNT_EMAIL))
+                    add(secret(it.lowercase(Locale.US), OpeningSecretKind.ACCOUNT_EMAIL))
                     val handle = it.substringBefore('@').trim()
                     if (handle.isNotBlank()) {
-                        add(OpeningSecret(handle, OpeningSecretKind.ACCOUNT_EMAIL, legacyProfiles))
+                        add(secret(handle, OpeningSecretKind.ACCOUNT_EMAIL))
                     }
                 }
             displayName?.trim()?.takeIf { it.isNotBlank() }?.let {
-                add(OpeningSecret(it, OpeningSecretKind.ACCOUNT_EMAIL, legacyProfiles))
+                add(secret(it, OpeningSecretKind.ACCOUNT_EMAIL))
             }
-            (HISTORICAL_OWNER_ADDRESSES + HISTORICAL_HANDLES).forEach {
-                add(OpeningSecret(it, OpeningSecretKind.ACCOUNT_EMAIL, legacyProfiles))
+            if (olderThanV3) {
+                (HISTORICAL_OWNER_ADDRESSES + HISTORICAL_HANDLES).forEach {
+                    add(secret(it, OpeningSecretKind.ACCOUNT_EMAIL))
+                }
             }
         }
         val seen = mutableSetOf<String>()

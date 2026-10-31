@@ -88,13 +88,12 @@ object EnvelopeDiagnostics {
      */
     fun describe(
         envelope: BackupEnvelope,
-        secretsTried: Int,
-        stoppedEarly: Boolean
+        secretsTried: Int
     ): String {
         val s = inspect(envelope)
         val rounds = s.statedRounds
             ?.let { String.format(Locale.US, "%,d rounds", it) }
-            ?: "round count not stated (600,000 / 210,000 / 120,000 swept)"
+            ?: "round count not stated"
         val layout = "Envelope v${s.version}, salt ${s.saltBytes} B, IV ${s.ivBytes ?: "?"} B, " +
             "tag $EXPECTED_TAG_BYTES B, shape ${s.shape}, $rounds."
         if (!s.intact) {
@@ -102,16 +101,9 @@ object EnvelopeDiagnostics {
                 "The envelope itself is structurally different from what this app writes, so the " +
                 "format — not your account key — is the mismatch."
         }
-        val cut = if (stoppedEarly) {
-            " The time budget ended the sweep after $secretsTried key derivations, so some keys " +
-                "were not tried."
-        } else {
-            " All $secretsTried key derivations on this device were rejected by the GCM tag, so " +
-                "the file was sealed with a key this device does not hold."
-        }
-        return "This backup could not be opened. $layout Salt, IV and tag widths all match the " +
-            "format this app writes, so the cipher parameters are not the mismatch — the key is." +
-            cut
+        return "Invalid Legacy Key. $layout Salt, IV and tag widths all match the format this app " +
+            "writes, so the key is the mismatch. All $secretsTried exact legacy key derivations " +
+            "were rejected by the GCM tag; this file was sealed with a key this device does not hold."
     }
 
     /**
@@ -123,8 +115,7 @@ object EnvelopeDiagnostics {
     fun describeBareBlob(
         data: String,
         saltSource: String,
-        secretsTried: Int,
-        stoppedEarly: Boolean
+        secretsTried: Int
     ): String {
         val parts = data.trim().split('.')
         val iv = parts.firstOrNull()?.let(::decode)
@@ -160,15 +151,9 @@ object EnvelopeDiagnostics {
                 "The blob is structurally different from what this app writes, so the format — " +
                 "not your account key — is the mismatch."
         }
-        val cut = if (stoppedEarly) {
-            " The time budget ended the sweep after $secretsTried key derivations, so some keys " +
-                "were not tried."
-        } else {
-            " All $secretsTried key derivations on this device were rejected by the GCM tag, so the " +
-                "file was sealed with a key this device does not hold."
-        }
-        return "This backup could not be opened. $layout IV and tag widths match the format this " +
-            "app writes, so the cipher parameters are not the mismatch — the key is.$cut"
+        return "Invalid Legacy Key. $layout IV and tag widths match the format this app writes, " +
+            "so the key is the mismatch. All $secretsTried exact legacy key derivations were " +
+            "rejected by the GCM tag; this file was sealed with a key this device does not hold."
     }
 
     private fun decode(value: String): ByteArray? {

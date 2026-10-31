@@ -58,7 +58,7 @@ class LegacyEnvelopeOpenerTest {
         return plaintext to found
     }
 
-    private fun open(v: Vector, secrets: List<OpeningSecret>, profiles: List<Int> = LegacyEnvelopeOpener.ITERATION_PROFILES): LegacyEnvelopeOpener.Opened? {
+    private fun open(v: Vector, secrets: List<OpeningSecret>, profiles: List<Int> = LegacyEnvelopeOpener.exactProfiles(3)): LegacyEnvelopeOpener.Opened? {
         val envelope = BackupEnvelopeFormat.parse(v.envelope) ?: error("${v.name} is not parseable")
         assertTrue("${v.name} must parse as an envelope", envelope.recognised)
         return opener.open(envelope.salt, envelope.data, secrets, profiles)
@@ -80,23 +80,36 @@ class LegacyEnvelopeOpenerTest {
         val universal = vectors.filter { it.secret.startsWith("SecureVaultPro_Universal_Cloud_Key") }
         assertEquals("the vector set must cover every retired key", 4, universal.map { it.secret }.distinct().size)
         for (v in universal) {
-            val opened = open(v, listOf(OpeningSecret(v.secret, OpeningSecretKind.RETIRED_UNIVERSAL_KEY)))
+            val envelope = BackupEnvelopeFormat.parse(v.envelope)!!
+            val opened = open(
+                v,
+                listOf(OpeningSecret(v.secret, OpeningSecretKind.RETIRED_UNIVERSAL_KEY)),
+                LegacyEnvelopeOpener.exactProfiles(envelope.version)
+            )
             assertEquals("${v.name} must open with ${v.secret}", plaintext, opened?.json)
         }
     }
 
     @Test
-    fun `a 210k pin-profile backup opens without being told the count`() {
-        val (plaintext, v) = vector("B-universal-v3-210k")
-        val opened = open(v, listOf(OpeningSecret(v.secret, OpeningSecretKind.RETIRED_UNIVERSAL_KEY)))
+    fun `a pre-v3 210k backup opens with the exact counts the old reader used for it`() {
+        val (plaintext, v) = vector("B-universal-v2-210k")
+        val opened = open(
+            v,
+            listOf(OpeningSecret(v.secret, OpeningSecretKind.RETIRED_UNIVERSAL_KEY)),
+            LegacyEnvelopeOpener.exactProfiles(2)
+        )
         assertEquals(plaintext, opened?.json)
         assertEquals(210_000, opened?.iterations)
     }
 
     @Test
-    fun `a 120k earlier-profile backup opens without being told the count`() {
-        val (plaintext, v) = vector("C-universal-v3-120k")
-        val opened = open(v, listOf(OpeningSecret(v.secret, OpeningSecretKind.RETIRED_UNIVERSAL_KEY)))
+    fun `a pre-v3 120k backup opens with the exact counts the old reader used for it`() {
+        val (plaintext, v) = vector("C-universal-v2-120k")
+        val opened = open(
+            v,
+            listOf(OpeningSecret(v.secret, OpeningSecretKind.RETIRED_UNIVERSAL_KEY)),
+            LegacyEnvelopeOpener.exactProfiles(2)
+        )
         assertEquals(plaintext, opened?.json)
         assertEquals(120_000, opened?.iterations)
     }
@@ -161,7 +174,7 @@ class LegacyEnvelopeOpenerTest {
 
     @Test
     fun `opensWith answers per secret and per count`() {
-        val (_, v) = vector("B-universal-v3-210k")
+        val (_, v) = vector("B-universal-v2-210k")
         val envelope = BackupEnvelopeFormat.parse(v.envelope)!!
         assertTrue(opener.opensWith(envelope.salt, envelope.data, v.secret, 210_000))
         assertFalse(opener.opensWith(envelope.salt, envelope.data, v.secret, 600_000))
@@ -169,24 +182,17 @@ class LegacyEnvelopeOpenerTest {
     }
 
     @Test
-    fun `the iteration sweep is exactly the shipped legacy profile list`() {
+    fun `the derivation counts are the old code's own, never a sweep`() {
+        assertEquals(listOf(600_000), LegacyEnvelopeOpener.exactProfiles(3))
+        assertEquals(listOf(600_000), LegacyEnvelopeOpener.exactProfiles(4))
+        assertEquals(listOf(600_000), LegacyEnvelopeOpener.exactProfiles(null))
         assertEquals(
-            listOf(
-                KeyDerivation.PBKDF2_ITERATIONS,
-                KeyDerivation.PIN_ITERATIONS,
-                120_000,
-                LegacyEnvelopeOpener.OLD_READER_ITERATIONS_100K,
-                LegacyEnvelopeOpener.OLD_READER_ITERATIONS_10K,
-                LegacyEnvelopeOpener.OLD_READER_ITERATIONS_1K
-            ),
-            LegacyEnvelopeOpener.ITERATION_PROFILES
+            listOf(600_000, 210_000, 120_000),
+            LegacyEnvelopeOpener.exactProfiles(2)
         )
         assertEquals(600_000, LegacyEnvelopeOpener.CURRENT_ITERATIONS)
-        assertEquals(210_000, LegacyEnvelopeOpener.PIN_PROFILE_ITERATIONS)
-        assertEquals(
-            listOf(600_000, 100_000, 10_000, 1_000),
-            LegacyEnvelopeOpener.ADDRESS_ERA_PROFILES
-        )
+        assertEquals(210_000, LegacyEnvelopeOpener.LEGACY_V2_ITERATIONS_210K)
+        assertEquals(120_000, LegacyEnvelopeOpener.LEGACY_V2_ITERATIONS_120K)
     }
 
     @Test
@@ -216,11 +222,11 @@ class LegacyEnvelopeOpenerTest {
 
     @Test
     fun `a stated round count is enough on its own`() {
-        val (plaintext, v) = vector("C-universal-v3-120k")
+        val (plaintext, v) = vector("C-universal-v2-120k")
         // The shipped writers never recorded their count, so a self-describing file is simulated by
         // adding the field to an envelope whose body was genuinely sealed at 120,000 rounds.
         val stated = v.envelope.toString(Charsets.UTF_8)
-            .replace("\"v\":3", "\"v\":3,\"iterations\":120000")
+            .replace("\"v\":2", "\"v\":2,\"iterations\":120000")
             .toByteArray()
         val envelope = BackupEnvelopeFormat.parse(stated)!!
         assertEquals(120_000, envelope.iterations)
@@ -234,21 +240,21 @@ class LegacyEnvelopeOpenerTest {
     }
 
     @Test
-    fun `a backup sealed with the Google account id at 100000 rounds opens`() {
+    fun `a backup sealed with the Google account id at the old 600000 rounds opens`() {
         val json = """{"entries":[{"id":"e-1","title":"Sealed by the original app"}]}"""
         val accountId = "118273645091827364509"
         val salt = derivation.generateSalt()
-        val data = seal(json, accountId, salt, 100_000)
+        val data = seal(json, accountId, salt, 600_000)
 
         val attempt = opener.openWithin(
             salt = salt,
             data = data,
             secrets = listOf(OpeningSecret(accountId, OpeningSecretKind.ACCOUNT_ID)),
-            iterationProfiles = LegacyEnvelopeOpener.ADDRESS_ERA_PROFILES
+            iterationProfiles = LegacyEnvelopeOpener.exactProfiles(3)
         )
 
         assertEquals(json, attempt.opened?.json)
-        assertEquals(100_000, attempt.opened?.iterations)
+        assertEquals(600_000, attempt.opened?.iterations)
         assertEquals(OpeningSecretKind.ACCOUNT_ID, attempt.opened?.kind)
     }
 
@@ -257,13 +263,13 @@ class LegacyEnvelopeOpenerTest {
         val json = """{"entries":[{"id":"e-2"}]}"""
         val short = ByteArray(16) { (it * 7 + 3).toByte() }
         val padded = short.copyOf(32)
-        val data = seal(json, "owner@example.com", padded, 100_000)
+        val data = seal(json, "owner@example.com", padded, 600_000)
 
         val attempt = opener.openWithSalts(
             salts = LegacySaltPlan.variants(short),
             data = data,
             secrets = listOf(OpeningSecret("owner@example.com", OpeningSecretKind.ACCOUNT_EMAIL)),
-            iterationProfiles = listOf(100_000)
+            iterationProfiles = listOf(600_000)
         )
 
         assertEquals(json, attempt.opened?.json)
@@ -275,7 +281,7 @@ class LegacyEnvelopeOpenerTest {
     fun `a sweep reports every derivation it starts, so the overlay never looks frozen`() {
         val json = """{"entries":[{"id":"e-3"}]}"""
         val salt = derivation.generateSalt()
-        val data = seal(json, "the-real-secret", salt, 1_000)
+        val data = seal(json, "the-real-secret", salt, 600_000)
         val seen = mutableListOf<Int>()
 
         val attempt = opener.openWithin(
@@ -286,7 +292,7 @@ class LegacyEnvelopeOpenerTest {
                 OpeningSecret("wrong-2", OpeningSecretKind.OTHER),
                 OpeningSecret("the-real-secret", OpeningSecretKind.OTHER)
             ),
-            iterationProfiles = listOf(1_000),
+            iterationProfiles = listOf(600_000),
             onAttempt = { seen += it }
         )
 

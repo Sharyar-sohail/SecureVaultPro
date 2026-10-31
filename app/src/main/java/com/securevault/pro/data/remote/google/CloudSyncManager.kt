@@ -144,16 +144,8 @@ class CloudSyncManager @Inject constructor(
         private const val MAX_BACKUP_BYTES = 120L * 1024L * 1024L
         private const val RESTORE_TIMEOUT_MS = 60_000L
 
-        /**
-         * Hard ceiling on PBKDF2 work for one file. The list below is the *original reader's*
-         * exact key × count matrix, so this only ever prices the failure case: the around two
-         * dozen candidates at 600,000 rounds plus the cheaper legacy counts.
-         */
-        private const val DECRYPT_BUDGET_MS = 90_000L
-
         /** Ceiling on the whole walk: primary slot plus the newest fallbacks, never every file ever. */
         private const val MAX_WALK_FILES = 3
-        private const val WALK_BUDGET_MS = 150_000L
 
         /** How long a passphrase is allowed to fetch the account's vault key before the restore moves on. */
         private const val KEYRING_ATTACH_TIMEOUT_MS = 45_000L
@@ -364,8 +356,7 @@ class CloudSyncManager @Inject constructor(
         file: CloudBackupFile,
         email: String = "",
         passphrase: String? = null,
-        seedSafetyNet: Boolean = true,
-        decryptBudgetMs: Long = DECRYPT_BUDGET_MS
+        seedSafetyNet: Boolean = true
     ): Result<RestoreOutcome> = guarded {
         val epoch = operationEpoch.get()
         val accountEmail = resolveEmail(email)
@@ -384,7 +375,7 @@ class CloudSyncManager @Inject constructor(
                 throw CloudSyncException("Backup is larger than the supported 120 MB limit")
             }
             update("Decrypting vault...", "Your account key, then the retired universal keys", 45)
-            val decoded = decryptBackup(bytes, accountEmail, passphrase, decryptBudgetMs, epoch)
+            val decoded = decryptBackup(bytes, accountEmail, passphrase, epoch)
 
             update("Importing data into app...", "Passwords, cards, 2FA, contacts, notes & files", 55)
             val outcome = mergeDecoded(decoded)
@@ -429,28 +420,21 @@ class CloudSyncManager @Inject constructor(
             return Result.failure(CloudSyncException("No encrypted backup was found in Google Drive."))
         }
         val ordered = RestoreWalkOrder.order(files)
-        // One credential decides every file, and each attempt costs a full PBKDF2. Walking the
-        // entire history turned a lost key into a multi-minute spinner, so the primary slot plus the
-        // newest fallbacks are the whole walk, inside a single wall-clock budget.
+        // One credential decides every file. The key list is exact now, so a file fails on its own
+        // merits in a bounded number of derivations instead of a wall-clock sweep; only the primary
+        // slot and the newest fallbacks are walked.
         val candidates = ordered.take(MAX_WALK_FILES)
-        val startedAt = System.nanoTime()
         val epoch = operationEpoch.get()
         var lastReason: String? = null
         for (file in candidates) {
             if (operationEpoch.get() != epoch) {
                 return Result.failure(CloudSyncException("Restoring was stopped."))
             }
-            val remainingMs = WALK_BUDGET_MS - (System.nanoTime() - startedAt) / 1_000_000L
-            if (remainingMs <= 0L) {
-                lastReason = "The restore exceeded its ${WALK_BUDGET_MS / 1000}s time budget."
-                break
-            }
             val outcome = restoreFromCloud(
                 file = file,
                 email = email,
                 passphrase = passphrase,
-                seedSafetyNet = false,
-                decryptBudgetMs = minOf(DECRYPT_BUDGET_MS, remainingMs)
+                seedSafetyNet = false
             )
             if (outcome.isSuccess) return outcome
             lastReason = outcome.exceptionOrNull()?.message ?: lastReason
@@ -1012,27 +996,24 @@ class CloudSyncManager @Inject constructor(
         bytes: ByteArray,
         email: String,
         passphrase: String? = null,
-        budgetMs: Long = DECRYPT_BUDGET_MS,
         epoch: Long = operationEpoch.get()
     ): DecodedBackup = withContext(Dispatchers.Default) {
         val text = bytes.toString(Charsets.UTF_8).trim()
         if (text.isBlank()) throw CloudSyncException("The backup file is empty")
         val envelope = BackupEnvelopeFormat.parse(bytes)
         if (envelope != null && envelope.recognised && envelope.salt.size >= 8) {
-            val secrets = buildSecrets(email, passphrase, statedIterations = envelope.iterations)
+            val secrets = buildSecrets(email, passphrase, version = envelope.version)
             val attempt = sweep(
                 salts = LegacySaltPlan.variants(envelope.salt),
                 data = envelope.data,
                 secrets = secrets,
-                profiles = iterationProfilesFor(envelope),
-                budgetMs = budgetMs,
                 epoch = epoch
             )
             if (operationEpoch.get() != epoch) {
                 throw CancellationException("Restore stopped by the owner")
             }
             val opened = attempt.opened ?: throw CloudSyncException(
-                EnvelopeDiagnostics.describe(envelope, attempt.candidatesTried, attempt.budgetExhausted)
+                EnvelopeDiagnostics.describe(envelope, attempt.candidatesTried)
             )
             val paddedSaltNote = if (opened.saltBytes != envelope.salt.size) {
                 listOf(
@@ -1059,9 +1040,7 @@ class CloudSyncManager @Inject constructor(
             val attempt = sweep(
                 salts = LegacySaltPlan.fallback(legacySalt, addressCandidates(email)),
                 data = bare,
-                secrets = buildSecrets(email, passphrase, statedIterations = null),
-                profiles = LegacyEnvelopeOpener.ITERATION_PROFILES,
-                budgetMs = budgetMs,
+                secrets = buildSecrets(email, passphrase, version = null),
                 epoch = epoch
             )
             if (operationEpoch.get() != epoch) {
@@ -1072,8 +1051,7 @@ class CloudSyncManager @Inject constructor(
                     data = bare,
                     saltSource = legacySalt?.let { "key.salt on Drive (${it.size} bytes)" }
                         ?: "no key.salt on Drive",
-                    secretsTried = attempt.candidatesTried,
-                    stoppedEarly = attempt.budgetExhausted
+                    secretsTried = attempt.candidatesTried
                 )
             )
             return@withContext DecodedBackup(
@@ -1092,30 +1070,25 @@ class CloudSyncManager @Inject constructor(
     }
 
     /**
-     * One sweep inside the per-restore epoch, reporting movement so the overlay never looks frozen
-     * while the original reader's full key matrix is tried.
+     * One pass over the exact key list, inside the per-restore epoch. Every secret carries the
+     * derivation counts the old code used for this file's version — there is no count sweep.
      */
     private fun sweep(
         salts: List<ByteArray>,
         data: String,
         secrets: List<OpeningSecret>,
-        profiles: List<Int>,
-        budgetMs: Long,
         epoch: Long
     ): LegacyEnvelopeOpener.OpenAttempt {
-        val approximateTotal = secrets.size * profiles.size
+        val approximateTotal = secrets.size
         return legacyOpener.openWithSalts(
             salts = salts,
             data = data,
             secrets = secrets,
-            iterationProfiles = profiles,
-            budgetMs = budgetMs,
             shouldStop = { operationEpoch.get() != epoch },
             onAttempt = { tried ->
                 update(
                     "Decrypting vault...",
-                    "Key $tried of about $approximateTotal: account ID, universal keys, " +
-                        "legacy literals and the account address",
+                    "Exact legacy key $tried of $approximateTotal",
                     45 + (tried * 3).coerceAtMost(9)
                 )
             }
@@ -1150,18 +1123,6 @@ class CloudSyncManager @Inject constructor(
         if (parts.size !in 2..3) return false
         return parts.all { it.isNotBlank() && it.length >= 4 }
     }
-
-    /**
-     * The counts to try. A count stated in the file leads, because every shipped writer recorded
-     * what it used and a self-describing file normally opens on the first derivation. It never
-     * replaces the sweep: the original reader ignored the field and tried all four counts anyway,
-     * so a file whose recorded count disagrees with the rounds it was sealed at still opens.
-     */
-    private fun iterationProfilesFor(envelope: BackupEnvelope): List<Int> {
-        val stated = envelope.iterations?.takeIf { it > 0 } ?: return LegacyEnvelopeOpener.ITERATION_PROFILES
-        return (listOf(stated) + LegacyEnvelopeOpener.ITERATION_PROFILES).distinct()
-    }
-
 
     private fun warningsFor(kind: OpeningSecretKind, iterations: Int): List<String> {
         val byProfile = if (iterations != PBKDF2_ITERATIONS) {
@@ -1210,9 +1171,9 @@ class CloudSyncManager @Inject constructor(
     /**
      * The secrets a stored envelope is offered, in the order the writers used them.
      *
-     * The order lives in [LegacyKeyPlan] so it can be unit-tested without Android, and it is not a
-     * guess: pre-keyring builds sealed with the universal v3 key, keyring builds seal with the
-     * user's own vault key, and both are tried before the account address or the older strings.
+     * The order and the exact derivation counts live in [LegacyKeyPlan] so they can be unit-tested
+     * without Android. The envelope's own version decides the key list; the counts are the ones the
+     * old code used for that version, not a sweep.
      *
      * A vault key is offered only if the keyring already has one: [Keyring] *creates* a fresh key
      * when asked for a sealing secret, and a generated key can never open the owner's file — it only
@@ -1221,7 +1182,7 @@ class CloudSyncManager @Inject constructor(
     private suspend fun buildSecrets(
         email: String,
         passphrase: String?,
-        statedIterations: Int? = null,
+        version: Int?,
         vaultSecret: String? = storedVaultSecret()
     ): List<OpeningSecret> {
         val emails = buildList {
@@ -1232,10 +1193,10 @@ class CloudSyncManager @Inject constructor(
         return LegacyKeyPlan.ordered(
             emails = emails,
             passphrase = passphrase,
-            statedIterations = statedIterations,
             vaultSecret = vaultSecret,
             accountIds = listOf(runCatching { signedInAccountId() }.getOrDefault("")),
-            displayName = runCatching { signedInDisplayName() }.getOrNull()
+            displayName = runCatching { signedInDisplayName() }.getOrNull(),
+            version = version
         )
     }
 

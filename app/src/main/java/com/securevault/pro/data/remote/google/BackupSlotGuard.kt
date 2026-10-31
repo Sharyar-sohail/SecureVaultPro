@@ -178,11 +178,8 @@ class BackupSlotGuard(
     fun opensWithOurKey(bytes: ByteArray): Boolean {
         val envelope = BackupEnvelopeFormat.parse(bytes) ?: return false
         if (!envelope.recognised) return false
-        val profiles = buildList {
-            envelope.iterations?.let { add(it) }
-            LegacyEnvelopeOpener.ITERATION_PROFILES.forEach { if (it !in this) add(it) }
-        }
-        return profiles.any { opener.opensWith(envelope.salt, envelope.data, ourSecret, it) }
+        return LegacyEnvelopeOpener.exactProfiles(envelope.version)
+            .any { opener.opensWith(envelope.salt, envelope.data, ourSecret, it) }
     }
 
     private fun proofKey(slot: CloudBackupFile): String = "${slot.id}:${slot.size}:${slot.modifiedTime}"

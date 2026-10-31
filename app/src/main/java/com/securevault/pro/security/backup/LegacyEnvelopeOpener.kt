@@ -75,50 +75,28 @@ class LegacyEnvelopeOpener @Inject constructor(
         private const val TRANSFORMATION = "AES/GCM/NoPadding"
         private const val TAG_BITS = 128
 
-        /** The profile every release since the format landed has used. */
+        /** The only count a v3 writer ever used. */
         const val CURRENT_ITERATIONS = KeyDerivation.PBKDF2_ITERATIONS
 
-        /** The PIN-profile count some pre-keyring builds sealed a backup with. */
-        const val PIN_PROFILE_ITERATIONS = KeyDerivation.PIN_ITERATIONS
-
-        /** A pre-600k build's count, kept so those files still open. */
-        const val EARLIER_PROFILE_ITERATIONS = 120_000
+        /** The two extra counts the pre-3.4 reader used for envelopes older than v3. */
+        const val LEGACY_V2_ITERATIONS_210K = KeyDerivation.PIN_ITERATIONS
+        const val LEGACY_V2_ITERATIONS_120K = 120_000
 
         /**
-         * The exact list the original cloud reader swept after 600,000: 100,000, 10,000 and 1,000.
-         * The Node backend of the same era derived at 10,000, and older builds sealed at 100,000.
-         * Without these counts a file written by those builds can never open, no matter which key
-         * is offered.
+         * The exact derivation counts the old code used for a file of [version] — nothing else.
+         *
+         * `CloudSyncManager` used `PBKDF2_ITERATIONS` (600,000) for every candidate; for
+         * `envelope.version < 3` it then tried 210,000 and 120,000 on the universal strings. Those
+         * three numbers are the whole history. Deriving at counts no shipped writer used cannot
+         * open a file and only delays the honest answer, so the opener is given this list verbatim
+         * instead of sweeping.
          */
-        const val OLD_READER_ITERATIONS_100K = 100_000
-        const val OLD_READER_ITERATIONS_10K = 10_000
-        const val OLD_READER_ITERATIONS_1K = 1_000
-
-        /**
-         * Every count a release actually shipped, most likely first. This is the legacy list and
-         * it is frozen: the envelope's own stated count leads when it has one, so a self-describing
-         * file is opened in a single pass.
-         */
-        val ITERATION_PROFILES = listOf(
-            CURRENT_ITERATIONS,
-            PIN_PROFILE_ITERATIONS,
-            EARLIER_PROFILE_ITERATIONS,
-            OLD_READER_ITERATIONS_100K,
-            OLD_READER_ITERATIONS_10K,
-            OLD_READER_ITERATIONS_1K
-        )
-
-        /**
-         * The per-secret list for the address-era and literal-era secrets: the four counts the
-         * original reader paired with them, in its order. 210k/120k are deliberately absent because
-         * those counts were only ever paired with the universal keys.
-         */
-        val ADDRESS_ERA_PROFILES = listOf(
-            CURRENT_ITERATIONS,
-            OLD_READER_ITERATIONS_100K,
-            OLD_READER_ITERATIONS_10K,
-            OLD_READER_ITERATIONS_1K
-        )
+        fun exactProfiles(version: Int?): List<Int> =
+            if (version != null && version in 1..2) {
+                listOf(CURRENT_ITERATIONS, LEGACY_V2_ITERATIONS_210K, LEGACY_V2_ITERATIONS_120K)
+            } else {
+                listOf(CURRENT_ITERATIONS)
+            }
     }
 
     /** [json] is the vault body; the rest is what the caller needs to describe the restore honestly. */
@@ -163,7 +141,7 @@ class LegacyEnvelopeOpener @Inject constructor(
         salts: List<ByteArray>,
         data: String,
         secrets: List<OpeningSecret>,
-        iterationProfiles: List<Int> = ITERATION_PROFILES,
+        iterationProfiles: List<Int> = listOf(CURRENT_ITERATIONS),
         budgetMs: Long = Long.MAX_VALUE,
         shouldStop: () -> Boolean = { false },
         onAttempt: ((tried: Int) -> Unit)? = null
@@ -206,7 +184,7 @@ class LegacyEnvelopeOpener @Inject constructor(
         salt: ByteArray,
         data: String,
         secrets: List<OpeningSecret>,
-        iterationProfiles: List<Int> = ITERATION_PROFILES
+        iterationProfiles: List<Int> = listOf(CURRENT_ITERATIONS)
     ): Opened? = openWithin(salt, data, secrets, iterationProfiles).opened
 
     /**
@@ -223,7 +201,7 @@ class LegacyEnvelopeOpener @Inject constructor(
         salt: ByteArray,
         data: String,
         secrets: List<OpeningSecret>,
-        iterationProfiles: List<Int> = ITERATION_PROFILES,
+        iterationProfiles: List<Int> = listOf(CURRENT_ITERATIONS),
         budgetMs: Long = Long.MAX_VALUE,
         shouldStop: () -> Boolean = { false },
         onAttempt: ((tried: Int) -> Unit)? = null

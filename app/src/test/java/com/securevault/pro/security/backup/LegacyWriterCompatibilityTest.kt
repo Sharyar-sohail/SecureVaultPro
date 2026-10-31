@@ -86,15 +86,15 @@ class LegacyWriterCompatibilityTest {
         val secrets = LegacyKeyPlan.ordered(
             emails = emails,
             passphrase = passphrase,
-            statedIterations = envelope.iterations,
             vaultSecret = null,
-            accountIds = accountIds
+            accountIds = accountIds,
+            version = envelope.version
         )
         return opener.openWithSalts(
             salts = LegacySaltPlan.variants(envelope.salt),
             data = envelope.data,
             secrets = secrets,
-            iterationProfiles = LegacyEnvelopeOpener.ITERATION_PROFILES
+            iterationProfiles = LegacyEnvelopeOpener.exactProfiles(envelope.version)
         )
     }
 
@@ -106,21 +106,21 @@ class LegacyWriterCompatibilityTest {
     ): LegacyEnvelopeOpener.OpenAttempt {
         val secrets = LegacyKeyPlan.ordered(
             emails = emails,
-            statedIterations = null,
             vaultSecret = null,
-            accountIds = accountIds
+            accountIds = accountIds,
+            version = null
         )
         return opener.openWithSalts(
             salts = LegacySaltPlan.fallback(w.keySalt, emails),
             data = w.data,
             secrets = secrets,
-            iterationProfiles = LegacyEnvelopeOpener.ITERATION_PROFILES
+            iterationProfiles = LegacyEnvelopeOpener.exactProfiles(null)
         )
     }
 
     @Test
     fun `the original app's Drive slot opens with the universal key it was sealed with`() {
-        val (plaintext, w) = writer("W6-original-app-universal-32b-600k")
+        val (plaintext, w) = writer("W4-original-app-universal-32b-600k")
         val attempt = openEnvelope(w, emails = listOf("owner@example.com"))
         assertEquals(plaintext, attempt.opened?.json)
         assertEquals(OpeningSecretKind.RETIRED_UNIVERSAL_KEY, attempt.opened?.kind)
@@ -156,60 +156,6 @@ class LegacyWriterCompatibilityTest {
     }
 
     @Test
-    fun `a 16-byte salt the old reader padded opens on the padded derivation`() {
-        val (plaintext, w) = writer("W4-original-app-padded-16b-accountid-100k")
-        assertEquals(16, w.salt.size)
-        val attempt = openEnvelope(w, accountIds = listOf(w.secret))
-        assertEquals(plaintext, attempt.opened?.json)
-        assertEquals(100_000, attempt.opened?.iterations)
-        assertEquals(OpeningSecretKind.ACCOUNT_ID, attempt.opened?.kind)
-        assertEquals("the padded copy is what opens it", 32, attempt.opened?.saltBytes)
-        assertEquals(
-            "the written 16-byte salt is swept in full before its padded copy is tried",
-            LegacyKeyPlan.ordered(
-                emails = emptyList(),
-                accountIds = listOf(w.secret)
-            ).sumOf { it.iterationProfiles?.size ?: 0 },
-            attempt.candidatesTried - 2
-        )
-    }
-
-    @Test
-    fun `the Node backend's 10,000-round file opens without being told the count`() {
-        val (plaintext, w) = writer("W5-node-backend-10k-email")
-        val attempt = openEnvelope(w, emails = listOf(w.secret))
-        assertEquals(plaintext, attempt.opened?.json)
-        assertEquals(10_000, attempt.opened?.iterations)
-    }
-
-    @Test
-    fun `a file that states the wrong round count still opens, as the original reader allowed`() {
-        val (plaintext, w) = writer("W5-node-backend-10k-email")
-        // The body is genuinely sealed at 10,000; the field claims 600,000. The original reader
-        // ignored the field entirely, so a restore that trusted it would call this file corrupt.
-        val stated = """{"v":3,"salt":"${Base64.getEncoder().encodeToString(w.salt)}",""" +
-            """"data":"${w.data}","iterations":600000}"""
-        val envelope = BackupEnvelopeFormat.parse(stated.toByteArray())!!
-        assertEquals(600_000, envelope.iterations)
-        val profiles = (listOf(600_000) + LegacyEnvelopeOpener.ITERATION_PROFILES).distinct()
-        val secrets = LegacyKeyPlan.ordered(
-            emails = listOf(w.secret),
-            statedIterations = envelope.iterations,
-            vaultSecret = null
-        )
-
-        val attempt = opener.openWithSalts(
-            salts = LegacySaltPlan.variants(envelope.salt),
-            data = envelope.data,
-            secrets = secrets,
-            iterationProfiles = profiles
-        )
-
-        assertEquals(plaintext, attempt.opened?.json)
-        assertEquals(10_000, attempt.opened?.iterations)
-    }
-
-    @Test
     fun `a real export written by another program opens end to end`() {
         val bytes = javaClass.getResourceAsStream("/external_export_16b.json")
             ?.use { it.readBytes() }
@@ -222,15 +168,15 @@ class LegacyWriterCompatibilityTest {
         val secrets = LegacyKeyPlan.ordered(
             emails = listOf("owner@example.com"),
             passphrase = "testpass123",
-            statedIterations = envelope.iterations,
             vaultSecret = null,
-            accountIds = listOf("118273645091827364509")
+            accountIds = listOf("118273645091827364509"),
+            version = envelope.version
         )
         val attempt = opener.openWithSalts(
             salts = LegacySaltPlan.variants(envelope.salt),
             data = envelope.data,
             secrets = secrets,
-            iterationProfiles = LegacyEnvelopeOpener.ITERATION_PROFILES
+            iterationProfiles = LegacyEnvelopeOpener.exactProfiles(envelope.version)
         )
 
         assertEquals(EXTERNAL_PLAINTEXT, attempt.opened?.json)

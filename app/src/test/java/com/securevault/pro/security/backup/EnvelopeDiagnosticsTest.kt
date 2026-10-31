@@ -39,7 +39,7 @@ class EnvelopeDiagnosticsTest {
         assertEquals(12, structure.ivBytes)
         assertTrue(structure.problems.isEmpty())
 
-        val message = EnvelopeDiagnostics.describe(envelope, secretsTried = 4, stoppedEarly = false)
+        val message = EnvelopeDiagnostics.describe(envelope, secretsTried = 4)
         assertTrue(message, message.contains("the key is"))
         assertFalse("the diagnosis must not blame the file's shape", message.contains("structurally different"))
         assertFalse(message.contains("candidates tried"))
@@ -62,7 +62,7 @@ class EnvelopeDiagnosticsTest {
 
         assertFalse(structure.intact)
         assertTrue(structure.problems.first().startsWith("Salt mismatch"))
-        val message = EnvelopeDiagnostics.describe(envelope, secretsTried = 2, stoppedEarly = false)
+        val message = EnvelopeDiagnostics.describe(envelope, secretsTried = 2)
         assertTrue(message, message.contains("Salt mismatch"))
         assertTrue(message, message.contains("not your account key"))
     }
@@ -80,7 +80,7 @@ class EnvelopeDiagnosticsTest {
 
         assertEquals(16, structure.ivBytes)
         assertTrue(structure.problems.first().startsWith("IV mismatch"))
-        assertTrue(EnvelopeDiagnostics.describe(envelope, 2, false).contains("IV mismatch"))
+        assertTrue(EnvelopeDiagnostics.describe(envelope, 2).contains("IV mismatch"))
     }
 
     @Test
@@ -96,10 +96,10 @@ class EnvelopeDiagnosticsTest {
     }
 
     @Test
-    fun `a stopped sweep says the budget ended it rather than claiming every key was tried`() {
-        val message = EnvelopeDiagnostics.describe(shippedVector(), secretsTried = 4, stoppedEarly = true)
-        assertTrue(message, message.contains("time budget"))
-        assertTrue(message, message.contains("some keys were not tried"))
+    fun `a failure names an invalid legacy key and the exact derivations that were tried`() {
+        val message = EnvelopeDiagnostics.describe(shippedVector(), secretsTried = 6)
+        assertTrue(message, message.startsWith("Invalid Legacy Key"))
+        assertTrue(message, message.contains("6 exact legacy key derivations"))
     }
 
     @Test
@@ -107,12 +107,11 @@ class EnvelopeDiagnosticsTest {
         val message = EnvelopeDiagnostics.describeBareBlob(
             data = b64(12) + "." + b64(48),
             saltSource = "key.salt on Drive (32 bytes)",
-            secretsTried = 6,
-            stoppedEarly = false
+            secretsTried = 6
         )
         assertTrue(message, message.contains("key.salt on Drive"))
         assertTrue(message, message.contains("key is"))
-        assertTrue(message, message.contains("6 key derivations"))
+        assertTrue(message, message.contains("6 exact legacy key derivations"))
         assertFalse(message, message.contains("passphrase", ignoreCase = true))
     }
 
@@ -121,8 +120,7 @@ class EnvelopeDiagnosticsTest {
         val message = EnvelopeDiagnostics.describeBareBlob(
             data = b64(8) + "." + b64(48),
             saltSource = "no key.salt on Drive",
-            secretsTried = 2,
-            stoppedEarly = false
+            secretsTried = 2
         )
         assertTrue(message, message.contains("IV mismatch"))
         assertTrue(message, message.contains("no key.salt on Drive"))
