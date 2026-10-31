@@ -101,4 +101,31 @@ class EnvelopeDiagnosticsTest {
         assertTrue(message, message.contains("time budget"))
         assertTrue(message, message.contains("some keys were not tried"))
     }
+
+    @Test
+    fun `a salt-less blob in the shipped shape names the key and its salt source`() {
+        val message = EnvelopeDiagnostics.describeBareBlob(
+            data = b64(12) + "." + b64(48),
+            saltSource = "key.salt on Drive (32 bytes)",
+            secretsTried = 6,
+            stoppedEarly = false
+        )
+        assertTrue(message, message.contains("key.salt on Drive"))
+        assertTrue(message, message.contains("key is"))
+        assertTrue(message, message.contains("6 key derivations"))
+        assertFalse(message, message.contains("passphrase", ignoreCase = true))
+    }
+
+    @Test
+    fun `a salt-less blob with a wrong-width IV is named as an IV mismatch`() {
+        val message = EnvelopeDiagnostics.describeBareBlob(
+            data = b64(8) + "." + b64(48),
+            saltSource = "no key.salt on Drive",
+            secretsTried = 2,
+            stoppedEarly = false
+        )
+        assertTrue(message, message.contains("IV mismatch"))
+        assertTrue(message, message.contains("no key.salt on Drive"))
+        assertFalse(message, message.contains("the key is"))
+    }
 }

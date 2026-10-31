@@ -114,6 +114,63 @@ object EnvelopeDiagnostics {
             cut
     }
 
+    /**
+     * The failure sentence for the salt-less shape: a bare `iv.ciphertext` blob whose key salt lived
+     * in the separate `key.salt` file. The widths are checked exactly as in an envelope, and the
+     * sentence names where the salt came from, because "no salt" and "wrong salt file" are different
+     * fixes for the owner.
+     */
+    fun describeBareBlob(
+        data: String,
+        saltSource: String,
+        secretsTried: Int,
+        stoppedEarly: Boolean
+    ): String {
+        val parts = data.trim().split('.')
+        val iv = parts.firstOrNull()?.let(::decode)
+        val payloadBytes = when (parts.size) {
+            2 -> decode(parts[1])?.size
+            3 -> {
+                val a = decode(parts[1])?.size
+                val b = decode(parts[2])?.size
+                if (a == null || b == null) null else a + b
+            }
+            else -> null
+        }
+        val problems = buildList {
+            if (iv == null) {
+                add("IV mismatch: no IV could be decoded from the first dotted part of the body.")
+            } else if (iv.size != EXPECTED_IV_BYTES) {
+                add(
+                    "IV mismatch: this blob's IV is ${iv.size} bytes; AES-GCM is initialised with " +
+                        "$EXPECTED_IV_BYTES."
+                )
+            }
+            if (payloadBytes != null && payloadBytes <= EXPECTED_TAG_BYTES) {
+                add(
+                    "Ciphertext mismatch: the payload is $payloadBytes bytes, which cannot even " +
+                        "hold the $EXPECTED_TAG_BYTES-byte GCM tag."
+                )
+            }
+        }
+        val layout = "Salt-less backup, salt from $saltSource, IV ${iv?.size ?: "?"} B, " +
+            "tag $EXPECTED_TAG_BYTES B, payload ${payloadBytes ?: "?"} B."
+        if (problems.isNotEmpty()) {
+            return "This backup could not be opened. $layout ${problems.joinToString(" ")} " +
+                "The blob is structurally different from what this app writes, so the format — " +
+                "not your account key — is the mismatch."
+        }
+        val cut = if (stoppedEarly) {
+            " The time budget ended the sweep after $secretsTried key derivations, so some keys " +
+                "were not tried."
+        } else {
+            " All $secretsTried key derivations on this device were rejected by the GCM tag, so the " +
+                "file was sealed with a key this device does not hold."
+        }
+        return "This backup could not be opened. $layout IV and tag widths match the format this " +
+            "app writes, so the cipher parameters are not the mismatch — the key is.$cut"
+    }
+
     private fun decode(value: String): ByteArray? {
         val clean = value.trim().replace("\n", "").replace("\r", "").replace(" ", "")
         if (clean.isBlank()) return null

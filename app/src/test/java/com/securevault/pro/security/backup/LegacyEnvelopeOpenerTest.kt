@@ -171,11 +171,22 @@ class LegacyEnvelopeOpenerTest {
     @Test
     fun `the iteration sweep is exactly the shipped legacy profile list`() {
         assertEquals(
-            listOf(KeyDerivation.PBKDF2_ITERATIONS, KeyDerivation.PIN_ITERATIONS, 120_000),
+            listOf(
+                KeyDerivation.PBKDF2_ITERATIONS,
+                KeyDerivation.PIN_ITERATIONS,
+                120_000,
+                LegacyEnvelopeOpener.OLD_READER_ITERATIONS_100K,
+                LegacyEnvelopeOpener.OLD_READER_ITERATIONS_10K,
+                LegacyEnvelopeOpener.OLD_READER_ITERATIONS_1K
+            ),
             LegacyEnvelopeOpener.ITERATION_PROFILES
         )
         assertEquals(600_000, LegacyEnvelopeOpener.CURRENT_ITERATIONS)
         assertEquals(210_000, LegacyEnvelopeOpener.PIN_PROFILE_ITERATIONS)
+        assertEquals(
+            listOf(600_000, 100_000, 10_000, 1_000),
+            LegacyEnvelopeOpener.ADDRESS_ERA_PROFILES
+        )
     }
 
     @Test
@@ -220,5 +231,76 @@ class LegacyEnvelopeOpenerTest {
             listOf(120_000)
         )
         assertEquals(plaintext, opened?.json)
+    }
+
+    @Test
+    fun `a backup sealed with the Google account id at 100000 rounds opens`() {
+        val json = """{"entries":[{"id":"e-1","title":"Sealed by the original app"}]}"""
+        val accountId = "118273645091827364509"
+        val salt = derivation.generateSalt()
+        val data = seal(json, accountId, salt, 100_000)
+
+        val attempt = opener.openWithin(
+            salt = salt,
+            data = data,
+            secrets = listOf(OpeningSecret(accountId, OpeningSecretKind.ACCOUNT_ID)),
+            iterationProfiles = LegacyEnvelopeOpener.ADDRESS_ERA_PROFILES
+        )
+
+        assertEquals(json, attempt.opened?.json)
+        assertEquals(100_000, attempt.opened?.iterations)
+        assertEquals(OpeningSecretKind.ACCOUNT_ID, attempt.opened?.kind)
+    }
+
+    @Test
+    fun `a 16-byte salt opened with its padded copy, the way the original reader derived it`() {
+        val json = """{"entries":[{"id":"e-2"}]}"""
+        val short = ByteArray(16) { (it * 7 + 3).toByte() }
+        val padded = short.copyOf(32)
+        val data = seal(json, "owner@example.com", padded, 100_000)
+
+        val attempt = opener.openWithSalts(
+            salts = LegacySaltPlan.variants(short),
+            data = data,
+            secrets = listOf(OpeningSecret("owner@example.com", OpeningSecretKind.ACCOUNT_EMAIL)),
+            iterationProfiles = listOf(100_000)
+        )
+
+        assertEquals(json, attempt.opened?.json)
+        assertEquals("the padding is what opened it", 32, attempt.opened?.saltBytes)
+        assertEquals("the written salt is tried before its padded copy", 2, attempt.candidatesTried)
+    }
+
+    @Test
+    fun `a sweep reports every derivation it starts, so the overlay never looks frozen`() {
+        val json = """{"entries":[{"id":"e-3"}]}"""
+        val salt = derivation.generateSalt()
+        val data = seal(json, "the-real-secret", salt, 1_000)
+        val seen = mutableListOf<Int>()
+
+        val attempt = opener.openWithin(
+            salt = salt,
+            data = data,
+            secrets = listOf(
+                OpeningSecret("wrong-1", OpeningSecretKind.OTHER),
+                OpeningSecret("wrong-2", OpeningSecretKind.OTHER),
+                OpeningSecret("the-real-secret", OpeningSecretKind.OTHER)
+            ),
+            iterationProfiles = listOf(1_000),
+            onAttempt = { seen += it }
+        )
+
+        assertEquals(json, attempt.opened?.json)
+        assertEquals(listOf(1, 2, 3), seen)
+        assertEquals(3, attempt.candidatesTried)
+    }
+
+    private fun seal(json: String, secret: String, salt: ByteArray, iterations: Int): String {
+        val key = derivation.deriveKey(secret.toCharArray(), salt, iterations)
+        val cipher = javax.crypto.Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(javax.crypto.Cipher.ENCRYPT_MODE, javax.crypto.spec.SecretKeySpec(key, "AES"))
+        val blob = cipher.doFinal(json.toByteArray())
+        return Base64.getEncoder().encodeToString(cipher.iv) + "." +
+            Base64.getEncoder().encodeToString(blob)
     }
 }

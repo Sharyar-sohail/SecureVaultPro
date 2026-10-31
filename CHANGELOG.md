@@ -20,6 +20,54 @@ Blogger XML artifact, and the backup/checkpoint snapshots, which hold vault and 
 data. One stale 3.3.4 theme export under `release-site/` is left on disk but untracked because
 it embedded a Firebase `apiKey`; themes we ship carry a blank `var SEED` and no cloud config.
 
+## [3.4.11] — 2026-10-31 (versionCode 356)
+
+The 3.4.10 sweep still could not open the owner's Drive backup. Rather than guess at another key,
+this release copies the **original app's decryption routine** found in `D:/sharyar/SecureVault Pro`
+(the same-package `com.securevault.app` builds) and in the earlier Password protector writer. The
+cipher primitives were already identical — PBKDF2-HMAC-SHA256, AES-256-GCM, 12-byte IV, 16-byte
+tag, `base64(iv).base64(ciphertext+tag)` — but the original reader swept a wider matrix than the
+new app did, in four concrete ways. All four are now reproduced exactly.
+
+### Fixed — the original reader's key matrix is reproduced, not approximated
+- **The Google account ID is tried first.** The original sealed its Drive backup with
+  `account.id`, which is numeric and cannot be derived from the email address. `LegacyKeyPlan`
+  gained `accountIds`; `CloudSyncManager.buildSecrets` passes `signedInAccountId()`.
+- **100,000 / 10,000 / 1,000 rounds are offered.** The original reader swept
+  `600_000, 100_000, 10_000, 1_000` for every secret, and the Node backend of that era derived at
+  10,000. `LegacyEnvelopeOpener.ITERATION_PROFILES` now carries all six shipped counts, and
+  address-era secrets use the original's own four-count order.
+- **Short salts are padded to 32 bytes.** The original derived with `salt.copyOf(32)` as well as
+  the salt as written, so a file sealed under a 16- or 48-byte salt could only ever open with the
+  padded form. `LegacySaltPlan.variants` now sweeps both, written bytes first.
+- **The five shared legacy literals are read candidates.** `SecureVaultPro_Master_Encryption_Key_2026`,
+  `SecureVaultProKey`, `secure_vault_pro_secret`, `vault_default_key` and
+  `SecureVaultProDefaultKey` are tried after the universal strings, before the address. The
+  reader also hard-codes the three historical owner addresses and the bare handles it used.
+
+### Fixed — the earliest salt-less backup shape opens
+- The first Drive backup was a bare `iv.ciphertext` blob with no envelope and no salt; the writer
+  kept the salt in a separate `key.salt` file. `decryptBackup` now recognises that shape, downloads
+  `key.salt`, and falls back to the address padded to 32 bytes exactly as the original did
+  (`LegacySaltPlan.fallback`). Previously this file was read as plain JSON and reported
+  "not a Secure Wallet Pro backup".
+- A file opened with a padded salt says so in the restore warnings, and the backup is re-sealed
+  under this device's own vault key as before. No stored byte is modified.
+
+### Unchanged on purpose
+- PBKDF2, AES-GCM, salt/IV/tag widths, the envelope JSON and the writers are untouched. The
+  account ID and shared literals are **read-only** candidates: `UniversalKeyGuardTest` fails the
+  build if any of them reaches `createEnvelope(` or `sealPayload(`.
+- Nothing is deleted, no slot is overwritten, and every failure sentence still names the measured
+  mismatch (salt / IV / ciphertext) or says the key is what differs.
+
+### Added — tests
+- `LegacyKeyPlanTest` rewritten for the new order and the per-secret counts.
+- `LegacySaltPlanTest` (8) pins padding, truncation, `key.salt` precedence and address fallback.
+- `LegacyEnvelopeOpenerTest` gains an account-ID-at-100k file, a 16-byte salt that only opens
+  padded, and a progress-callback proof.
+- `UniversalKeyGuardTest` gains the shared-literal writer guard.
+
 ## [3.4.10] — 2026-10-31 (versionCode 355)
 
 The 3.4.9 restore still failed with "the key that sealed this backup is not on this device

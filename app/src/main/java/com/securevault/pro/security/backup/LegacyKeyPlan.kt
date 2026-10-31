@@ -5,61 +5,117 @@ import java.util.Locale
 /**
  * The order in which stored envelopes are offered their keys.
  *
- * This is the one place the order lives, and it mirrors the writer's history rather than a hunch:
+ * This is the one place the order lives, and it mirrors the writers this product has actually
+ * shipped rather than a hunch:
  *
  *  1. the passphrase the owner typed, if any;
- *  2. this device's own vault key — every keyring-era build (3.4.x) seals with it;
+ *  2. the Google **account ID** — the same-package original app (`com.securevault.app`) sealed its
+ *     Drive backup with it, and it is not derivable from the address;
  *  3. `SecureVaultPro_Universal_Cloud_Key_v3` — every build up to 3.3.x seals with it;
- *  4. the account address, exact then lowercase;
- *  5. the older retired universal strings.
+ *  4. this device's own vault key, when the keyring already holds one;
+ *  5. the older retired universal strings and the shared legacy literals;
+ *  6. the account address (exact, lowercase, local part), the display name, and the addresses the
+ *     original reader hard-coded.
  *
- * Steps 2 and 3 are the ones that matter. An earlier 3.4.9 draft put the address variants first and
- * asked the keyring for a sealing secret even when it held none — which *generates* a fresh key that
- * can never open the owner's file. The real key then sat past a time budget and the restore failed
- * on files it had always been able to read. Keep this order pinned by `LegacyKeyPlanTest`.
+ * Asking the keyring for a sealing secret when it holds none *generates* a fresh key that can never
+ * open the owner's file; that regression is why [ordered] takes a nullable `vaultSecret` and why
+ * `CloudSyncManager` only passes one when `hasDeviceKey()` is true. Keep this order pinned by
+ * `LegacyKeyPlanTest`.
+ *
+ * Everything here is a **read** candidate. `UniversalKeyGuardTest` fails the build if any of these
+ * strings reaches a write path, because a shared literal in a writer is the one change that would
+ * put a vault key in a browser bundle.
  */
 object LegacyKeyPlan {
+
+    /** Shared literals the original reader swept. Read-only history: never a writer's key again. */
+    val SHARED_LEGACY_KEYS = listOf(
+        "SecureVaultPro_Master_Encryption_Key_2026",
+        "SecureVaultProKey",
+        "secure_vault_pro_secret",
+        "vault_default_key",
+        "SecureVaultProDefaultKey"
+    )
+
+    /**
+     * Addresses the original reader hard-coded, so an install that never stored its account address
+     * could still open the owner's file. They stay a read candidate only.
+     */
+    val HISTORICAL_OWNER_ADDRESSES = listOf(
+        "sharyarprince@gmail.com",
+        "sharyarsohail@gmail.com",
+        "sharyar1670@gmail.com"
+    )
+
+    /** Handles the original reader also tried (the local part of the addresses above, plus fallbacks). */
+    val HISTORICAL_HANDLES = listOf(
+        "sharyarprince",
+        "sharyarsohail",
+        "sharyar1670",
+        "sharyar",
+        "admin",
+        "12345678",
+        "1234"
+    )
 
     fun ordered(
         emails: List<String>,
         passphrase: String? = null,
         statedIterations: Int? = null,
-        vaultSecret: String? = null
+        vaultSecret: String? = null,
+        accountIds: List<String> = emptyList(),
+        displayName: String? = null
     ): List<OpeningSecret> {
         val stated = statedIterations?.takeIf { it > 0 }
-        val universalProfiles = stated?.let { listOf(it) } ?: listOf(
-            LegacyEnvelopeOpener.CURRENT_ITERATIONS,
-            LegacyEnvelopeOpener.PIN_PROFILE_ITERATIONS,
-            LegacyEnvelopeOpener.EARLIER_PROFILE_ITERATIONS
-        )
-        // The keyring era and the address era only ever wrote 600,000 (or whatever the file states).
-        val singleProfile = stated?.let { listOf(it) }
-            ?: listOf(LegacyEnvelopeOpener.CURRENT_ITERATIONS)
+        val universalProfiles = stated?.let { listOf(it) } ?: LegacyEnvelopeOpener.ITERATION_PROFILES
+        // Everything the address-era and literal-era writers could have paired with their key:
+        // the original reader's exact four counts. 210k/120k stay off these because those counts
+        // were only ever paired with the universal keys.
+        val legacyProfiles = stated?.let { listOf(it) } ?: LegacyEnvelopeOpener.ADDRESS_ERA_PROFILES
+        // The keyring era only ever wrote 600,000 (or whatever the file states).
+        val vaultProfiles = stated?.let { listOf(it) } ?: listOf(LegacyEnvelopeOpener.CURRENT_ITERATIONS)
 
         val ordered = buildList {
             if (!passphrase.isNullOrBlank()) {
-                add(OpeningSecret(passphrase.trim(), OpeningSecretKind.PASSPHRASE, universalProfiles))
+                add(OpeningSecret(passphrase.trim(), OpeningSecretKind.PASSPHRASE, legacyProfiles))
             }
-            if (!vaultSecret.isNullOrBlank()) {
-                add(OpeningSecret(vaultSecret, OpeningSecretKind.VAULT_KEY, singleProfile))
-            }
+            accountIds.map { it.trim() }
+                .filter { it.isNotBlank() }
+                .distinct()
+                .forEach { add(OpeningSecret(it, OpeningSecretKind.ACCOUNT_ID, legacyProfiles)) }
             add(OpeningSecret(PRIMARY_CLOUD_KEY, OpeningSecretKind.RETIRED_UNIVERSAL_KEY, universalProfiles))
+            if (!vaultSecret.isNullOrBlank()) {
+                add(OpeningSecret(vaultSecret, OpeningSecretKind.VAULT_KEY, vaultProfiles))
+            }
+            add(OpeningSecret(LEGACY_CLOUD_KEY_V2, OpeningSecretKind.RETIRED_UNIVERSAL_KEY, universalProfiles))
+            add(OpeningSecret(LEGACY_CLOUD_KEY_V1, OpeningSecretKind.RETIRED_UNIVERSAL_KEY, universalProfiles))
+            add(OpeningSecret(LEGACY_CLOUD_KEY, OpeningSecretKind.RETIRED_UNIVERSAL_KEY, universalProfiles))
+            SHARED_LEGACY_KEYS.forEach {
+                add(OpeningSecret(it, OpeningSecretKind.SHARED_LEGACY_KEY, legacyProfiles))
+            }
             emails.map { it.trim() }
                 .filter { it.isNotBlank() }
                 .distinct()
                 .forEach {
-                    add(OpeningSecret(it, OpeningSecretKind.ACCOUNT_EMAIL, singleProfile))
+                    add(OpeningSecret(it, OpeningSecretKind.ACCOUNT_EMAIL, legacyProfiles))
                     add(
                         OpeningSecret(
                             it.lowercase(Locale.US),
                             OpeningSecretKind.ACCOUNT_EMAIL,
-                            singleProfile
+                            legacyProfiles
                         )
                     )
+                    val handle = it.substringBefore('@').trim()
+                    if (handle.isNotBlank()) {
+                        add(OpeningSecret(handle, OpeningSecretKind.ACCOUNT_EMAIL, legacyProfiles))
+                    }
                 }
-            add(OpeningSecret(LEGACY_CLOUD_KEY_V2, OpeningSecretKind.RETIRED_UNIVERSAL_KEY, universalProfiles))
-            add(OpeningSecret(LEGACY_CLOUD_KEY_V1, OpeningSecretKind.RETIRED_UNIVERSAL_KEY, universalProfiles))
-            add(OpeningSecret(LEGACY_CLOUD_KEY, OpeningSecretKind.RETIRED_UNIVERSAL_KEY, universalProfiles))
+            displayName?.trim()?.takeIf { it.isNotBlank() }?.let {
+                add(OpeningSecret(it, OpeningSecretKind.ACCOUNT_EMAIL, legacyProfiles))
+            }
+            (HISTORICAL_OWNER_ADDRESSES + HISTORICAL_HANDLES).forEach {
+                add(OpeningSecret(it, OpeningSecretKind.ACCOUNT_EMAIL, legacyProfiles))
+            }
         }
         val seen = mutableSetOf<String>()
         return ordered.filter { seen.add(it.value) }

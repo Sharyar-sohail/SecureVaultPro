@@ -70,6 +70,35 @@ class UniversalKeyGuardTest {
         }
     }
 
+    /**
+     * The original reader also swept five shared literals. They are historical decryption
+     * candidates now; a writer handed one of them would seal a new vault with a key the whole
+     * product shares, so the same writer windows are checked against them.
+     */
+    @Test
+    fun `no write path seals with a shared legacy literal`() {
+        val text = syncManagerSource().readText()
+        val shared = listOf(
+            "SecureVaultPro_Master_Encryption_Key_2026",
+            "SecureVaultProKey",
+            "secure_vault_pro_secret",
+            "vault_default_key",
+            "SecureVaultProDefaultKey"
+        )
+        for (callee in listOf("createEnvelope(", "sealPayload(")) {
+            val windows = argumentWindows(text, callee)
+            assertTrue("looking for $callee found nothing - the guard would be vacuous", windows.isNotEmpty())
+            for (window in windows) {
+                for (literal in shared) {
+                    assertFalse(
+                        "$callee is a writer and must not be handed $literal:\n$window",
+                        window.contains(literal)
+                    )
+                }
+            }
+        }
+    }
+
     /** The read path is the other half of the rule: an old vault must still open. */
     @Test
     fun `the universal key survives only as a read candidate`() {

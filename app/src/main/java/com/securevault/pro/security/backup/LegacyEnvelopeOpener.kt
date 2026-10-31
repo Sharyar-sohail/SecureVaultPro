@@ -25,6 +25,15 @@ enum class OpeningSecretKind {
     /** The account address, which the earliest builds used as the sealing secret. */
     ACCOUNT_EMAIL,
 
+    /**
+     * The Google account ID. The original same-package app sealed its Drive backup with this, and
+     * it cannot be derived from the address, so a restore that skips it can never open those files.
+     */
+    ACCOUNT_ID,
+
+    /** A retired shared literal (see `LegacyKeyPlan.SHARED_LEGACY_KEYS`). Read-only. */
+    SHARED_LEGACY_KEY,
+
     /** Anything else offered as a candidate. */
     OTHER
 }
@@ -76,6 +85,16 @@ class LegacyEnvelopeOpener @Inject constructor(
         const val EARLIER_PROFILE_ITERATIONS = 120_000
 
         /**
+         * The exact list the original cloud reader swept after 600,000: 100,000, 10,000 and 1,000.
+         * The Node backend of the same era derived at 10,000, and older builds sealed at 100,000.
+         * Without these counts a file written by those builds can never open, no matter which key
+         * is offered.
+         */
+        const val OLD_READER_ITERATIONS_100K = 100_000
+        const val OLD_READER_ITERATIONS_10K = 10_000
+        const val OLD_READER_ITERATIONS_1K = 1_000
+
+        /**
          * Every count a release actually shipped, most likely first. This is the legacy list and
          * it is frozen: the envelope's own stated count leads when it has one, so a self-describing
          * file is opened in a single pass.
@@ -83,7 +102,22 @@ class LegacyEnvelopeOpener @Inject constructor(
         val ITERATION_PROFILES = listOf(
             CURRENT_ITERATIONS,
             PIN_PROFILE_ITERATIONS,
-            EARLIER_PROFILE_ITERATIONS
+            EARLIER_PROFILE_ITERATIONS,
+            OLD_READER_ITERATIONS_100K,
+            OLD_READER_ITERATIONS_10K,
+            OLD_READER_ITERATIONS_1K
+        )
+
+        /**
+         * The per-secret list for the address-era and literal-era secrets: the four counts the
+         * original reader paired with them, in its order. 210k/120k are deliberately absent because
+         * those counts were only ever paired with the universal keys.
+         */
+        val ADDRESS_ERA_PROFILES = listOf(
+            CURRENT_ITERATIONS,
+            OLD_READER_ITERATIONS_100K,
+            OLD_READER_ITERATIONS_10K,
+            OLD_READER_ITERATIONS_1K
         )
     }
 
@@ -92,7 +126,9 @@ class LegacyEnvelopeOpener @Inject constructor(
         val json: String,
         val kind: OpeningSecretKind,
         val iterations: Int,
-        val secretFingerprint: String
+        val secretFingerprint: String,
+        /** Width of the salt that actually opened the file, so a padded legacy salt can be reported. */
+        val saltBytes: Int = 0
     ) {
         val openedWithRetiredKey: Boolean get() = kind != OpeningSecretKind.VAULT_KEY
     }
@@ -106,7 +142,7 @@ class LegacyEnvelopeOpener @Inject constructor(
 
     private val keyCache = object : LinkedHashMap<String, ByteArray>(16, 0.75f, true) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ByteArray>?): Boolean {
-            if (size > 24) {
+            if (size > 128) {
                 eldest?.value?.fill(0)
                 return true
             }
@@ -115,13 +151,57 @@ class LegacyEnvelopeOpener @Inject constructor(
     }
 
     /**
-     * Try every [secrets] against every iteration profile until one authenticates.
+     * Sweep every salt a past reader would have paired with the file.
      *
-     * Order matters for honesty, not for correctness: the secrets that should open the file come
-     * first, so a genuine match is found before the sweep reaches the retired strings. GCM
-     * authenticates, so a wrong secret can never yield a plausible-looking body — there is no
-     * partial match to guard against, only a wasted PBKDF2.
+     * The original reader fed PBKDF2 the salt as written *and* a copy padded-or-truncated to 32
+     * bytes (`salt.copyOf(32)`), because some writers emitted a shorter salt. A file sealed under
+     * that padded salt authenticates under neither the written bytes nor any key, so the salt
+     * itself has to be swept, not just the secret. The written bytes are tried first: every
+     * current writer emits exactly 32, for which both variants are the same array.
      */
+    fun openWithSalts(
+        salts: List<ByteArray>,
+        data: String,
+        secrets: List<OpeningSecret>,
+        iterationProfiles: List<Int> = ITERATION_PROFILES,
+        budgetMs: Long = Long.MAX_VALUE,
+        shouldStop: () -> Boolean = { false },
+        onAttempt: ((tried: Int) -> Unit)? = null
+    ): OpenAttempt {
+        val deadline = if (budgetMs == Long.MAX_VALUE) Long.MAX_VALUE
+            else System.nanoTime() + budgetMs * 1_000_000L
+        var tried = 0
+        var exhausted = false
+        for (salt in salts) {
+            if (salt.size < 8) continue
+            val remaining = if (deadline == Long.MAX_VALUE) Long.MAX_VALUE
+            else (deadline - System.nanoTime()) / 1_000_000L
+            if (remaining <= 0L) {
+                exhausted = true
+                break
+            }
+            val attempt = openWithin(
+                salt = salt,
+                data = data,
+                secrets = secrets,
+                iterationProfiles = iterationProfiles,
+                budgetMs = remaining,
+                shouldStop = shouldStop,
+                onAttempt = { onAttempt?.invoke(tried + it) }
+            )
+            tried += attempt.candidatesTried
+            attempt.opened?.let {
+                return attempt.copy(opened = it.copy(saltBytes = salt.size), candidatesTried = tried)
+            }
+            if (attempt.budgetExhausted) {
+                exhausted = true
+                break
+            }
+        }
+        return OpenAttempt(null, tried, exhausted)
+    }
+
+    /** Unbudgeted convenience for callers that already hold one credible secret list (tests, tools). */
     fun open(
         salt: ByteArray,
         data: String,
@@ -136,6 +216,8 @@ class LegacyEnvelopeOpener @Inject constructor(
      * the unbounded list could run for minutes at 45%, which is indistinguishable from a hung app;
      * the caller turns [budgetExhausted] into a fast, specific failure. [shouldStop] is polled before
      * every derivation so "Stop waiting" aborts within one hash instead of after the whole sweep.
+     * [onAttempt] is called before each derivation so a long legitimate sweep reports movement
+     * instead of leaving the progress overlay frozen.
      */
     fun openWithin(
         salt: ByteArray,
@@ -143,7 +225,8 @@ class LegacyEnvelopeOpener @Inject constructor(
         secrets: List<OpeningSecret>,
         iterationProfiles: List<Int> = ITERATION_PROFILES,
         budgetMs: Long = Long.MAX_VALUE,
-        shouldStop: () -> Boolean = { false }
+        shouldStop: () -> Boolean = { false },
+        onAttempt: ((tried: Int) -> Unit)? = null
     ): OpenAttempt {
         if (salt.size < 8 || data.isBlank()) return OpenAttempt(null, 0, false)
         val profiles = buildList {
@@ -164,6 +247,7 @@ class LegacyEnvelopeOpener @Inject constructor(
                     return OpenAttempt(null, tried, true)
                 }
                 tried++
+                onAttempt?.invoke(tried)
                 val key = derivedKey(secret.value, salt, iterations)
                 val json = decrypt(data, key) ?: continue
                 return OpenAttempt(
@@ -171,7 +255,8 @@ class LegacyEnvelopeOpener @Inject constructor(
                         json = json,
                         kind = secret.kind,
                         iterations = iterations,
-                        secretFingerprint = fingerprint(secret.value)
+                        secretFingerprint = fingerprint(secret.value),
+                        saltBytes = salt.size
                     ),
                     candidatesTried = tried,
                     budgetExhausted = false
