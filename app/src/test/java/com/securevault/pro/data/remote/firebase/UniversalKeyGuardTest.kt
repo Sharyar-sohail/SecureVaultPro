@@ -75,11 +75,33 @@ class UniversalKeyGuardTest {
     fun `the universal key survives only as a read candidate`() {
         val file = syncManagerSource()
         val text = file.readText()
-        val candidates = text.substringAfter("private suspend fun buildCandidates(")
+        val candidates = text.substringAfter("private suspend fun buildSecrets(")
             .substringBefore("\n    }")
         assertTrue("old envelopes must still open", candidates.contains("PRIMARY_CLOUD_KEY"))
-        assertTrue("the user's own key must be tried first", candidates.contains("vaultSecret"))
+        assertTrue("the user's own key must be tried", candidates.contains("vaultSecret"))
+        assertTrue(
+            "the passphrase the owner typed must be offered, or a reinstall has no secret at all",
+            candidates.contains("passphrase")
+        )
         assertFalse("opening candidates must not gain a writer role", candidates.contains("createEnvelope"))
+    }
+
+    /**
+     * Replacing the backup slot in place is how an owner's vault got overwritten by a vault they had
+     * not restored. Every slot write now goes through the guard, which preserves bytes it cannot open
+     * before it replaces them — so a direct upload over the slot's own file id is the regression to
+     * watch for.
+     */
+    @Test
+    fun `no slot write skips the preserve-before-overwrite guard`() {
+        val text = syncManagerSource().readText()
+        assertTrue("slot writes must go through the guard", text.contains("writeSlot("))
+        for (slot in listOf("PRIMARY_BACKUP_NAME", "XML_BACKUP_NAME")) {
+            assertFalse(
+                "an upload over $slot's existing id would replace a vault unreadable by this device",
+                Regex("driveService\\.upload\\(\\s*$slot[^)]*\\?\\.id").containsMatchIn(text)
+            )
+        }
     }
 
     /**

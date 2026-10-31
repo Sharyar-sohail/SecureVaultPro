@@ -301,7 +301,11 @@ class SetupViewModel @Inject constructor(
             }
             return
         }
-        val outcome = cloudSyncManager.restoreFromCloud(primary, email)
+        // Every backup is tried, newest first, with the passphrase typed here offered before this
+        // device's own key. Restoring only the slot is what reported an unreadable slot as
+        // "corrupted" while a readable copy sat in the same folder under another name.
+        val passphrase = state.value.restorePassphrase.trim().takeIf { it.isNotBlank() }
+        val outcome = cloudSyncManager.restoreAnyCloudBackup(email, passphrase)
         outcome.fold(
             onSuccess = { result ->
                 val complete = result.failureReason == null

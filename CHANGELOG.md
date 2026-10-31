@@ -20,6 +20,72 @@ Blogger XML artifact, and the backup/checkpoint snapshots, which hold vault and 
 data. One stale 3.3.4 theme export under `release-site/` is left on disk but untracked because
 it embedded a Firebase `apiKey`; themes we ship carry a blank `var SEED` and no cloud config.
 
+## [3.4.3] — 2026-10-31 (versionCode 348)
+
+The owner installed 3.4.2, signed in with Google, and was told his backup was corrupted and
+could not be restored. The file was not corrupted. The app had stopped looking with the key the
+file was sealed with, and the writer would have replaced that file on the next sync.
+
+### Root cause — three regressions, no format change
+- **The app only knew the new key.** 3.4.x seals backups with a per-account vault key held in
+  the Android Keystore. A reinstall has no Keystore copy, so the key that sealed the owner's
+  existing Drive backup was simply not among the candidates: the restore tried the new key,
+  failed authentication, and reported "corrupted". The envelope format itself — PBKDF2-HMAC-
+  SHA256, per-file salt, AES-256-GCM, `base64(iv).base64(ciphertext+tag)` — has never changed,
+  and has not been changed by this release.
+- **Drive restore never saw the passphrase.** The owner's passphrase was wired only into the
+  file-import path. The cloud keyring (which can hand a reinstall its vault key, wrapped under
+  that same passphrase) was therefore unreachable from the welcome screen, and the typed
+  passphrase was never offered as a decryption candidate.
+- **The writer overwrote the slot in place.** `vault_backup.enc` was updated by file id after a
+  restore failure installed the demo vault, so the next silent sync could replace the owner's
+  only real backup with demo records.
+
+### Fixed — legacy decryption fallback
+- `LegacyEnvelopeOpener` sweeps every secret an old build could have sealed with — the typed
+  passphrase, this device's vault key, all four retired universal cloud keys, and the account
+  address — against every derivation profile any release shipped (600,000 / 210,000 / 120,000
+  PBKDF2 rounds), across all three payload shapes (`iv.body`, `iv.ct.tag`, `iv.tag.ct`). GCM
+  authenticates first, so a wrong key returns nothing rather than garbage; the first secret that
+  authenticates is reported by class so the restore can say how the vault came back.
+- `BackupEnvelopeFormat` reads every field name past builds used (`salt`/`kdfSalt`, `data`/
+  `ciphertext`/`payload`/`blob`, `iterations`/`iter`/`kdfIterations`, `v`/`version`), unwraps a
+  base64-wrapped file, and reports a non-envelope as `recognised = false` instead of guessing.
+- Restore now tries **every** backup in Drive — slot first, then dated snapshots and preserved
+  copies, newest first — instead of only the slot. A failure names the version, salt length,
+  body shape and how many secrets/profiles were tried, and is no longer the word "corrupted".
+
+### Fixed — old backups are never overwritten
+- All slot writes go through `BackupSlotGuard`. If the bytes already in the slot do not open
+  with this device's key, they are uploaded under `vault_backup_legacy_<yyyyMMdd_HHmmss>.enc`
+  **before** the slot is replaced, and that copy is never deleted by any code path (no automatic
+  rotation, no retention window). If the slot cannot be downloaded at all, nothing is written.
+  A slot this device has already proven it owns is replaced without a download.
+- A failed restore no longer installs the demo vault while other copies are still being tried.
+  That installation was what made an empty device look populated and let the next sync push demo
+  records over the owner's backup.
+
+### Changed — the welcome screen
+- Tapping "Continue with Google" now asks for the vault passphrase (optional). Empty still
+  works for a device that holds its own key; a reinstall uses it to fetch the vault key from the
+  account keyring and to open files sealed with it.
+
+### Testing
+- 547 unit tests, 0 failures (43 new).
+- `LegacyEnvelopeOpenerTest` decrypts nine envelopes produced by an **independent**
+  implementation (`tools/legacy_vectors/generate.py`, Python `cryptography`): universal key at
+  600k/210k/120k, passphrase, account address, separate-tag and swapped-tag shapes, a
+  base64-wrapped file, and every retired universal key release. The assertion is on the exact
+  plaintext JSON, so a regression here means an owner's old backup has stopped opening.
+- `BackupEnvelopeFormatTest` holds the reader to every field alias, the wrapped form, and the
+  plaintext/foreign cases that must be rejected rather than guessed at.
+- `BackupSlotGuardTest` drives the writer against an in-memory Drive: a foreign slot is copied
+  out byte-identically before replacement, an unreadable slot writes nothing, a proven slot
+  costs no download, and the policy table is exercised state by state.
+- Verification caveat: no emulator or adb in this environment. Backward compatibility is proven
+  by the independent-implementation vectors above and by the full suite; the on-device proof is
+  the owner restoring his existing Drive backup with this APK.
+
 ## [3.4.2] — 2026-10-30 (versionCode 347)
 
 Found on the owner's first run of 3.4.1: the pre-login gate had drifted to four tiles, and

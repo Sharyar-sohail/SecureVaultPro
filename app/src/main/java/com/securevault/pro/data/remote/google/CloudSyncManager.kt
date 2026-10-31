@@ -4,7 +4,6 @@ import android.content.Context
 import android.util.Base64
 import com.google.gson.Gson
 import com.google.gson.JsonObject
-import com.google.gson.JsonParser
 import com.securevault.pro.data.backup.BackupCounts
 import com.securevault.pro.data.backup.BackupEngine
 import com.securevault.pro.data.backup.BackupEntryDto
@@ -25,6 +24,11 @@ import com.securevault.pro.security.KeyDerivation
 import com.securevault.pro.security.SeedLoader
 import com.securevault.pro.security.SessionManager
 import com.securevault.pro.security.WipeArchiveStore
+import com.securevault.pro.security.backup.BackupEnvelope
+import com.securevault.pro.security.backup.BackupEnvelopeFormat
+import com.securevault.pro.security.backup.LegacyEnvelopeOpener
+import com.securevault.pro.security.backup.OpeningSecret
+import com.securevault.pro.security.backup.OpeningSecretKind
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -42,9 +46,6 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-import javax.crypto.Cipher
-import javax.crypto.spec.GCMParameterSpec
-import javax.crypto.spec.SecretKeySpec
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -66,7 +67,9 @@ data class BackupOutcome(
     val fileName: String,
     val cloudUploaded: Boolean,
     val offlineSaved: Boolean,
-    val driveError: String? = null
+    val driveError: String? = null,
+    /** Set when the slot held a vault this device could not open and its bytes were kept as [name]. */
+    val preservedName: String? = null
 )
 
 data class LocalExportData(
@@ -115,6 +118,7 @@ class CloudSyncManager @Inject constructor(
     private val sessionManager: SessionManager,
     private val vaultRepository: VaultRepository,
     private val keyring: Keyring,
+    private val legacyOpener: LegacyEnvelopeOpener,
     private val gson: Gson
 ) {
     companion object {
@@ -123,9 +127,10 @@ class CloudSyncManager @Inject constructor(
 
         /**
          * READ-ONLY since the per-user keyring landed. These strings seal nothing any more: they
-         * survive only so a vault that was backed up before the keyring can still be opened once,
-         * and the first write after that re-seals it under the user's own key. No new envelope may
-         * use them — [sealingSecret] is the only writer's key, and a test guards the call sites.
+         * survive only as candidates for *opening* a vault that was backed up before the keyring —
+         * which is exactly what a reinstall with a lost device key needs — and the first write after
+         * that re-seals it under the user's own key. No new envelope may use them, and a test guards
+         * the call sites.
          */
         const val PRIMARY_CLOUD_KEY = "SecureVaultPro_Universal_Cloud_Key_v3"
         const val LEGACY_CLOUD_KEY_V2 = "SecureVaultPro_Universal_Cloud_Key_v2"
@@ -134,21 +139,16 @@ class CloudSyncManager @Inject constructor(
         const val PBKDF2_ITERATIONS = KeyDerivation.PBKDF2_ITERATIONS
         private const val MAX_BACKUP_BYTES = 120L * 1024L * 1024L
         private const val RESTORE_TIMEOUT_MS = 60_000L
+
+        /** How long a passphrase is allowed to fetch the account's vault key before the restore moves on. */
+        private const val KEYRING_ATTACH_TIMEOUT_MS = 45_000L
     }
 
     private val operationMutex = Mutex()
     private val _state = MutableStateFlow(CloudSyncState())
     val state: StateFlow<CloudSyncState> = _state.asStateFlow()
 
-    private val keyCache = object : LinkedHashMap<String, ByteArray>(16, 0.75f, true) {
-        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ByteArray>?): Boolean {
-            if (size > 12) {
-                eldest?.value?.fill(0)
-                return true
-            }
-            return false
-        }
-    }
+    private val slotProofs by lazy { BackupSlotGuard.Prefs(context) }
 
     // ------------------------- Public operations -------------------------
 
@@ -158,16 +158,21 @@ class CloudSyncManager @Inject constructor(
         update("Encrypting vault records", "PBKDF2-SHA256 · 600,000 iterations", 32)
         val payload = withContext(Dispatchers.IO) { backupEngine.buildPayload() }
         val json = gson.toJson(payload)
-        val envelopeBytes = createEnvelope(json, sealingSecret(), 3)
+        val secret = sealingSecret()
+        val envelopeBytes = createEnvelope(json, secret, 3)
         update("Writing offline safety copy", "vault_backup.enc", 48)
         val offlineSaved = writeOfflineCopy(envelopeBytes)
         update("Uploading to Google Drive", "App-data folder · hidden from normal Drive", 62)
         var driveError: String? = null
         var uploaded = false
+        var preservedName: String? = null
         try {
-            val existing = driveService.findBackupByName(PRIMARY_BACKUP_NAME)
-            driveService.upload(PRIMARY_BACKUP_NAME, envelopeBytes, existing?.id)
+            val outcome = writeSlot(PRIMARY_BACKUP_NAME, envelopeBytes, secret)
+            if (outcome is BackupSlotGuard.Outcome.Held) {
+                throw CloudSyncException(outcome.reason)
+            }
             uploaded = true
+            preservedName = (outcome as BackupSlotGuard.Outcome.Written).preservedName
             appLockManager.markBackupComplete()
         } catch (e: CancellationException) {
             throw e
@@ -179,20 +184,21 @@ class CloudSyncManager @Inject constructor(
             runCatching {
                 val xmlBytes = createEnvelope(
                     BackupXmlSerializer.serialize(payload),
-                    sealingSecret(),
+                    secret,
                     3
                 )
                 writeOfflineCopy(xmlBytes, XML_BACKUP_NAME)
-                val existingXml = driveService.findBackupByName(XML_BACKUP_NAME)
-                driveService.upload(XML_BACKUP_NAME, xmlBytes, existingXml?.id)
+                writeSlot(XML_BACKUP_NAME, xmlBytes, secret)
             }
-            update("Archiving cloud snapshot", "Rotating the most recent four snapshots", 84)
+            update("Archiving cloud snapshot", "Keeping a dated copy of this snapshot", 84)
             runCatching { uploadSnapshot(envelopeBytes) }
         }
         val finalCounts = backupEngine.countAll()
         vaultRepository.reloadVaultState()
         val message = when {
-            uploaded -> "Encrypted vault backed up · ${summary(finalCounts)}"
+            uploaded ->
+                "Encrypted vault backed up · ${summary(finalCounts)}" +
+                    (preservedName?.let { " · previous unreadable copy kept as $it" } ?: "")
             offlineSaved -> "Offline encrypted backup saved. Google Drive upload failed."
             else -> throw CloudSyncException(driveError ?: "Backup could not be saved anywhere")
         }
@@ -202,7 +208,8 @@ class CloudSyncManager @Inject constructor(
             fileName = PRIMARY_BACKUP_NAME,
             cloudUploaded = uploaded,
             offlineSaved = offlineSaved,
-            driveError = driveError
+            driveError = driveError,
+            preservedName = preservedName
         )
     }
 
@@ -243,10 +250,11 @@ class CloudSyncManager @Inject constructor(
                 }
                 writeOfflineCopy(jsonBytes, PRIMARY_BACKUP_NAME)
                 writeOfflineCopy(xmlBytes, XML_BACKUP_NAME)
-                val existing = driveService.findBackupByName(PRIMARY_BACKUP_NAME)
-                driveService.upload(PRIMARY_BACKUP_NAME, jsonBytes, existing?.id)
-                val existingXml = driveService.findBackupByName(XML_BACKUP_NAME)
-                driveService.upload(XML_BACKUP_NAME, xmlBytes, existingXml?.id)
+                val jsonOutcome = writeSlot(PRIMARY_BACKUP_NAME, jsonBytes, secret)
+                if (jsonOutcome is BackupSlotGuard.Outcome.Held) {
+                    throw CloudSyncException(jsonOutcome.reason)
+                }
+                writeSlot(XML_BACKUP_NAME, xmlBytes, secret)
                 appLockManager.markBackupComplete()
                 Result.success(
                     QuietSyncOutcome(
@@ -317,9 +325,20 @@ class CloudSyncManager @Inject constructor(
         }
     }
 
+    /**
+     * Restore one named Drive file. [passphrase] is the owner's own secret, typed on the welcome
+     * screen: it is tried first, because it is the only secret that a fresh install can be given.
+     *
+     * [seedSafetyNet] is off while a walk is still trying other copies. Installing the embedded
+     * vault after one unreadable file made an empty device look populated, the next silent sync
+     * pushed those demo records to Drive, and the owner's real vault was left only as a preserved
+     * copy. A walk decides about the safety net once, at the end.
+     */
     suspend fun restoreFromCloud(
         file: CloudBackupFile,
-        email: String = ""
+        email: String = "",
+        passphrase: String? = null,
+        seedSafetyNet: Boolean = true
     ): Result<RestoreOutcome> = guarded {
         val accountEmail = resolveEmail(email)
         onOperation(
@@ -329,24 +348,103 @@ class CloudSyncManager @Inject constructor(
             8
         )
         try {
+            update("Fetching your vault key", "Cloud keyring, using the passphrase you typed", 18)
+            val keyringNote = attachKeyringFromCloud(passphrase)
             update("Downloading data from Google Drive...", file.name, 30)
             val bytes = withTimeout(RESTORE_TIMEOUT_MS) { driveService.download(file.id) }
             if (bytes.size > MAX_BACKUP_BYTES) {
                 throw CloudSyncException("Backup is larger than the supported 120 MB limit")
             }
-            update("Decrypting vault...", "PBKDF2-SHA256 · your vault key first, then legacy keys", 45)
-            val decoded = decryptBackup(bytes, accountEmail)
+            update("Decrypting vault...", "PBKDF2-SHA256 · your passphrase and key, then every legacy key", 45)
+            val decoded = decryptBackup(bytes, accountEmail, passphrase)
             update("Importing data into app...", "Passwords, cards, 2FA, contacts, notes & files", 55)
-            mergeDecoded(decoded)
+            val outcome = mergeDecoded(decoded)
+            outcome.copy(
+                warnings = (listOf("Restored from ${file.name}") + outcome.warnings +
+                    listOfNotNull(keyringNote)).distinct().take(8)
+            )
         } catch (e: TimeoutCancellationException) {
             recoverOrFail(
                 reason = "The cloud restore timed out after 60 seconds.",
-                incoming = BackupCounts()
+                incoming = BackupCounts(),
+                seedSafetyNet = seedSafetyNet
             )
         } catch (e: CancellationException) {
             throw e
         } catch (e: Throwable) {
-            recoverOrFail(reason = driveMessage(e), incoming = BackupCounts())
+            recoverOrFail(
+                reason = driveMessage(e),
+                incoming = BackupCounts(),
+                seedSafetyNet = seedSafetyNet
+            )
+        }
+    }
+
+    /**
+     * Restore the first Drive file this device can actually open.
+     *
+     * The primary slot is tried first, then every dated snapshot and every preserved legacy copy,
+     * newest first. Looking only at the slot is what turned a lost device key into "your backup is
+     * corrupted" while a readable copy sat in the same folder under another name.
+     */
+    suspend fun restoreAnyCloudBackup(
+        email: String = "",
+        passphrase: String? = null
+    ): Result<RestoreOutcome> {
+        val files = listCloudBackups().getOrElse {
+            return Result.failure(
+                CloudSyncException("Drive is connected, but its backups could not be listed. ${it.message}".trim())
+            )
+        }
+        if (files.isEmpty()) {
+            return Result.failure(CloudSyncException("No encrypted backup was found in Google Drive."))
+        }
+        val ordered = files.filterNot { it.name.endsWith(".xml.enc") }.sortedWith(
+            compareByDescending<CloudBackupFile> { it.isPrimary }.thenByDescending { it.modifiedTime }
+        )
+        var lastReason: String? = null
+        for (file in ordered) {
+            val outcome = restoreFromCloud(file, email, passphrase, seedSafetyNet = false)
+            if (outcome.isSuccess) return outcome
+            lastReason = outcome.exceptionOrNull()?.message ?: lastReason
+        }
+        return Result.failure(
+            CloudSyncException(
+                "None of the ${ordered.size} backups in Drive opened with this device's key or the " +
+                    "passphrase you typed. ${lastReason ?: ""}".trim()
+            )
+        )
+    }
+
+    /**
+     * Bring this device the account's vault key, using a passphrase the owner just typed.
+     *
+     * A reinstall loses the Keystore-wrapped copy, and a backup sealed before that loss then looks
+     * unreadable. The keyring node in the realtime backend is the same key wrapped under the
+     * passphrase, so one fetch turns "corrupted backup" back into a vault. Failures are reported, not
+     * thrown: a restore that cannot reach the keyring may still open the file with the passphrase or
+     * a retired key, and it must be allowed to try.
+     */
+    private suspend fun attachKeyringFromCloud(passphrase: String?): String? {
+        val typed = passphrase?.trim().orEmpty()
+        if (typed.isBlank()) return null
+        val outcome = runCatching {
+            withTimeout(KEYRING_ATTACH_TIMEOUT_MS) { keyring.attachKeyring(typed) }
+        }
+        return when {
+            outcome.isSuccess && outcome.getOrThrow().isSuccess ->
+                "Your vault key was fetched from the account, not generated on this device."
+            outcome.isFailure ->
+                outcome.exceptionOrNull()?.message?.take(160)
+                    ?: "The vault key could not be fetched, so the restore continued with the keys on this device."
+            else -> {
+                val reason = outcome.getOrNull()?.exceptionOrNull()?.message?.take(160)
+                // An account that never published a keyring is not an error for this restore: the
+                // passphrase may still open the file directly, and saying "no key in the cloud"
+                // here would read as a failure while the vault is being recovered fine.
+                if (reason?.contains("no vault key in the cloud", ignoreCase = true) == true) null
+                else reason ?: "That passphrase did not open the account's vault key; the restore kept trying the other keys."
+            }
         }
     }
 
@@ -435,29 +533,31 @@ class CloudSyncManager @Inject constructor(
      * decrypt it before falling back to the embedded vault. Returns immediately once the
      * local database already holds records. [mergeExisting] is used right after an
      * in-app Google sign-in so a freshly seeded vault can absorb the real snapshot.
+     *
+     * [passphrase] is the owner's secret and is offered to the cloud keyring first: without it a
+     * reinstall has nothing to open a keyring-sealed vault with, and every file in Drive then looks
+     * corrupted.
      */
-    suspend fun hydrateVault(mergeExisting: Boolean = false): RestoreOutcome? {
+    suspend fun hydrateVault(
+        mergeExisting: Boolean = false,
+        passphrase: String? = null
+    ): RestoreOutcome? {
         if (sessionManager.isDecoy()) return null
         if (!mergeExisting && backupEngine.countAll().total > 0) return null
         // A wiped install stays empty until the user restores a backup explicitly.
         if (!mergeExisting && WipeArchiveStore.wasWiped(context)) return null
         if (driveService.hasDriveAccess()) {
-            val primary = listCloudBackups().getOrNull()
-                .orEmpty()
-                .let { files -> files.firstOrNull { it.isPrimary } ?: files.firstOrNull() }
-            if (primary != null) {
-                val outcome = restoreFromCloud(primary).getOrNull()
-                if (outcome != null && backupEngine.countAll().total > 0) {
-                    // The one-time migration: a vault that arrived under a retired universal key is
-                    // re-sealed under this user's own key as soon as it is hydrated, which is what
-                    // lets the web companion open the very next backup without any shared literal.
-                    val cameFromLegacyKey = outcome.warnings.any {
-                        it.contains("universal cloud key", ignoreCase = true) ||
-                            it.contains("legacy", ignoreCase = true)
-                    }
-                    if (cameFromLegacyKey) runCatching { syncNowSilently() }
-                    return outcome
+            val restored = restoreAnyCloudBackup(passphrase = passphrase).getOrNull()
+            if (restored != null && backupEngine.countAll().total > 0) {
+                // The one-time migration: a vault that arrived under a retired universal key is
+                // re-sealed under this user's own key as soon as it is hydrated, which is what
+                // lets the web companion open the very next backup without any shared literal.
+                val cameFromLegacyKey = restored.warnings.any {
+                    it.contains("universal cloud key", ignoreCase = true) ||
+                        it.contains("legacy", ignoreCase = true)
                 }
+                if (cameFromLegacyKey) runCatching { syncNowSilently() }
+                return restored
             }
         }
         return ensureVaultPopulated().getOrNull()
@@ -726,10 +826,11 @@ class CloudSyncManager @Inject constructor(
 
     private suspend fun recoverOrFail(
         reason: String,
-        incoming: BackupCounts
+        incoming: BackupCounts,
+        seedSafetyNet: Boolean = true
     ): RestoreOutcome {
         val existing = backupEngine.countAll()
-        if (existing.total > 0) {
+        if (existing.total > 0 || !seedSafetyNet) {
             failOperation(reason)
             throw CloudSyncException(reason)
         }
@@ -838,6 +939,15 @@ class CloudSyncManager @Inject constructor(
         }
     }
 
+    /**
+     * Opens a stored backup without changing a byte of it.
+     *
+     * The envelope format has never changed, but what sealed it has — this device's vault key, the
+     * owner's own passphrase, the retired universal strings, and in the earliest builds the account
+     * address — so a file is only unreadable once every one of those has been tried. That sweep, and
+     * the iteration counts each build used, live in [LegacyEnvelopeOpener] where a test can reach
+     * them; this function only decides what the answer means for the restore.
+     */
     private suspend fun decryptBackup(
         bytes: ByteArray,
         email: String,
@@ -845,86 +955,72 @@ class CloudSyncManager @Inject constructor(
     ): DecodedBackup = withContext(Dispatchers.Default) {
         val text = bytes.toString(Charsets.UTF_8).trim()
         if (text.isBlank()) throw CloudSyncException("The backup file is empty")
-        val envelope = readEnvelope(text)
-            ?: return@withContext DecodedBackup(
+        val envelope = BackupEnvelopeFormat.parse(bytes)
+        if (envelope == null || !envelope.recognised) {
+            return@withContext DecodedBackup(
                 json = readPlainJson(text, bytes),
                 encrypted = false,
                 warnings = listOf("This backup was stored without envelope encryption.")
             )
-        val vaultSecret = runCatching { keyring.sealingSecret() }.getOrNull()
-        val candidates = buildCandidates(email, passphrase, vaultSecret)
-        for (candidate in candidates) {
-            val key = deriveCached(candidate, envelope.salt, PBKDF2_ITERATIONS)
-            val plain = decryptWithDerivedKey(envelope.data, key)
-            if (plain != null) {
-                return@withContext DecodedBackup(
-                    json = plain,
-                    encrypted = true,
-                    // The vault key is the shape everything is written in now, so opening with it
-                    // is not worth mentioning. Anything else is a retired universal key, and that
-                    // warning is what tells the caller this copy still has to be re-sealed once.
-                    warnings = when (candidate) {
-                        vaultSecret -> emptyList()
-                        PRIMARY_CLOUD_KEY -> listOf(
-                            "Opened with the retired universal cloud key. It will be re-sealed under your own vault key."
-                        )
-                        else -> listOf("Decrypted with a legacy vault key.")
-                    }
-                )
-            }
         }
-        if (envelope.version < 3) {
-            val legacyCandidates = listOf(PRIMARY_CLOUD_KEY, LEGACY_CLOUD_KEY_V2)
-            for (pass in legacyCandidates) {
-                for (iterationCount in listOf(210_000, 120_000)) {
-                    val key = deriveCached(pass, envelope.salt, iterationCount)
-                    val plain = decryptWithDerivedKey(envelope.data, key)
-                    if (plain != null) {
-                        return@withContext DecodedBackup(
-                            json = plain,
-                            encrypted = true,
-                            warnings = listOf("Decrypted using a legacy key derivation profile.")
-                        )
-                    }
-                }
-            }
-        }
-        throw CloudSyncException(
-            "The backup could not be decrypted with this account or key. Restore will fall back to the embedded vault."
+        val secrets = buildSecrets(email, passphrase)
+        val profiles = iterationProfilesFor(envelope)
+        val opened = legacyOpener.open(envelope.salt, envelope.data, secrets, profiles)
+            ?: throw CloudSyncException(undecryptableMessage(envelope, secrets.size, profiles))
+        DecodedBackup(
+            json = opened.json,
+            encrypted = true,
+            warnings = warningsFor(opened.kind, opened.iterations)
         )
     }
 
-    private fun readEnvelope(text: String): Envelope? {
-        val trimmed = text.trimStart('\uFEFF', ' ', '\n', '\r', '\t')
-        if (!trimmed.startsWith("{")) {
-            val decoded = decodeBase64OrNull(trimmed) ?: return null
-            val decodedText = runCatching { decoded.toString(Charsets.UTF_8) }.getOrNull() ?: return null
-            return readEnvelopeObject(decodedText)
-        }
-        return readEnvelopeObject(trimmed)
+    /** The counts to try, the file's own claim first so a self-describing backup opens in one pass. */
+    private fun iterationProfilesFor(envelope: BackupEnvelope): List<Int> = buildList {
+        envelope.iterations?.let { add(it) }
+        LegacyEnvelopeOpener.ITERATION_PROFILES.forEach { if (it !in this) add(it) }
     }
 
-    private fun readEnvelopeObject(text: String): Envelope? {
-        val root = runCatching { JsonParser.parseString(text) }.getOrNull() ?: return null
-        if (!root.isJsonObject) return null
-        val obj = root.asJsonObject
-        val saltElement = obj.get("salt") ?: obj.get("kdfSalt")
-        val dataElement = obj.get("data") ?: obj.get("ciphertext") ?: obj.get("payload")
-        if (saltElement == null || dataElement == null) return null
-        if (!saltElement.isJsonPrimitive || !dataElement.isJsonPrimitive) return null
-        val salt = decodeBase64OrNull(saltElement.asString) ?: return null
-        if (salt.size < 8) return null
-        var data = dataElement.asString.trim()
-        val ivElement = obj.get("iv")
-        if (!data.contains('.') && ivElement?.isJsonPrimitive == true) {
-            data = "${ivElement.asString}.$data"
+    private fun warningsFor(kind: OpeningSecretKind, iterations: Int): List<String> {
+        val byProfile = if (iterations != PBKDF2_ITERATIONS) {
+            listOf("Decrypted using a legacy key derivation profile.")
+        } else {
+            emptyList()
         }
-        if (!data.contains('.')) return null
-        val version = obj.get("v")?.takeIf { it.isJsonPrimitive }?.asInt
-            ?: obj.get("version")?.takeIf { it.isJsonPrimitive }?.asInt
-            ?: 3
-        return Envelope(salt = salt, data = data, version = version)
+        val bySecret = when (kind) {
+            // The vault key is the shape everything is written in now, so opening with it is not
+            // worth mentioning. Anything else is a retired or personal secret, and that warning is
+            // what tells the caller this copy still has to be re-sealed once.
+            OpeningSecretKind.VAULT_KEY -> emptyList()
+            OpeningSecretKind.RETIRED_UNIVERSAL_KEY -> listOf(
+                "Opened with the retired universal cloud key. It will be re-sealed under your own vault key."
+            )
+            OpeningSecretKind.PASSPHRASE ->
+                listOf("Opened with the passphrase you typed, not this device's vault key.")
+            OpeningSecretKind.ACCOUNT_EMAIL ->
+                listOf("Opened with the account address older builds sealed backups with.")
+            OpeningSecretKind.OTHER -> listOf("Decrypted with a legacy vault key.")
+        }
+        return (bySecret + byProfile).distinct()
     }
+
+    /**
+     * What was actually looked at, in the failure sentence.
+     *
+     * "Corrupted" told the owner nothing and cost them a reinstall to find out. The version, salt
+     * length, payload shape, stated count and number of secrets tried are all safe to print — no key
+     * material, no address — and together they say whether this is an unknown format or simply a key
+     * this device does not hold.
+     */
+    private fun undecryptableMessage(
+        envelope: BackupEnvelope,
+        secretsTried: Int,
+        profiles: List<Int>
+    ): String =
+        "The backup could not be decrypted with this account or key. Restore will fall back to the " +
+            "embedded vault. (envelope v${envelope.version}, salt ${envelope.saltBytes} bytes, " +
+            "body ${envelope.payloadShape}, ${envelope.iterations?.let { "$it rounds" } ?: "no stated round count"}, " +
+            "$secretsTried secrets x ${profiles.size} profiles tried. " +
+            "If this vault came from another device, type its passphrase and use 'Restore from file'.)"
 
     private fun readPlainJson(text: String, bytes: ByteArray): String {
         val trimmed = text.trimStart('\uFEFF', ' ', '\n', '\r', '\t')
@@ -942,71 +1038,65 @@ class CloudSyncManager @Inject constructor(
     }
 
     /**
-     * What a stored envelope might be sealed with, best guess first. The user's own vault key leads;
-     * the retired universal keys sit below it as a strictly read-only path, so a vault backed up
-     * before the keyring still opens. They are candidates for opening a file and never for writing
-     * one — the guard test in `KeyringProtocolTest` holds every writer to that rule.
+     * What a stored envelope might be sealed with, best guess first, each labelled by what it is.
+     *
+     * The typed passphrase leads when the owner typed one — it is the only secret that survives a
+     * reinstall, a factory reset, or a phone that never came back from the repair shop. The device's
+     * own vault key follows, then the retired universal strings, then the account address. Every one
+     * of these is a candidate for *opening* a file and never for writing one; the guard test in
+     * `KeyringProtocolTest` holds every writer to that rule.
      */
-    private suspend fun buildCandidates(
+    private suspend fun buildSecrets(
         email: String,
         passphrase: String?,
         vaultSecret: String? = runCatching { keyring.sealingSecret() }.getOrNull()
-    ): List<String> {
-        val list = mutableListOf<String>()
-        if (!passphrase.isNullOrBlank()) list += passphrase.trim()
-        vaultSecret?.let { list += it }
-        list += PRIMARY_CLOUD_KEY
-        val emails = buildList {
-            add(email)
-            add(runCatching { appLockManager.cloudEmail.first() }.getOrDefault(""))
-            add(runCatching { signedInEmail() }.getOrDefault(""))
-        }.map { it.trim() }.filter { it.isNotBlank() }.distinct()
-        emails.forEach {
-            list += it
-            list += it.lowercase(Locale.US)
-        }
-        list += LEGACY_CLOUD_KEY_V2
-        list += LEGACY_CLOUD_KEY_V1
-        list += LEGACY_CLOUD_KEY
-        return list.distinct()
-    }
-
-    private fun deriveCached(passphrase: String, salt: ByteArray, iterations: Int): ByteArray {
-        val saltB64 = Base64.encodeToString(salt, Base64.NO_WRAP)
-        val fingerprint = keyDerivation.sha256(
-            "$iterations|$saltB64|$passphrase".toByteArray(Charsets.UTF_8)
-        )
-        val key = Base64.encodeToString(fingerprint, Base64.NO_WRAP)
-        synchronized(keyCache) { keyCache[key] }?.let { return it }
-        val derived = keyDerivation.deriveKey(passphrase.toCharArray(), salt, iterations)
-        synchronized(keyCache) { keyCache[key] = derived }
-        return derived
-    }
-
-    private fun decryptWithDerivedKey(data: String, key: ByteArray): String? {
-        val direct = crypto.decryptWithDerivedKey(data, key)
-        if (direct != null) return direct
-        return try {
-            val parts = data.trim().split('.')
-            if (parts.size != 3) return null
-            val iv = crypto.decodeBase64(parts[0])
-            val a = crypto.decodeBase64(parts[1])
-            val b = crypto.decodeBase64(parts[2])
-            fun attempt(payload: ByteArray): String? = try {
-                val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-                cipher.init(
-                    Cipher.DECRYPT_MODE,
-                    SecretKeySpec(key, "AES"),
-                    GCMParameterSpec(128, iv)
-                )
-                String(cipher.doFinal(payload), Charsets.UTF_8)
-            } catch (_: Throwable) {
-                null
+    ): List<OpeningSecret> {
+        val ordered = buildList {
+            if (!passphrase.isNullOrBlank()) {
+                add(OpeningSecret(passphrase.trim(), OpeningSecretKind.PASSPHRASE))
             }
-            attempt(b + a) ?: attempt(a + b)
-        } catch (_: Throwable) {
-            null
+            vaultSecret?.let { add(OpeningSecret(it, OpeningSecretKind.VAULT_KEY)) }
+            add(OpeningSecret(PRIMARY_CLOUD_KEY, OpeningSecretKind.RETIRED_UNIVERSAL_KEY))
+            val emails = buildList {
+                add(email)
+                add(runCatching { appLockManager.cloudEmail.first() }.getOrDefault(""))
+                add(runCatching { signedInEmail() }.getOrDefault(""))
+            }.map { it.trim() }.filter { it.isNotBlank() }.distinct()
+            emails.forEach {
+                add(OpeningSecret(it, OpeningSecretKind.ACCOUNT_EMAIL))
+                add(OpeningSecret(it.lowercase(Locale.US), OpeningSecretKind.ACCOUNT_EMAIL))
+            }
+            add(OpeningSecret(LEGACY_CLOUD_KEY_V2, OpeningSecretKind.RETIRED_UNIVERSAL_KEY))
+            add(OpeningSecret(LEGACY_CLOUD_KEY_V1, OpeningSecretKind.RETIRED_UNIVERSAL_KEY))
+            add(OpeningSecret(LEGACY_CLOUD_KEY, OpeningSecretKind.RETIRED_UNIVERSAL_KEY))
         }
+        val seen = mutableSetOf<String>()
+        return ordered.filter { seen.add(it.value) }
+    }
+
+    /**
+     * Replace the backup slot, keeping whatever was in it if this device cannot open that.
+     *
+     * All writes go through here. The rule it enforces — never destroy bytes you cannot read — is the
+     * difference between a reinstall that costs a sync and a reinstall that costs a vault.
+     */
+    private suspend fun writeSlot(
+        slotName: String,
+        bytes: ByteArray,
+        secret: String
+    ): BackupSlotGuard.Outcome = withContext(Dispatchers.IO) {
+        val existing = driveService.findBackupByName(slotName)
+        BackupSlotGuard(
+            opener = legacyOpener,
+            derivation = keyDerivation,
+            ourSecret = secret,
+            proofs = slotProofs,
+            download = { file ->
+                withTimeout(RESTORE_TIMEOUT_MS) { driveService.download(file.id) }
+            },
+            uploadAsNew = { name, payload -> driveService.upload(name, payload) },
+            uploadOver = { name, payload, existingId -> driveService.upload(name, payload, existingId) }
+        ).write(slotName, bytes, existing)
     }
 
     private fun resolveEmail(explicit: String): String {
@@ -1156,12 +1246,6 @@ class CloudSyncManager @Inject constructor(
             }
         }
     }
-
-    private data class Envelope(
-        val salt: ByteArray,
-        val data: String,
-        val version: Int
-    )
 
     private data class SealedEnvelope(
         val bytes: ByteArray,

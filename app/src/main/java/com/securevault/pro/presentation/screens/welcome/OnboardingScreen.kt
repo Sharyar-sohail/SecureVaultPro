@@ -83,6 +83,11 @@ fun OnboardingScreen(
     var importWantsSeed by rememberSaveable { mutableStateOf(false) }
     var passphrase by remember { mutableStateOf("") }
 
+    // Asked once before a Drive restore: the typed passphrase is the only secret a fresh install
+    // can be given, so it is what opens a vault sealed before this device held a vault key.
+    var showDrivePassphraseDialog by rememberSaveable { mutableStateOf(false) }
+    var drivePassphrase by remember { mutableStateOf("") }
+
     // The seed way in is a screen of its own, drawn over this list: it owns its own steps
     // and never touches Google.
     var showSeedRestore by rememberSaveable { mutableStateOf(false) }
@@ -144,6 +149,13 @@ fun OnboardingScreen(
         viewModel.setRestorePassphrase(passphrase)
         flowStarted = true
         backupPicker.launch(arrayOf("*/*"))
+    }
+
+    val startDriveRestore: () -> Unit = {
+        showDrivePassphraseDialog = false
+        viewModel.setRestorePassphrase(drivePassphrase)
+        flowStarted = true
+        viewModel.restoreFromExistingDrive()
     }
 
     NeonBackground {
@@ -212,13 +224,12 @@ fun OnboardingScreen(
                 description = if (state.signedInEmail.isBlank()) {
                     "Restore the encrypted vault stored in your Drive app-data folder"
                 } else {
-                    state.signedInEmail
+                    "${state.signedInEmail} · every Drive copy tried, with your passphrase if needed"
                 },
                 enabled = !state.busy && !cloudState.active,
                 onClick = {
                     if (state.signedInEmail.isNotBlank()) {
-                        flowStarted = true
-                        viewModel.restoreFromExistingDrive()
+                        showDrivePassphraseDialog = true
                     } else {
                         launchGoogle()
                     }
@@ -371,6 +382,47 @@ fun OnboardingScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showImportDialog = false }) {
+                    Text("Cancel", color = VaultColor.textBody)
+                }
+            }
+        )
+    }
+
+    if (showDrivePassphraseDialog) {
+        AlertDialog(
+            onDismissRequest = { showDrivePassphraseDialog = false },
+            containerColor = VaultColor.elevated,
+            titleContentColor = VaultColor.textStrong,
+            textContentColor = VaultColor.textBody,
+            title = { Text("Open your Drive vault") },
+            text = {
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(
+                        text = "Type the passphrase this vault was sealed with if this phone is new or " +
+                            "the app was reinstalled. Leave it empty to open the backup with this " +
+                            "device's own key. Every copy in Drive is tried before anything is reported.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = VaultColor.textBody,
+                        lineHeight = 18.sp
+                    )
+                    SecurePasswordField(
+                        value = drivePassphrase,
+                        onValueChange = { drivePassphrase = it },
+                        label = "Passphrase (optional)",
+                        onSubmit = { startDriveRestore() }
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { startDriveRestore() }) {
+                    Text("Restore", color = VaultColor.accent, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDrivePassphraseDialog = false }) {
                     Text("Cancel", color = VaultColor.textBody)
                 }
             }
