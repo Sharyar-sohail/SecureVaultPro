@@ -22,7 +22,7 @@ import java.io.File
 class BrandIconCatalogTest {
 
     private val themeIds = listOf(
-        "ios", "oneui", "aqua", "light", "dark",
+        "solstice", "oneui", "aqua", "lime", "dark",
         "noir", "mint", "sunset", "arctic", "voltra",
         "terra", "royal", "slate", "sakura", "carbon"
     )
@@ -82,7 +82,7 @@ class BrandIconCatalogTest {
     @Test
     fun `brand themes keep their own accent ramp`() {
         for (module in VaultModule.entries) {
-            val ios = BrandIconCatalog.accent("ios", module)
+            val ios = BrandIconCatalog.accent("solstice", module)
             val oneui = BrandIconCatalog.accent("oneui", module)
             val aqua = BrandIconCatalog.accent("aqua", module)
             assertNotEquals("iOS and One UI share $module ink", ios, oneui)
@@ -94,12 +94,12 @@ class BrandIconCatalogTest {
     @Test
     fun `accents read back as the documented argb and stay srgb`() {
         val expected = listOf(
-            Triple("ios", VaultModule.PASSWORDS, 0xFF06529E),
-            Triple("ios", VaultModule.STEGO, 0xFF942DC0),
+            Triple("solstice", VaultModule.PASSWORDS, 0xFF06529E),
+            Triple("solstice", VaultModule.STEGO, 0xFF942DC0),
             Triple("oneui", VaultModule.PASSWORDS, 0xFF1B6DF1),
             Triple("aqua", VaultModule.PASSWORDS, 0xFF1D8371),
             Triple("aqua", VaultModule.CARDS, 0xFF4A69D4),
-            Triple("light", VaultModule.PASSWORDS, 0xFF582EC6),
+            Triple("lime", VaultModule.PASSWORDS, 0xFF582EC6),
             Triple("dark", VaultModule.PASSWORDS, 0xFF7757D8),
             // Re-cut by tools/brand-icons/vibrancy-pass.mjs to hold white ink and the chroma floor.
             Triple("noir", VaultModule.PASSWORDS, 0xFF926C22),

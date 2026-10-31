@@ -280,6 +280,16 @@ class FilesViewModel @Inject constructor(
                 }
             }
         }
+        viewModelScope.launch {
+            // The other half of the same promise: a chat shared back while this screen is already
+            // open used to just sit in the queue, so the one-tap import still needed a second tap.
+            // It now seals on arrival, once the vault is real and no other transfer is running.
+            SharedInbox.pending.collect { queued ->
+                if (sessionManager.mode.value == SessionMode.REAL && queued.isNotEmpty() && !upload.value.active) {
+                    importPendingShares()
+                }
+            }
+        }
     }
 
     fun refresh() {

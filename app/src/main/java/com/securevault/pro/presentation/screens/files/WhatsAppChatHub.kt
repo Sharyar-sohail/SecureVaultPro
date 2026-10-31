@@ -60,8 +60,7 @@ private val WhatsAppGreen: Color get() = VaultColor.whatsAppBrand
  * The one place the owner meets the WhatsApp feature, and the reason this card exists: the import
  * and the archive were both wired and both invisible, so a whole chat could be sealed into the
  * vault while nobody could find the button. Two verbs, in the order they are needed — get a chat
- * in, get a chat out — and a third that explains how to get the file out of WhatsApp in the first
- * place, because that step happens in another app and is the one thing this app cannot do for them.
+ * in, get a chat out.
  */
 @Composable
 fun WhatsAppEntryCard(
@@ -69,7 +68,6 @@ fun WhatsAppEntryCard(
     chats: Int,
     onImport: () -> Unit,
     onExport: () -> Unit,
-    onHowTo: () -> Unit,
     onSealPending: () -> Unit,
     onDiscardPending: () -> Unit,
     /** Opens the conversations the vault holds, row by row, in the app's own viewer. */
@@ -146,13 +144,6 @@ fun WhatsAppEntryCard(
                 onClick = onExport
             )
         }
-        Spacer(Modifier.height(8.dp))
-        GhostButton(
-            text = "How to get the file from WhatsApp",
-            icon = Glyph.openInNew,
-            accent = TextSecondary,
-            onClick = onHowTo
-        )
         if (onOpenChats != null && chats > 0) {
             Spacer(Modifier.height(8.dp))
             GhostButton(
@@ -162,28 +153,6 @@ fun WhatsAppEntryCard(
                 onClick = onOpenChats
             )
         }
-    }
-}
-
-/** One numbered step of the explainer, with the number in WhatsApp's own green. */
-@Composable
-private fun StepLine(index: Int, text: String) {
-    Row(
-        modifier = Modifier.padding(vertical = 4.dp),
-        verticalAlignment = Alignment.Top
-    ) {
-        Text(
-            text = "${index + 1}",
-            style = MaterialTheme.typography.labelLarge,
-            color = WhatsAppGreen,
-            modifier = Modifier.width(20.dp)
-        )
-        Text(
-            text = text,
-            style = MaterialTheme.typography.bodySmall,
-            color = TextSecondary,
-            lineHeight = 18.sp
-        )
     }
 }
 
@@ -216,101 +185,6 @@ private fun HubDialogFrame(
                     content()
                     Spacer(Modifier.height(8.dp))
                     GhostButton(text = "Close", icon = Glyph.close, onClick = onDismiss)
-                }
-            }
-        }
-    }
-}
-
-/**
- * The taps that happen inside WhatsApp, written out exactly.
- *
- * This screen cannot do them: a live conversation sits in WhatsApp's private storage and Android
- * forbids another app from reading it, so the export is the only door. Naming the menu entries in
- * order is the difference between a feature and a guess.
- */
-@Composable
-fun WhatsAppHowToDialog(
-    visible: Boolean,
-    onOpenWhatsApp: (packageId: String) -> Unit,
-    installed: List<Pair<String, String>>,
-    onDismiss: () -> Unit
-) {
-    if (!visible) return
-    HubDialogFrame(onDismiss = onDismiss) {
-        Text(
-            text = "How to get the file from WhatsApp",
-            style = MaterialTheme.typography.titleLarge,
-            color = TextPrimary
-        )
-        Spacer(Modifier.height(4.dp))
-        Text(
-            text = "Do this in WhatsApp — it takes about twenty seconds and needs no internet.",
-            style = MaterialTheme.typography.bodySmall,
-            color = TextMuted,
-            lineHeight = 17.sp
-        )
-        Spacer(Modifier.height(12.dp))
-        listOf(
-            "Open the chat you want — a person, a group, or a business thread.",
-            "Tap ⋮ (top right) → More → Export chat.",
-            "Choose \"Without media\" for the words alone (a .txt), or \"Attach media\" for the " +
-                "whole clone with photos, videos and voice notes (a .zip).",
-            "In the share sheet that opens, tap Secure Wallet Pro. More rows means more apps — " +
-                "the app is listed as \"Secure Vault Pro\" on some installs.",
-            "Unlock Secure Wallet. The chat is queued while the vault is closed and seals itself " +
-                "the moment it opens, with a count on screen so you can see what landed."
-        ).forEachIndexed { index, step -> StepLine(index, step) }
-        Spacer(Modifier.height(12.dp))
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .overlayPanel(alpha = 0.06f)
-                .padding(12.dp)
-        ) {
-            Text(
-                text = "Already saved the file instead? Choose \"Import a chat\" → \"Choose the " +
-                    "chat file\" and pick it from Downloads — no folder permission needed.",
-                style = MaterialTheme.typography.bodySmall,
-                color = TextSecondary,
-                lineHeight = 18.sp
-            )
-        }
-        Spacer(Modifier.height(12.dp))
-        Text(
-            text = "WHAT ANDROID WILL NOT ALLOW",
-            style = MaterialTheme.typography.labelLarge,
-            color = NeonCoral,
-            letterSpacing = 1.sp
-        )
-        Spacer(Modifier.height(6.dp))
-        Text(
-            text = "WhatsApp's own message database (msgstore.db.crypt14 and the rest) is encrypted " +
-                "with a key only WhatsApp holds, and it lives in private storage no other app may " +
-                "read. No importer — this one or any other — can clone a chat without an export. " +
-                "The same goes for the live conversation: only WhatsApp's Export chat writes it out.",
-            style = MaterialTheme.typography.bodySmall,
-            color = TextMuted,
-            lineHeight = 18.sp
-        )
-        if (installed.isNotEmpty()) {
-            Spacer(Modifier.height(14.dp))
-            Text(
-                text = "OPEN IT IN WHATSAPP NOW",
-                style = MaterialTheme.typography.labelLarge,
-                color = WhatsAppGreen,
-                letterSpacing = 1.sp
-            )
-            Spacer(Modifier.height(6.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                installed.forEach { (packageId, name) ->
-                    GhostButton(
-                        text = name,
-                        icon = Glyph.openInNew,
-                        accent = WhatsAppGreen,
-                        modifier = Modifier.weight(1f),
-                        onClick = { onOpenWhatsApp(packageId) }
-                    )
                 }
             }
         }

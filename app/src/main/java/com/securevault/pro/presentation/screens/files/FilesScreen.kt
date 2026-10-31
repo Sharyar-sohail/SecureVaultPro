@@ -47,7 +47,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -75,7 +74,6 @@ import com.securevault.pro.presentation.components.Pill
 import com.securevault.pro.presentation.components.ThemedIcon
 import com.securevault.pro.presentation.components.ThemedIconTile
 import com.securevault.pro.presentation.components.VaultSearchField
-import com.securevault.pro.presentation.components.VaultTextField
 import com.securevault.pro.presentation.components.formatBytes
 import com.securevault.pro.presentation.components.formatShortDate
 import com.securevault.pro.presentation.components.overlayPanel
@@ -121,7 +119,6 @@ fun FilesScreen(
     var actionError by remember { mutableStateOf<String?>(null) }
     var chatImportOpen by remember { mutableStateOf(false) }
     var chatExportOpen by remember { mutableStateOf(false) }
-    var howToOpen by remember { mutableStateOf(false) }
 
     /** A sealed chat opens itself: the conversation, not the picker, is the result of the tap. */
     LaunchedEffect(sealedNoteId) {
@@ -246,8 +243,8 @@ fun FilesScreen(
         launch = whatsAppResult,
         hub = whatsAppHub,
         installed = whatsApps,
-        onOpenChat = { packageId, number ->
-            whatsAppResult = openWhatsAppChat(context, packageId, number)
+        onOpenChat = { packageId ->
+            whatsAppResult = openWhatsAppChat(context, packageId, "")
         },
         onGrantFolder = {
             chatImportOpen = false
@@ -267,10 +264,6 @@ fun FilesScreen(
         },
         onDiscardShared = viewModel::dismissPendingShares,
         onDiscardOne = viewModel::dismissPendingShare,
-        onHowTo = {
-            chatImportOpen = false
-            howToOpen = true
-        },
         onDismiss = {
             chatImportOpen = false
             whatsAppResult = null
@@ -289,17 +282,6 @@ fun FilesScreen(
             chatExportOpen = false
             exportViewModel.clearResult()
         }
-    )
-
-    WhatsAppHowToDialog(
-        visible = howToOpen,
-        installed = whatsApps,
-        onOpenWhatsApp = { packageId ->
-            whatsAppResult = openWhatsAppChat(context, packageId, "")
-            howToOpen = false
-            chatImportOpen = true
-        },
-        onDismiss = { howToOpen = false }
     )
 
     GlassScaffold(
@@ -444,7 +426,6 @@ fun FilesScreen(
                     chats = maxOf(storedChats.size, vaultChats.size),
                     onImport = { chatImportOpen = true },
                     onExport = { chatExportOpen = true },
-                    onHowTo = { howToOpen = true },
                     onOpenChats = { onOpenChat(null) },
                     onSealPending = viewModel::importPendingShares,
                     onDiscardPending = viewModel::dismissPendingShares,
@@ -907,7 +888,7 @@ private fun WhatsAppImportDialog(
     launch: WhatsAppLaunch?,
     hub: WhatsAppHubState,
     installed: List<Pair<String, String>>,
-    onOpenChat: (String, String) -> Unit,
+    onOpenChat: (String) -> Unit,
     onGrantFolder: () -> Unit,
     onRescan: () -> Unit,
     onForgetFolder: () -> Unit,
@@ -917,15 +898,11 @@ private fun WhatsAppImportDialog(
     onImportShared: () -> Unit,
     onDiscardShared: () -> Unit,
     onDiscardOne: (String) -> Unit,
-    onHowTo: () -> Unit,
     onDismiss: () -> Unit
 ) {
     if (!visible) return
-    val context = LocalContext.current
-    var chatNumber by remember { mutableStateOf("") }
     // The folder hub is the fallback, so it stays folded unless this device already granted it.
     var showFolder by remember { mutableStateOf(hub.granted) }
-    val digits = WhatsAppChat.normalizeNumber(chatNumber)
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
@@ -944,22 +921,27 @@ private fun WhatsAppImportDialog(
                         .heightIn(max = 660.dp)
                         .verticalScroll(rememberScrollState())
                 ) {
-                    Text(
-                        text = "Import a WhatsApp chat",
-                        style = MaterialTheme.typography.titleLarge,
-                        color = TextPrimary
-                    )
-                    Spacer(Modifier.height(6.dp))
-                    Text(
-                        text = "Choose the exported chat file and Secure Wallet reads it straight off this " +
-                            "phone — no folder grant, no hand-over to WhatsApp. A \"With media\" export " +
-                            "(.zip) is a complete clone: the whole conversation in order, and every photo, " +
-                            "video, voice note and document inside it sealed into the vault beside it. A plain " +
-                            ".txt gives the words. Nothing is uploaded while you import.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = TextSecondary,
-                        lineHeight = 20.sp
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                text = "Import WhatsApp chat",
+                                style = MaterialTheme.typography.titleLarge,
+                                color = TextPrimary
+                            )
+                            Text(
+                                text = "One tap: WhatsApp opens, and the export you share back seals itself.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = TextMuted,
+                                lineHeight = 17.sp
+                            )
+                        }
+                        GlassIconButton(
+                            icon = Glyph.close,
+                            contentDescription = "Close",
+                            onClick = onDismiss,
+                            tint = TextSecondary
+                        )
+                    }
 
                     if (pending.isNotEmpty()) {
                         Spacer(Modifier.height(14.dp))
@@ -969,91 +951,100 @@ private fun WhatsAppImportDialog(
                             onSeal = onImportShared,
                             onDiscardOne = onDiscardOne
                         )
-                        Spacer(Modifier.height(6.dp))
-                        GhostButton(
-                            text = "Throw all of them away",
-                            icon = Glyph.delete,
-                            accent = NeonCoral,
-                            onClick = onDiscardShared
-                        )
-                        Spacer(Modifier.height(4.dp))
-                        Text(
-                            text = "These arrived from WhatsApp's share sheet and were kept in the app's " +
-                                "own storage until the vault opened — a chat cannot be sealed into a " +
-                                "locked vault. Sealing them deletes the copy.",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = TextMuted,
-                            lineHeight = 16.sp
-                        )
+                        Spacer(Modifier.height(8.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            GradientButton(
+                                text = if (pending.size == 1) {
+                                    "Seal this chat"
+                                } else {
+                                    "Seal ${pending.size} chats"
+                                },
+                                icon = Glyph.lock,
+                                modifier = Modifier.weight(1f),
+                                onClick = onImportShared
+                            )
+                            GhostButton(
+                                text = "Discard",
+                                icon = Glyph.delete,
+                                accent = NeonCoral,
+                                onClick = onDiscardShared
+                            )
+                        }
                     }
 
                     Spacer(Modifier.height(14.dp))
-                    GradientButton(
-                        text = "Choose the chat file",
-                        icon = Glyph.download,
-                        onClick = onPickFile
-                    )
-                    Spacer(Modifier.height(6.dp))
-                    GhostButton(
-                        text = if (pending.isEmpty()) {
-                            "Choose several chats or media files"
-                        } else {
-                            "Choose more files from storage"
-                        },
-                        icon = Glyph.folderOpen,
-                        onClick = onPickMany
-                    )
-                    Spacer(Modifier.height(6.dp))
-                    GhostButton(
-                        text = "How to get the file from WhatsApp",
-                        icon = Glyph.openInNew,
-                        accent = WhatsAppGreen,
-                        onClick = onHowTo
-                    )
-                    Spacer(Modifier.height(12.dp))
-                    WhatsAppNote(
-                        icon = Glyph.chat,
-                        tint = WhatsAppGreen,
-                        text = "No export yet? In WhatsApp open the chat, then ⋮ → More → Export chat → " +
-                            "Attach media. The .zip it writes is the complete clone, and it lands in " +
-                            "Downloads — which is where this picker opens."
-                    )
+                    if (installed.isNotEmpty()) {
+                        installed.forEach { (packageId, name) ->
+                            GradientButton(
+                                text = "Open $name",
+                                icon = Glyph.openInNew,
+                                modifier = Modifier.fillMaxWidth(),
+                                onClick = { onOpenChat(packageId) }
+                            )
+                            Spacer(Modifier.height(6.dp))
+                        }
+                    } else {
+                        WhatsAppNote(
+                            icon = Glyph.info,
+                            tint = NeonAmber,
+                            text = "WhatsApp is not installed on this phone."
+                        )
+                        Spacer(Modifier.height(6.dp))
+                    }
 
-                    Spacer(Modifier.height(14.dp))
+                    val notice = when (launch) {
+                        is WhatsAppLaunch.Opened ->
+                            "${launch.appName} is open. Pick the chat and share the export back here — " +
+                                "it seals itself."
+                        WhatsAppLaunch.NotInstalled ->
+                            "WhatsApp could not be opened. Pick the exported file instead."
+                        WhatsAppLaunch.Blocked ->
+                            "This phone blocked the hand-off to WhatsApp. Pick the exported file instead."
+                        null -> null
+                    }
+                    if (notice != null) {
+                        Spacer(Modifier.height(8.dp))
+                        WhatsAppNote(
+                            icon = if (launch is WhatsAppLaunch.Opened) Glyph.chat else Glyph.errorOutline,
+                            tint = if (launch is WhatsAppLaunch.Opened) WhatsAppGreen else NeonCoral,
+                            text = notice
+                        )
+                    }
+
+                    Spacer(Modifier.height(10.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        GhostButton(
+                            text = "Pick the file",
+                            icon = Glyph.download,
+                            modifier = Modifier.weight(1f),
+                            onClick = onPickFile
+                        )
+                        GhostButton(
+                            text = "Pick several",
+                            icon = Glyph.folderOpen,
+                            modifier = Modifier.weight(1f),
+                            onClick = onPickMany
+                        )
+                    }
+
+                    Spacer(Modifier.height(12.dp))
                     GhostButton(
-                        text = if (showFolder) {
-                            "Hide the WhatsApp-folder options"
-                        } else {
-                            "More options: read WhatsApp's own folder"
-                        },
+                        text = "WhatsApp folder",
                         icon = if (showFolder) Glyph.expandLess else Glyph.expandMore,
                         onClick = { showFolder = !showFolder }
                     )
                     if (showFolder) {
-                        Spacer(Modifier.height(12.dp))
+                        Spacer(Modifier.height(10.dp))
                         if (!hub.granted) {
                             WhatsAppNote(
                                 icon = Glyph.folderOpen,
                                 tint = WhatsAppGreen,
                                 text = hub.error
-                                    ?: "Secure Wallet cannot see WhatsApp's folder until you allow it once. " +
-                                    "Pick \"${WhatsAppPackages.launchable.first().second}\" and the picker will " +
-                                    "already be standing in the right place."
+                                    ?: "Allow one folder to read exports WhatsApp already saved on this phone."
                             )
                             Spacer(Modifier.height(8.dp))
-                            Text(
-                                text = "This folder holds what WhatsApp has already written out: exported " +
-                                    "chats and the media folders (Images, Videos, Voice Notes, PDFs). The " +
-                                    "chats you are still having are not in it and cannot be — they sit in " +
-                                    "WhatsApp's private storage, which Android closes to every other app. " +
-                                    "For those, export the chat in WhatsApp first.",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = TextMuted,
-                                lineHeight = 16.sp
-                            )
-                            Spacer(Modifier.height(10.dp))
                             GradientButton(
-                                text = "Allow WhatsApp folder",
+                                text = "Allow folder",
                                 icon = Glyph.folder,
                                 onClick = onGrantFolder
                             )
@@ -1095,7 +1086,7 @@ private fun WhatsAppImportDialog(
                                                 }
                                                 if (hub.capped) append(" · list trimmed to the newest")
                                             }
-                                            else -> "No exported chats or media in there yet"
+                                            else -> "No exported chats yet"
                                         },
                                         style = MaterialTheme.typography.labelSmall,
                                         color = TextMuted,
@@ -1118,7 +1109,7 @@ private fun WhatsAppImportDialog(
                                 )
                             }
                             if (hub.foundAnything) {
-                                Spacer(Modifier.height(12.dp))
+                                Spacer(Modifier.height(10.dp))
                                 GradientButton(
                                     text = if (hub.chats.size > 1) {
                                         "Archive all ${hub.chats.size} chats"
@@ -1137,57 +1128,40 @@ private fun WhatsAppImportDialog(
                                     accent = WhatsAppGreen,
                                     onClick = { onImport(WhatsAppImport.Everything, "") }
                                 )
-                                Spacer(Modifier.height(12.dp))
-                                Text(
-                                    text = "OR ARCHIVE ONE CHAT",
-                                    style = MaterialTheme.typography.labelLarge,
-                                    color = WhatsAppGreen,
-                                    letterSpacing = 1.sp
-                                )
-                                Spacer(Modifier.height(6.dp))
-                                hub.chats.take(10).forEach { row ->
-                                    WhatsAppRow(
-                                        icon = ChatGlyphBoard.glyphFor(row.title, row.latest.name),
-                                        tint = TextSecondary,
-                                        title = row.title,
-                                        detail = "${formatBytes(row.latest.size)} export · " +
-                                            formatShortDate(row.latest.modifiedAt) +
-                                            if (row.docs.size > 1) {
-                                                " · newest of ${row.docs.size}"
-                                            } else {
-                                                ""
-                                            } + " · its files come too",
-                                        enabled = !hub.scanning,
-                                        onClick = { onImport(WhatsAppImport.OneChat, row.key) }
+                                if (hub.chats.isNotEmpty()) {
+                                    Spacer(Modifier.height(10.dp))
+                                    Text(
+                                        text = "Archive one chat",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = TextMuted
                                     )
                                     Spacer(Modifier.height(6.dp))
-                                }
-                                if (hub.chats.size > 10) {
-                                    Text(
-                                        text = "${hub.chats.size - 10} more chats are in the folder — " +
-                                            "\"Archive all\" takes them too.",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = TextMuted,
-                                        lineHeight = 16.sp
-                                    )
-                                    Spacer(Modifier.height(10.dp))
+                                    hub.chats.take(10).forEach { row ->
+                                        WhatsAppRow(
+                                            icon = ChatGlyphBoard.glyphFor(row.title, row.latest.name),
+                                            tint = TextSecondary,
+                                            title = row.title,
+                                            detail = "${formatBytes(row.latest.size)} export · " +
+                                                formatShortDate(row.latest.modifiedAt) +
+                                                if (row.docs.size > 1) {
+                                                    " · newest of ${row.docs.size}"
+                                                } else {
+                                                    ""
+                                                } + " · its files come too",
+                                            enabled = !hub.scanning,
+                                            onClick = { onImport(WhatsAppImport.OneChat, row.key) }
+                                        )
+                                        Spacer(Modifier.height(6.dp))
+                                    }
                                 }
                                 if (hub.media.isNotEmpty()) {
+                                    Spacer(Modifier.height(8.dp))
                                     Text(
-                                        text = "OR KEEP A FOLDER OF FILES",
-                                        style = MaterialTheme.typography.labelLarge,
-                                        color = WhatsAppGreen,
-                                        letterSpacing = 1.sp
+                                        text = "Archive a media folder",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = TextMuted
                                     )
                                     Spacer(Modifier.height(6.dp))
-                                    Text(
-                                        text = "WhatsApp keeps every photo, video and voice note in one " +
-                                            "folder per type, so a chat's own files come with its export.",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = TextMuted,
-                                        lineHeight = 15.sp
-                                    )
-                                    Spacer(Modifier.height(8.dp))
                                     WhatsAppRow(
                                         icon = Glyph.add,
                                         tint = WhatsAppGreen,
@@ -1221,128 +1195,13 @@ private fun WhatsAppImportDialog(
                                     }
                                 }
                             } else if (!hub.scanning) {
-                                Spacer(Modifier.height(10.dp))
+                                Spacer(Modifier.height(8.dp))
                                 Text(
-                                    text = "Why the list is empty: this folder only ever contains what " +
-                                        "WhatsApp has written there itself. A chat you are still having is " +
-                                        "in WhatsApp's private storage, which Android forbids any other app " +
-                                        "to read — not just Secure Wallet. Export it once and it appears here.",
+                                    text = "No exported chats in that folder yet.",
                                     style = MaterialTheme.typography.bodySmall,
-                                    color = NeonAmber,
-                                    lineHeight = 18.sp
+                                    color = TextMuted
                                 )
-                                Spacer(Modifier.height(10.dp))
-                                listOf(
-                                    "In WhatsApp open the chat you want, tap ⋮ → More → Export chat.",
-                                    "Choose \"Attach media\" for the whole clone, \"Without media\" for the words.",
-                                    "Share the file to Secure Wallet Pro — that needs no folder at all — or " +
-                                        "save it and use \"Choose the chat file\".",
-                                    "Come back here and tap the refresh arrow: the chat is in the list.",
-                                    "WhatsApp's own databases (msgstore.db.crypt14 and the rest) are " +
-                                        "encrypted with a key only WhatsApp holds, so they are skipped " +
-                                        "rather than reported as failures."
-                                ).forEachIndexed { index, step ->
-                                    Row(
-                                        modifier = Modifier.padding(vertical = 4.dp),
-                                        verticalAlignment = Alignment.Top
-                                    ) {
-                                        Text(
-                                            text = "${index + 1}",
-                                            style = MaterialTheme.typography.labelLarge,
-                                            color = WhatsAppGreen,
-                                            modifier = Modifier.width(20.dp)
-                                        )
-                                        Text(
-                                            text = step,
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = TextSecondary,
-                                            lineHeight = 18.sp
-                                        )
-                                    }
-                                }
                             }
-                        }
-
-                        Spacer(Modifier.height(14.dp))
-                        Text(
-                            text = "OPEN ONE CHAT IN WHATSAPP",
-                            style = MaterialTheme.typography.labelLarge,
-                            color = WhatsAppGreen,
-                            letterSpacing = 1.sp
-                        )
-                        Spacer(Modifier.height(6.dp))
-                        VaultTextField(
-                            value = chatNumber,
-                            onValueChange = { chatNumber = it },
-                            label = "Number of the chat (optional)",
-                            keyboardType = KeyboardType.Phone,
-                            leadingIcon = Glyph.chat,
-                            supportingText = when {
-                                chatNumber.isBlank() ->
-                                    "Leave blank to choose the chat yourself inside WhatsApp."
-                                digits == null -> "Keep typing — at least 7 digits, country code included."
-                                else -> "Opens +$digits in WhatsApp."
-                            }
-                        )
-                        Spacer(Modifier.height(8.dp))
-                        if (installed.isNotEmpty()) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                installed.forEach { (packageId, name) ->
-                                    GhostButton(
-                                        text = name,
-                                        icon = Glyph.openInNew,
-                                        accent = WhatsAppGreen,
-                                        modifier = Modifier.weight(1f),
-                                        onClick = { onOpenChat(packageId, chatNumber) }
-                                    )
-                                }
-                            }
-                        } else {
-                            Text(
-                                text = "Neither WhatsApp nor WhatsApp Business is visible to Secure Wallet, " +
-                                    "so a chat cannot be opened from here. Export it on another phone and " +
-                                    "choose the file with \"Choose the chat file\" above.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = TextMuted,
-                                lineHeight = 17.sp
-                            )
-                        }
-                        val notice = when (launch) {
-                            is WhatsAppLaunch.Opened -> if (digits != null) {
-                                "+$digits is open in ${launch.appName}. Export it with “Attach media”, " +
-                                    "then refresh this list and tap the chat."
-                            } else {
-                                "${launch.appName} is open. Choose the chat there, tap ⋮ → More → " +
-                                    "Export chat → Attach media, then refresh this list."
-                            }
-
-                            WhatsAppLaunch.NotInstalled ->
-                                "The system would not hand over to WhatsApp. Export the chat another " +
-                                    "way, or allow the folder and import what is already on this phone."
-
-                            WhatsAppLaunch.Blocked ->
-                                "A WhatsApp app is installed but this device refused the hand-over — a " +
-                                    "work profile or OEM restriction. Allow the folder instead."
-
-                            null -> null
-                        }
-                        if (notice != null) {
-                            Spacer(Modifier.height(10.dp))
-                            WhatsAppNote(
-                                icon = when (launch) {
-                                    WhatsAppLaunch.NotInstalled, WhatsAppLaunch.Blocked ->
-                                        Glyph.errorOutline
-                                    else -> Glyph.chat
-                                },
-                                tint = if (launch is WhatsAppLaunch.Opened) WhatsAppGreen else NeonCoral,
-                                text = notice
-                            )
-                        }
-
-                        if (hub.granted) {
                             Spacer(Modifier.height(6.dp))
                             GhostButton(
                                 text = "Stop reading that folder",

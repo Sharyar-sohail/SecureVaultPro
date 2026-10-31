@@ -143,17 +143,17 @@ class ThemeTokensTest {
 
     @Test
     fun `roles move when the theme moves`() {
-        val ios = VaultPalettes.find("ios")
+        val solstice = VaultPalettes.find("solstice")
         val aqua = VaultPalettes.find("aqua")
-        val iosAccent = withPalette(ios) { VaultColor.accent }
+        val solsticeAccent = withPalette(solstice) { VaultColor.accent }
         val aquaAccent = withPalette(aqua) { VaultColor.accent }
-        assertNotEquals(iosAccent, aquaAccent)
+        assertNotEquals(solsticeAccent, aquaAccent)
     }
 
     @Test
     fun `radius ramp follows the palette instead of a magic number`() {
-        val tight = VaultPalettes.find("light")
-        val airy = VaultPalettes.find("ios")
+        val tight = VaultPalettes.find("lime")
+        val airy = VaultPalettes.find("solstice")
         withPalette(tight) {
             assertTrue(VaultRadius.xs < VaultRadius.sm)
             assertTrue(VaultRadius.sm < VaultRadius.md)
@@ -233,8 +233,8 @@ class ThemeTokensTest {
         mapOf(
             "obsidian" to "dark", "cyberpunk" to "dark", "emui" to "dark",
             "coloros" to "aqua", "glass" to "aqua", "aurora" to "aqua",
-            "apple" to "ios", "funtouch" to "ios", "hyperos" to "ios",
-            "samsung" to "oneui", "lumen_white" to "light", "" to "aqua"
+            "apple" to "solstice", "funtouch" to "solstice", "hyperos" to "solstice",
+            "samsung" to "oneui", "lumen_white" to "lime", "" to "aqua"
         ).forEach { (legacy, expected) ->
             assertEquals(expected, VaultPalettes.find(legacy).id)
         }

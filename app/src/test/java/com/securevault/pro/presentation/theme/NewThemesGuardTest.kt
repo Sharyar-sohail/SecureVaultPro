@@ -82,7 +82,7 @@ class NewThemesGuardTest {
         }
         // The five originals keep their flags; nothing in the lineup flips by accident.
         val lightIds = VaultPalettes.all.filter { it.isLight }.map { it.id }
-        assertEquals(listOf("ios", "oneui", "light", "mint", "arctic", "terra", "slate", "sakura"), lightIds)
+        assertEquals(listOf("solstice", "oneui", "lime", "mint", "arctic", "terra", "slate", "sakura"), lightIds)
     }
 
     @Test

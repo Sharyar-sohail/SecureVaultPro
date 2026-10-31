@@ -31,21 +31,21 @@ enum class VaultModule(val key: String, val label: String) {
 object BrandIconCatalog {
 
     private val icons: Map<String, Map<VaultModule, Int>> = mapOf(
-        "ios" to mapOf(
-            VaultModule.PASSWORDS to R.drawable.ic_b_ios_passwords,
-            VaultModule.TWO_FA to R.drawable.ic_b_ios_twofa,
-            VaultModule.CARDS to R.drawable.ic_b_ios_cards,
-            VaultModule.CRYPTO to R.drawable.ic_b_ios_crypto,
-            VaultModule.NOTES to R.drawable.ic_b_ios_notes,
-            VaultModule.CONTACTS to R.drawable.ic_b_ios_contacts,
-            VaultModule.FILES to R.drawable.ic_b_ios_files,
-            VaultModule.SCAN to R.drawable.ic_b_ios_scan,
-            VaultModule.BACKUP to R.drawable.ic_b_ios_backup,
-            VaultModule.HEALTH to R.drawable.ic_b_ios_health,
-            VaultModule.SYNC to R.drawable.ic_b_ios_sync,
-            VaultModule.TOOLS to R.drawable.ic_b_ios_tools,
-            VaultModule.STEGO to R.drawable.ic_b_ios_stego,
-            VaultModule.HOME to R.drawable.ic_b_ios_home
+        "solstice" to mapOf(
+            VaultModule.PASSWORDS to R.drawable.ic_b_solstice_passwords,
+            VaultModule.TWO_FA to R.drawable.ic_b_solstice_twofa,
+            VaultModule.CARDS to R.drawable.ic_b_solstice_cards,
+            VaultModule.CRYPTO to R.drawable.ic_b_solstice_crypto,
+            VaultModule.NOTES to R.drawable.ic_b_solstice_notes,
+            VaultModule.CONTACTS to R.drawable.ic_b_solstice_contacts,
+            VaultModule.FILES to R.drawable.ic_b_solstice_files,
+            VaultModule.SCAN to R.drawable.ic_b_solstice_scan,
+            VaultModule.BACKUP to R.drawable.ic_b_solstice_backup,
+            VaultModule.HEALTH to R.drawable.ic_b_solstice_health,
+            VaultModule.SYNC to R.drawable.ic_b_solstice_sync,
+            VaultModule.TOOLS to R.drawable.ic_b_solstice_tools,
+            VaultModule.STEGO to R.drawable.ic_b_solstice_stego,
+            VaultModule.HOME to R.drawable.ic_b_solstice_home
         ),
         "oneui" to mapOf(
             VaultModule.PASSWORDS to R.drawable.ic_b_oneui_passwords,
@@ -79,21 +79,21 @@ object BrandIconCatalog {
             VaultModule.STEGO to R.drawable.ic_b_aqua_stego,
             VaultModule.HOME to R.drawable.ic_b_aqua_home
         ),
-        "light" to mapOf(
-            VaultModule.PASSWORDS to R.drawable.ic_b_light_passwords,
-            VaultModule.TWO_FA to R.drawable.ic_b_light_twofa,
-            VaultModule.CARDS to R.drawable.ic_b_light_cards,
-            VaultModule.CRYPTO to R.drawable.ic_b_light_crypto,
-            VaultModule.NOTES to R.drawable.ic_b_light_notes,
-            VaultModule.CONTACTS to R.drawable.ic_b_light_contacts,
-            VaultModule.FILES to R.drawable.ic_b_light_files,
-            VaultModule.SCAN to R.drawable.ic_b_light_scan,
-            VaultModule.BACKUP to R.drawable.ic_b_light_backup,
-            VaultModule.HEALTH to R.drawable.ic_b_light_health,
-            VaultModule.SYNC to R.drawable.ic_b_light_sync,
-            VaultModule.TOOLS to R.drawable.ic_b_light_tools,
-            VaultModule.STEGO to R.drawable.ic_b_light_stego,
-            VaultModule.HOME to R.drawable.ic_b_light_home
+        "lime" to mapOf(
+            VaultModule.PASSWORDS to R.drawable.ic_b_lime_passwords,
+            VaultModule.TWO_FA to R.drawable.ic_b_lime_twofa,
+            VaultModule.CARDS to R.drawable.ic_b_lime_cards,
+            VaultModule.CRYPTO to R.drawable.ic_b_lime_crypto,
+            VaultModule.NOTES to R.drawable.ic_b_lime_notes,
+            VaultModule.CONTACTS to R.drawable.ic_b_lime_contacts,
+            VaultModule.FILES to R.drawable.ic_b_lime_files,
+            VaultModule.SCAN to R.drawable.ic_b_lime_scan,
+            VaultModule.BACKUP to R.drawable.ic_b_lime_backup,
+            VaultModule.HEALTH to R.drawable.ic_b_lime_health,
+            VaultModule.SYNC to R.drawable.ic_b_lime_sync,
+            VaultModule.TOOLS to R.drawable.ic_b_lime_tools,
+            VaultModule.STEGO to R.drawable.ic_b_lime_stego,
+            VaultModule.HOME to R.drawable.ic_b_lime_home
         ),
         "dark" to mapOf(
             VaultModule.PASSWORDS to R.drawable.ic_b_dark_passwords,
@@ -275,7 +275,7 @@ object BrandIconCatalog {
 
     /** Baked into the drawable too, exposed here for borders, badges and labels. */
     private val accents: Map<String, Map<VaultModule, ULong>> = mapOf(
-        "ios" to mapOf(
+        "solstice" to mapOf(
             VaultModule.PASSWORDS to 0xFF06529EuL,
             VaultModule.TWO_FA to 0xFF165E28uL,
             VaultModule.CARDS to 0xFF302DBEuL,
@@ -323,7 +323,7 @@ object BrandIconCatalog {
             VaultModule.STEGO to 0xFF266FA2uL,
             VaultModule.HOME to 0xFF1D8371uL
         ),
-        "light" to mapOf(
+        "lime" to mapOf(
             VaultModule.PASSWORDS to 0xFF582EC6uL,
             VaultModule.TWO_FA to 0xFF1C853AuL,
             VaultModule.CARDS to 0xFF1971E3uL,

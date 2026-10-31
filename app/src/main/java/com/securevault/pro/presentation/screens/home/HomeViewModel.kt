@@ -2,6 +2,7 @@ package com.securevault.pro.presentation.screens.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.securevault.pro.data.backup.BackupCounts
 import com.securevault.pro.data.remote.google.AutoSyncManager
 import com.securevault.pro.data.remote.google.SyncLogEntry
 import com.securevault.pro.data.repository.VaultRepository
@@ -43,6 +44,7 @@ data class HomeUiState(
     val syncLastAt: Long = 0L,
     val syncError: String? = null,
     val syncLog: List<SyncLogEntry> = emptyList(),
+    val syncCounts: BackupCounts? = null,
     val expiringSoon: List<VaultEntry> = emptyList()
 )
 
@@ -52,7 +54,7 @@ class HomeViewModel @Inject constructor(
     private val repository: VaultRepository,
     appLockManager: AppLockManager,
     sessionManager: SessionManager,
-    autoSyncManager: AutoSyncManager
+    private val autoSyncManager: AutoSyncManager
 ) : ViewModel() {
 
     private data class VaultSlice(
@@ -131,6 +133,7 @@ class HomeViewModel @Inject constructor(
             syncLastAt = maxOf(sync.lastSyncedAt, prefs.lastBackup),
             syncError = sync.lastError,
             syncLog = sync.log,
+            syncCounts = sync.lastCounts,
             expiringSoon = vault.expiringSoon
         )
     }.catch {
@@ -180,5 +183,10 @@ class HomeViewModel @Inject constructor(
 
     fun toggleFavorite(entryId: String) {
         viewModelScope.launch { repository.toggleFavorite(entryId) }
+    }
+
+    /** The sync orb beside the pie chart is a button: it pushes the vault now, not on a timer. */
+    fun syncNow() {
+        viewModelScope.launch { autoSyncManager.syncNow() }
     }
 }

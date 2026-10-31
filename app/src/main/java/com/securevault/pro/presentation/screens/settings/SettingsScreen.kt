@@ -81,8 +81,6 @@ import com.securevault.pro.presentation.components.vaultGutter
 import com.securevault.pro.presentation.theme.DockStyle
 import com.securevault.pro.presentation.theme.HeaderStyle
 import com.securevault.pro.presentation.theme.NavIndicator
-import com.securevault.pro.presentation.theme.VaultFont
-import com.securevault.pro.presentation.theme.VaultFonts
 import com.securevault.pro.presentation.theme.VaultPalette
 import com.securevault.pro.presentation.theme.VaultPalettes
 import kotlinx.coroutines.Dispatchers
@@ -100,7 +98,6 @@ fun SettingsScreen(
     onBack: () -> Unit,
     onVaultWiped: () -> Unit,
     onOpenBackup: () -> Unit,
-    onOpenHealth: () -> Unit,
     onScanPairing: () -> Unit = {},
     pairingPayload: String? = null,
     onPairingConsumed: () -> Unit = {},
@@ -372,38 +369,6 @@ fun SettingsScreen(
                 Spacer(Modifier.height(8.dp))
                 Text(
                     text = "Every screen, card, button, icon set and the navigation bar re-skin immediately — no restart required.",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = VaultColor.textFaint,
-                    lineHeight = 15.sp
-                )
-            }
-
-            SettingsSection(
-                title = "Typography",
-                subtitle = "Six typefaces · applied across the whole app",
-                accent = VaultColor.secondary
-            ) {
-                VaultFonts.all.chunked(2).forEach { rowFonts ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        rowFonts.forEach { font ->
-                            FontChoiceTile(
-                                font = font,
-                                selected = state.fontId == font.id,
-                                modifier = Modifier.weight(1f),
-                                onSelect = { viewModel.setFont(font.id) }
-                            )
-                        }
-                        if (rowFonts.size == 1) Spacer(Modifier.weight(1f))
-                    }
-                }
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    text = "The typeface is shared by every theme, so your reading style survives a skin change.",
                     style = MaterialTheme.typography.labelSmall,
                     color = VaultColor.textFaint,
                     lineHeight = 15.sp
@@ -866,21 +831,6 @@ fun SettingsScreen(
                         )
                     }
                 }
-            }
-
-            SettingsSection(
-                title = "Insights",
-                subtitle = "Analysis never leaves the device",
-                accent = VaultColor.decorative
-            ) {
-                SettingsActionRow(
-                    icon = Glyph.insights,
-                    accent = VaultColor.decorative,
-                    title = "Password health",
-                    subtitle = "Weak, reused, missing 2FA and breached logins",
-                    enabled = !state.decoy,
-                    onClick = onOpenHealth
-                )
             }
 
             SettingsSection(
@@ -2002,64 +1952,6 @@ private fun MiniDockBar(palette: VaultPalette, modifier: Modifier = Modifier) {
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun FontChoiceTile(
-    font: VaultFont,
-    selected: Boolean,
-    modifier: Modifier = Modifier,
-    onSelect: () -> Unit
-) {
-    val shape = VaultShapes.button
-    Column(
-        modifier = modifier
-            .clip(shape)
-            .background(
-                if (selected) VaultColor.accent.copy(alpha = 0.12f) else VaultColor.elevated.copy(alpha = 0.55f)
-            )
-            .border(1.dp, if (selected) VaultColor.accent else VaultColor.hairline, shape)
-            .clickable(onClick = onSelect)
-            .padding(horizontal = 11.dp, vertical = 9.dp)
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = "Aa",
-                style = MaterialTheme.typography.titleMedium,
-                fontFamily = font.family,
-                color = if (selected) VaultColor.accent else VaultColor.textStrong,
-                modifier = Modifier.weight(1f)
-            )
-            if (selected) {
-                ThemedIcon(
-                    glyph = Glyph.checkCircle,
-                    contentDescription = null,
-                    tint = VaultColor.accent,
-                    modifier = Modifier.size(15.dp)
-                )
-            }
-        }
-        Spacer(Modifier.height(2.dp))
-        Text(
-            text = font.name,
-            style = MaterialTheme.typography.labelMedium,
-            fontFamily = font.family,
-            color = VaultColor.textStrong,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
-        Text(
-            text = font.tagline,
-            style = VaultType.micro(),
-            fontFamily = font.family,
-            color = VaultColor.textBody,
-            minLines = 2,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            lineHeight = 12.sp
-        )
     }
 }
 

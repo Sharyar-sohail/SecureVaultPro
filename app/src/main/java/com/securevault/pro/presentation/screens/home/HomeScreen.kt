@@ -35,6 +35,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.MaterialTheme
@@ -68,6 +69,7 @@ import com.securevault.pro.domain.model.VaultEntry
 import com.securevault.pro.presentation.components.BrandIconCatalog
 import com.securevault.pro.presentation.components.BrandModuleIcon
 import com.securevault.pro.presentation.components.GlassCard
+import com.securevault.pro.presentation.components.GradientButton
 import com.securevault.pro.presentation.components.GlassIconButton
 import com.securevault.pro.presentation.components.MonogramBadge
 import com.securevault.pro.presentation.components.NeonBackground
@@ -152,6 +154,7 @@ fun HomeScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     var quickAdd by remember { mutableStateOf(false) }
+    var syncSheet by remember { mutableStateOf(false) }
     val palette = VaultPaletteController.current
     val calendar = Calendar.getInstance()
     val greeting = greetingForHour(calendar.get(Calendar.HOUR_OF_DAY))
@@ -234,6 +237,10 @@ fun HomeScreen(
                             syncPhase = syncPhase,
                             syncLabel = if (roomy) syncLabel else null,
                             onNavigate = onNavigate,
+                            onSync = {
+                                syncSheet = true
+                                viewModel.syncNow()
+                            },
                             modifier = Modifier.revealEntry(1)
                         )
                     } else if (showStrip) {
@@ -241,6 +248,10 @@ fun HomeScreen(
                             state = state,
                             syncPhase = syncPhase,
                             onNavigate = onNavigate,
+                            onSync = {
+                                syncSheet = true
+                                viewModel.syncNow()
+                            },
                             modifier = Modifier.revealEntry(1)
                         )
                     }
@@ -318,6 +329,224 @@ fun HomeScreen(
                 quickAdd = false
                 onNavigate(route)
             }
+        )
+    }
+
+    if (syncSheet) {
+        SyncNowSheet(
+            state = state,
+            onSync = viewModel::syncNow,
+            onDismiss = { syncSheet = false }
+        )
+    }
+}
+
+// -----------------------------------------------------------------------------------------
+// The sync sheet. The orb beside the pie chart is a button, and this is what it opens: the
+// live state of the push (running / queued / failed / up to date), what is waiting to leave
+// the phone, how many records of each kind the archive carries, and the last few attempts.
+// It is a sheet on purpose — a sync is an overlay on the dashboard, never a new screen.
+// -----------------------------------------------------------------------------------------
+@Composable
+private fun SyncNowSheet(
+    state: HomeUiState,
+    onSync: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val palette = VaultPaletteController.current
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val syncCounts = state.syncCounts
+    val localTotal = state.counts
+    val status = when {
+        state.syncRunning -> "Pushing now"
+        state.syncError != null -> "Last attempt failed"
+        state.syncPending -> "Changes queued"
+        state.syncLastAt > 0L -> "Up to date"
+        else -> "Not synced yet"
+    }
+    val detail = when {
+        state.syncRunning -> "Encrypting the vault and writing the cloud archive."
+        state.syncError != null -> state.syncError.orEmpty()
+        state.syncPending -> "Your latest edits leave on the next push."
+        state.syncLastAt > 0L -> "Last push ${syncTimeLabel(state.syncLastAt)}"
+        else -> "Sign in to Google to mirror the vault to Drive."
+    }
+    val phaseColor = when {
+        state.syncError != null -> VaultColor.debit
+        state.syncRunning -> VaultColor.accent
+        state.syncPending -> VaultColor.warning
+        else -> VaultColor.credit
+    }
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = VaultColor.surface,
+        contentColor = VaultColor.textStrong,
+        shape = palette.cardShape,
+        dragHandle = { BottomSheetDefaults.DragHandle(color = palette.outlineColor) }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .navigationBarsPadding()
+                .padding(start = 20.dp, end = 20.dp, bottom = 22.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                ThemedIcon(
+                    glyph = Glyph.sync,
+                    contentDescription = null,
+                    tint = phaseColor,
+                    modifier = Modifier.size(22.dp)
+                )
+                Spacer(Modifier.width(10.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        text = "Cloud sync",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = VaultColor.textStrong
+                    )
+                    Text(
+                        text = status,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = phaseColor
+                    )
+                }
+                GlassIconButton(
+                    icon = Glyph.close,
+                    contentDescription = "Close",
+                    onClick = onDismiss,
+                    tint = VaultColor.textBody
+                )
+            }
+            Spacer(Modifier.height(14.dp))
+            Text(
+                text = detail,
+                style = MaterialTheme.typography.bodySmall,
+                color = VaultColor.textBody
+            )
+            Spacer(Modifier.height(12.dp))
+            // One bar, three readings: moving while pushing, full when settled, partial when
+            // edits are still queued. Decorative, so it never claims a percentage.
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(6.dp)
+                    .clip(RoundedCornerShape(3.dp))
+                    .background(VaultColor.textFaint.copy(alpha = 0.18f))
+            ) {
+                val fill = when {
+                    state.syncRunning -> 0.62f
+                    state.syncError != null -> 0.35f
+                    state.syncPending -> 0.55f
+                    state.syncLastAt > 0L -> 1f
+                    else -> 0.08f
+                }
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(fill)
+                        .fillMaxHeight()
+                        .clip(RoundedCornerShape(3.dp))
+                        .background(phaseColor)
+                )
+            }
+            Spacer(Modifier.height(16.dp))
+            Text(
+                text = "In this vault",
+                style = VaultType.micro(),
+                color = VaultColor.textFaint
+            )
+            Spacer(Modifier.height(6.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                SyncCountCell("Passwords", localTotal.passwords, Modifier.weight(1f))
+                SyncCountCell("2FA", localTotal.totps, Modifier.weight(1f))
+                SyncCountCell("Cards", localTotal.cards, Modifier.weight(1f))
+            }
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                SyncCountCell("Notes", localTotal.notes, Modifier.weight(1f))
+                SyncCountCell("Contacts", localTotal.contacts, Modifier.weight(1f))
+                SyncCountCell("Files", localTotal.files, Modifier.weight(1f))
+            }
+            if (syncCounts != null) {
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    text = "Last archive · ${syncCounts.total} records".trim(),
+                    style = VaultType.micro(),
+                    color = VaultColor.textFaint
+                )
+            }
+            val recent = state.syncLog.take(4)
+            if (recent.isNotEmpty()) {
+                Spacer(Modifier.height(16.dp))
+                Text(
+                    text = "Recent pushes",
+                    style = VaultType.micro(),
+                    color = VaultColor.textFaint
+                )
+                Spacer(Modifier.height(6.dp))
+                recent.forEach { entry ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(7.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(if (entry.success) VaultColor.credit else VaultColor.debit)
+                        )
+                        Spacer(Modifier.width(9.dp))
+                        Text(
+                            text = entry.message,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = VaultColor.textBody,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Text(
+                            text = syncTimeLabel(entry.at),
+                            style = VaultType.micro(),
+                            color = VaultColor.textFaint
+                        )
+                    }
+                }
+            }
+            Spacer(Modifier.height(18.dp))
+            GradientButton(
+                text = if (state.syncRunning) "Syncing…" else "Sync now",
+                icon = Glyph.sync,
+                enabled = !state.syncRunning,
+                loading = state.syncRunning,
+                modifier = Modifier.fillMaxWidth(),
+                onClick = onSync
+            )
+        }
+    }
+}
+
+@Composable
+private fun SyncCountCell(label: String, value: Int, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(VaultColor.elevated)
+            .padding(horizontal = 10.dp, vertical = 8.dp)
+    ) {
+        Text(
+            text = value.toString(),
+            style = MaterialTheme.typography.titleMedium,
+            color = VaultColor.textStrong,
+            maxLines = 1
+        )
+        Text(
+            text = label,
+            style = VaultType.micro(),
+            color = VaultColor.textFaint,
+            maxLines = 1
         )
     }
 }
@@ -500,6 +729,7 @@ private fun CompactCompositionStrip(
     state: HomeUiState,
     syncPhase: SyncPhase,
     onNavigate: (String) -> Unit,
+    onSync: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val categories = compositionCategories(state)
@@ -565,7 +795,7 @@ private fun CompactCompositionStrip(
                 }
             }
             Spacer(Modifier.width(8.dp))
-            SyncOrb(phase = syncPhase, label = null)
+            SyncOrb(phase = syncPhase, label = null, onClick = onSync)
         }
     }
 }
@@ -625,7 +855,12 @@ private fun CompositionChip(
 private enum class SyncPhase { RUNNING, PENDING, DONE, ERROR }
 
 @Composable
-private fun SyncOrb(phase: SyncPhase, label: String?, modifier: Modifier = Modifier) {
+private fun SyncOrb(
+    phase: SyncPhase,
+    label: String?,
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null
+) {
     val transition = rememberInfiniteTransition(label = "syncOrb")
     val cycle by transition.animateFloat(
         initialValue = 0f,
@@ -639,7 +874,16 @@ private fun SyncOrb(phase: SyncPhase, label: String?, modifier: Modifier = Modif
     val density = LocalDensity.current
     val risePx = with(density) { 14.dp.toPx() }
 
-    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+    Column(
+        modifier = modifier.then(
+            if (onClick != null) Modifier
+                .clip(RoundedCornerShape(10.dp))
+                .clickable(onClick = onClick)
+                .padding(4.dp)
+            else Modifier
+        ),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
         AnimatedContent(
             targetState = phase,
             transitionSpec = {
@@ -712,7 +956,7 @@ private fun SyncOrb(phase: SyncPhase, label: String?, modifier: Modifier = Modif
     }
 }
 
-private fun syncTimeLabel(lastAt: Long): String? = when {
+private fun syncTimeLabel(lastAt: Long): String = when {
     lastAt <= 0L -> "never"
     else -> SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(lastAt))
 }
@@ -727,6 +971,7 @@ private fun VaultCompositionCard(
     syncPhase: SyncPhase,
     syncLabel: String?,
     onNavigate: (String) -> Unit,
+    onSync: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val palette = VaultPaletteController.current
@@ -758,7 +1003,7 @@ private fun VaultCompositionCard(
                     overflow = TextOverflow.Ellipsis
                 )
             }
-            SyncOrb(phase = syncPhase, label = syncLabel)
+            SyncOrb(phase = syncPhase, label = syncLabel, onClick = onSync)
             Spacer(Modifier.width(10.dp))
             TagChip(
                 text = if (selected >= 0) categories[selected].label.uppercase() else "LIVE",

@@ -625,7 +625,6 @@ private fun UnlockedApp(
                         navController.popBackStack(Routes.HOME, inclusive = false)
                     },
                     onOpenBackup = { navController.navigate(Routes.BACKUP) },
-                    onOpenHealth = { navController.navigate(Routes.HEALTH) },
                     onScanPairing = { navController.navigate(Routes.PAIR_SCANNER) },
                     pairingPayload = pairingRaw,
                     onPairingConsumed = { entry.savedStateHandle["pairingPayload"] = null }
