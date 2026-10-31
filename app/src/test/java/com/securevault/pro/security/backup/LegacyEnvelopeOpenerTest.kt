@@ -169,10 +169,14 @@ class LegacyEnvelopeOpenerTest {
     }
 
     @Test
-    fun `the iteration sweep covers every count any release shipped`() {
+    fun `the iteration sweep covers every shipped count and keeps cheap fallbacks`() {
         assertEquals(
             listOf(KeyDerivation.PBKDF2_ITERATIONS, KeyDerivation.PIN_ITERATIONS, 120_000),
-            LegacyEnvelopeOpener.ITERATION_PROFILES
+            LegacyEnvelopeOpener.ITERATION_PROFILES.take(3)
+        )
+        assertEquals(
+            listOf(100_000, 50_000, 10_000),
+            LegacyEnvelopeOpener.ITERATION_PROFILES.drop(3)
         )
         assertEquals(600_000, LegacyEnvelopeOpener.CURRENT_ITERATIONS)
         assertEquals(210_000, LegacyEnvelopeOpener.PIN_PROFILE_ITERATIONS)

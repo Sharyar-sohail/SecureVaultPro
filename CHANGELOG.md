@@ -20,6 +20,50 @@ Blogger XML artifact, and the backup/checkpoint snapshots, which hold vault and 
 data. One stale 3.3.4 theme export under `release-site/` is left on disk but untracked because
 it embedded a Firebase `apiKey`; themes we ship carry a blank `var SEED` and no cloud config.
 
+## [3.4.5] — 2026-10-31 (versionCode 350)
+
+The owner reported screenshots as a security gap, and that a phrase still stood in front of an
+old backup (this time the XML copy of the vault, which the restore walk never tried).
+
+### Added — screenshots blocked by default
+- `FLAG_SECURE` is on app-wide from first launch: screenshots and recent-app previews are hidden,
+  applied in `MainActivity.onCreate` and re-applied by `VaultAppScaffold` from stored state.
+- Settings → Security now carries **Allow screenshots**, off by default, backed by the same
+  `screenshot_blocked` flag. Turning it on lifts the flag immediately; it never affects lock state.
+
+### Fixed — no phrase anywhere before login
+- The pre-login screen offers exactly three tiles and nothing to type: the seed tab, the
+  recovery-seed section, the Drive passphrase dialog, the import passphrase field and the
+  failure-card opt-in are gone. `OnboardingScreen` asks the view model for a restore; the file
+  tile opens the system picker directly.
+- `SetupViewModel` lost `restorePassphrase`, `setRestorePassphrase` and the seed path;
+  `restoreFromDrive(email)` is the only Drive entry point and always calls
+  `restoreAnyCloudBackup(email)`. `importLocalBackup` now passes `passphrase = null`.
+
+### Fixed — the XML backup is a first-class restore source
+- `listCloudBackups()` no longer filters `vault_backup.xml.enc`, and the restore walk orders
+  primary first, then newest by modified time, so a JSON slot this device cannot read no longer
+  blocks the XML copy of the same vault.
+- New `BackupXmlParser` reads the mirror written beside every JSON backup; `BackupParser` detects
+  a `<`-leading body and routes it through the parser. The DOM is hardened (no DOCTYPE, no
+  external entities, no XInclude).
+- Plain-text JSON *and* XML are both accepted from Drive and from a local import.
+
+### Fixed — wider legacy key sweep
+- `LegacyEnvelopeOpener.ITERATION_PROFILES` keeps the shipped order (600,000 → 210,000 →
+  120,000) and adds cheap fallbacks (100,000, 50,000, 10,000) for builds whose exact count was
+  never recorded. GCM still authenticates before anything is accepted.
+- Failure and progress copy never mentions a passphrase; the undecryptable diagnostic still
+  states envelope version, salt size, payload shape, round count and `secrets x profiles` tried.
+
+### Testing
+- 569 unit tests, 0 failures. New `ScreenshotPolicyTest` pins the default-blocked flag, the
+  inverted toggle and both FLAG_SECURE application points; `BackupXmlParserTest` round-trips a
+  full vault through the XML serializer and rejects DOCTYPE/foreign documents;
+  `LegacyRestoreReachTest` pins the XML slot as reachable and the failure copy as phrase-free;
+  `WelcomeGateTest` and `GoogleRestoreFlowTest` assert no phrase/seed entry point exists at all;
+  `LegacyEnvelopeOpenerTest` pins the fallback profile list.
+
 ## [3.4.4] — 2026-10-31 (versionCode 349)
 
 The owner signed in with Google on 3.4.3 and was asked for a passphrase before the restore,

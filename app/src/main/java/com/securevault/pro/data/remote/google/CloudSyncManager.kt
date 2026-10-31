@@ -218,9 +218,9 @@ class CloudSyncManager @Inject constructor(
             if (!driveService.hasDriveAccess()) {
                 throw CloudSyncException(DriveFaults.SIGN_IN_AGAIN)
             }
-            driveService.listBackups().filterNot {
-                it.name == XML_BACKUP_NAME
-            }
+            // The XML mirror is a first-class backup: a JSON slot this device cannot read must
+            // not stop the XML copy of the same vault from being tried.
+            driveService.listBackups()
         }
     }
 
@@ -329,8 +329,9 @@ class CloudSyncManager @Inject constructor(
     }
 
     /**
-     * Restore one named Drive file. [passphrase] is the owner's own secret, typed on the welcome
-     * screen: it is tried first, because it is the only secret that a fresh install can be given.
+     * Restore one named Drive file. [passphrase] is only ever supplied by the post-login backup
+     * screen for an export the owner deliberately sealed; the welcome screen passes nothing and
+     * this device's keys open the file.
      *
      * [seedSafetyNet] is off while a walk is still trying other copies. Installing the embedded
      * vault after one unreadable file made an empty device look populated, the next silent sync
@@ -351,14 +352,14 @@ class CloudSyncManager @Inject constructor(
             8
         )
         try {
-            update("Fetching your vault key", "Cloud keyring, using the passphrase you typed", 18)
+            update("Fetching your vault key", "Account keyring and this device's key", 18)
             val keyringNote = attachKeyringFromCloud(passphrase)
             update("Downloading data from Google Drive...", file.name, 30)
             val bytes = withTimeout(RESTORE_TIMEOUT_MS) { driveService.download(file.id) }
             if (bytes.size > MAX_BACKUP_BYTES) {
                 throw CloudSyncException("Backup is larger than the supported 120 MB limit")
             }
-            update("Decrypting vault...", "PBKDF2-SHA256 · your passphrase and key, then every legacy key", 45)
+            update("Decrypting vault...", "PBKDF2-SHA256 · vault key, then every legacy key", 45)
             val decoded = decryptBackup(bytes, accountEmail, passphrase)
             update("Importing data into app...", "Passwords, cards, 2FA, contacts, notes & files", 55)
             val outcome = mergeDecoded(decoded)
@@ -402,7 +403,7 @@ class CloudSyncManager @Inject constructor(
         if (files.isEmpty()) {
             return Result.failure(CloudSyncException("No encrypted backup was found in Google Drive."))
         }
-        val ordered = files.filterNot { it.name.endsWith(".xml.enc") }.sortedWith(
+        val ordered = files.sortedWith(
             compareByDescending<CloudBackupFile> { it.isPrimary }.thenByDescending { it.modifiedTime }
         )
         var lastReason: String? = null
@@ -417,8 +418,8 @@ class CloudSyncManager @Inject constructor(
         }
         return Result.failure(
             CloudSyncException(
-                "None of the ${ordered.size} backups in Drive opened with this device's key or the " +
-                    "passphrase you typed. ${lastReason ?: ""}".trim()
+                "None of the ${ordered.size} backups in Drive could be opened with the keys held " +
+                    "on this device. ${lastReason ?: ""}".trim()
             )
         )
     }
@@ -465,7 +466,7 @@ class CloudSyncManager @Inject constructor(
         try {
             if (bytes.isEmpty()) throw CloudSyncException("The selected backup is empty")
             if (bytes.size > MAX_BACKUP_BYTES) throw CloudSyncException("Backup exceeds the 120 MB limit")
-            update("Decrypting vault...", "Trying your passphrase and cloud keys", 35)
+            update("Decrypting vault...", "Trying every key this vault has been sealed with", 35)
             val decoded = decryptBackup(bytes, accountEmail, passphrase = passphrase)
             update(
                 if (replace) "Replacing vault from file" else "Importing data into app...",
@@ -766,8 +767,7 @@ class CloudSyncManager @Inject constructor(
         How to restore
         1. Open Secure Wallet Pro and choose "Import Backup File" on the welcome screen.
         2. Unzip this archive and select vault_backup.enc (or vault_backup.xml.enc).
-        3. Leave the passphrase blank — the app ships the universal cloud key.
-           If you exported with a personal passphrase, enter that instead.
+        3. Nothing needs typing: the app opens the file with the keys it has always used.
 
         This archive is never deleted by "Wipe All Data". Delete it manually in
         Google Drive → .SecureVaultPro-Archives when you no longer need it.
@@ -1023,21 +1023,23 @@ class CloudSyncManager @Inject constructor(
         secretsTried: Int,
         profiles: List<Int>
     ): String =
-        "The backup could not be decrypted with this account or key. Restore will fall back to the " +
-            "embedded vault. (envelope v${envelope.version}, salt ${envelope.saltBytes} bytes, " +
-            "body ${envelope.payloadShape}, ${envelope.iterations?.let { "$it rounds" } ?: "no stated round count"}, " +
-            "$secretsTried secrets x ${profiles.size} profiles tried. " +
-            "If this vault came from another device, type its passphrase and use 'Restore from file'.)"
+        "The backup could not be decrypted with this account or key. Restore will continue with " +
+            "the other Drive copies, then fall back to the embedded vault. (envelope v${envelope.version}, " +
+            "salt ${envelope.saltBytes} bytes, body ${envelope.payloadShape}, " +
+            "${envelope.iterations?.let { "$it rounds" } ?: "no stated round count"}, " +
+            "$secretsTried secrets x ${profiles.size} profiles tried.)"
 
     private fun readPlainJson(text: String, bytes: ByteArray): String {
         val trimmed = text.trimStart('\uFEFF', ' ', '\n', '\r', '\t')
-        if (trimmed.startsWith("{")) return trimmed
-        if (trimmed.startsWith("[")) return trimmed
+        // The XML mirror is a real backup body, not a foreign file; BackupParser opens it.
+        if (trimmed.startsWith("{") || trimmed.startsWith("[") || trimmed.startsWith("<")) return trimmed
         val decoded = decodeBase64OrNull(trimmed)
             ?: decodeBase64OrNull(bytes.toString(Charsets.ISO_8859_1))
         if (decoded != null) {
             val decodedText = runCatching { decoded.toString(Charsets.UTF_8).trim() }.getOrNull()
-            if (decodedText != null && (decodedText.startsWith("{") || decodedText.startsWith("["))) {
+            if (decodedText != null &&
+                (decodedText.startsWith("{") || decodedText.startsWith("[") || decodedText.startsWith("<"))
+            ) {
                 return decodedText
             }
         }

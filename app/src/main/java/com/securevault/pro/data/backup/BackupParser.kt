@@ -19,6 +19,17 @@ object BackupParser {
         if (json.isBlank()) {
             return ParsedBackup(BackupPayloadDto(), warnings = listOf("Empty backup payload"))
         }
+        // The XML mirror is written beside every JSON backup; a file whose only readable copy is
+        // the XML one is still a complete vault, not a malformed JSON document.
+        val lead = json.trimStart('\uFEFF', ' ', '\n', '\r', '\t')
+        if (lead.startsWith("<")) {
+            val payload = BackupXmlParser.parse(lead)
+                ?: return ParsedBackup(BackupPayloadDto(), warnings = listOf("Malformed XML backup"))
+            return ParsedBackup(
+                payload = payload,
+                warnings = listOf("Opened the XML copy of this vault")
+            )
+        }
         val rootElement = try {
             JsonParser.parseString(json.trim())
         } catch (e: Exception) {

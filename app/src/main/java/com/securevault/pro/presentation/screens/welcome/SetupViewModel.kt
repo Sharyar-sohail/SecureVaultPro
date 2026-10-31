@@ -35,7 +35,6 @@ data class SetupUiState(
     val biometricAvailable: Boolean = false,
     val signedInEmail: String = "",
     val restoreMode: SetupRestoreMode = SetupRestoreMode.NONE,
-    val restorePassphrase: String = "",
     val busy: Boolean = false,
     val passwordScore: Int = 0,
     val passwordLabel: String = "Empty",
@@ -98,7 +97,6 @@ class SetupViewModel @Inject constructor(
                 confirmPin = "",
                 signedInEmail = email,
                 restoreMode = SetupRestoreMode.NONE,
-                restorePassphrase = "",
                 busy = false,
                 error = null,
                 notice = null,
@@ -138,10 +136,6 @@ class SetupViewModel @Inject constructor(
 
     fun setUseBiometric(enabled: Boolean) {
         _state.update { it.copy(useBiometric = enabled) }
-    }
-
-    fun setRestorePassphrase(value: String) {
-        _state.update { it.copy(restorePassphrase = value) }
     }
 
     fun signInIntent(): Intent = driveService.signInIntent()
@@ -187,22 +181,8 @@ class SetupViewModel @Inject constructor(
                 warnings = emptyList()
             )
         }
-        flowJob = viewModelScope.launch { restoreFromDrive(email, passphrase = null) }
+        flowJob = viewModelScope.launch { restoreFromDrive(email) }
         return false
-    }
-
-    /** Opt-in only: a vault sealed with the owner's own passphrase, not a step in the Google path. */
-    fun restoreFromExistingDrive(passphrase: String? = null) {
-        val email = state.value.signedInEmail.ifBlank {
-            driveService.lastSignedInAccount()?.email.orEmpty()
-        }
-        if (email.isBlank()) {
-            _state.update {
-                it.copy(notice = "Connect Google Drive first, or restore from an encrypted file.", noticeIsError = true)
-            }
-            return
-        }
-        flowJob = viewModelScope.launch { restoreFromDrive(email, passphrase) }
     }
 
     fun onSignInCancelled() {
@@ -257,7 +237,7 @@ class SetupViewModel @Inject constructor(
                 _state.update {
                     it.copy(signedInEmail = email, restoreMode = SetupRestoreMode.DRIVE)
                 }
-                restoreFromDrive(email, passphrase = null)
+                restoreFromDrive(email)
             } catch (e: GoogleDriveException) {
                 _state.update {
                     it.copy(
@@ -296,7 +276,12 @@ class SetupViewModel @Inject constructor(
         }
     }
 
-    private suspend fun restoreFromDrive(email: String, passphrase: String?) {
+    /**
+     * Restore every copy in Drive with the keys this app holds. Nothing is asked for: the
+     * account authorises the download and [CloudSyncManager.restoreAnyCloudBackup] sweeps
+     * the vault key, the retired universal keys and the account address itself.
+     */
+    private suspend fun restoreFromDrive(email: String) {
         _state.update { it.copy(busy = true, error = null) }
         val listed = withTimeoutOrNull(LIST_TIMEOUT_MS) { cloudSyncManager.listCloudBackups() }
         if (listed == null) {
@@ -350,9 +335,8 @@ class SetupViewModel @Inject constructor(
             }
             return
         }
-        // Every backup is tried, newest first. The passphrase is only present when the owner chose
-        // the opt-in path; the ordinary Google tap carries nothing but the OAuth account.
-        val outcome = cloudSyncManager.restoreAnyCloudBackup(email, passphrase)
+        // Every copy is tried, newest first, and no typed secret is involved.
+        val outcome = cloudSyncManager.restoreAnyCloudBackup(email)
         outcome.fold(
             onSuccess = { result ->
                 val complete = result.failureReason == null
@@ -409,8 +393,7 @@ class SetupViewModel @Inject constructor(
                     lastRestoredFrom = fileName
                 )
             }
-            val passphrase = state.value.restorePassphrase.trim().takeIf { it.isNotBlank() }
-            cloudSyncManager.importLocalBackup(bytes, passphrase).fold(
+            cloudSyncManager.importLocalBackup(bytes, passphrase = null).fold(
                 onSuccess = { result ->
                     val complete = result.failureReason == null
                     _state.update {

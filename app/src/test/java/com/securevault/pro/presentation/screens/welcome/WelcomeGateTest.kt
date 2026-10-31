@@ -39,11 +39,19 @@ class WelcomeGateTest {
     }
 
     @Test
-    fun `seed phrase recovery stays reachable but off the tile list`() {
-        assertTrue("seed recovery lost from the gate", source.contains("showSeedRestore = true"))
-        assertTrue("seed tab lost from the import sheet", source.contains("\"Seed phrase\""))
-        val seedTile = source.contains("title = \"Recover with your seed phrase\"")
-        assertFalse("seed phrase must be a tab in the import sheet, not a fourth tile", seedTile)
+    fun `no phrase prompt of any kind stands between the owner and a restore`() {
+        assertFalse("a seed sheet came back to the gate", source.contains("showSeedRestore"))
+        assertFalse("a seed tab came back to the import sheet", source.contains("\"Seed phrase\""))
+        assertFalse("a passphrase dialog came back to the gate", source.contains("showDrivePassphraseDialog"))
+        assertFalse("the import sheet asks for a passphrase again", source.contains("Passphrase (optional)"))
+        assertFalse("the seed section is drawn pre-login again", source.contains("RecoverySeedSection"))
+        assertFalse("a secure password field is back on the gate", source.contains("SecurePasswordField"))
+    }
+
+    @Test
+    fun `the import sheet opens a file and asks for nothing`() {
+        assertTrue("the import dialog lost its file action", source.contains("backupPicker.launch(arrayOf(\"*/*\"))"))
+        assertTrue("the import copy must promise no typing", source.contains("Nothing is typed"))
     }
 
     @Test
@@ -55,16 +63,6 @@ class WelcomeGateTest {
         assertFalse("the Google tap must never open the passphrase sheet", tile.contains("showDrivePassphraseDialog = true"))
         assertFalse("no seed phrase may stand on the Google path", tile.contains("Seed phrase"))
         assertFalse("the tile copy must not promise a phrase prompt", tile.contains("with your passphrase if needed"))
-    }
-
-    @Test
-    fun `the passphrase sheet is opt-in from a failed drive restore only`() {
-        val openings = Regex("showDrivePassphraseDialog = true").findAll(source).count()
-        assertEquals("the passphrase sheet has exactly one opening, the opt-in action", 1, openings)
-        assertTrue(
-            "the opt-in must only appear after a Drive attempt",
-            source.contains("state.restoreMode == SetupRestoreMode.DRIVE")
-        )
     }
 
     @Test

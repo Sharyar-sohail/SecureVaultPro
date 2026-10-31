@@ -335,18 +335,18 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun setScreenshotBlocked(enabled: Boolean) {
+    fun setAllowScreenshots(enabled: Boolean) {
         if (!ensureWritable()) return
         viewModelScope.launch {
-            appLockManager.setScreenshotBlocked(enabled)
+            appLockManager.setScreenshotBlocked(!enabled)
             _state.update {
                 it.copy(
                     message = if (enabled) {
-                        "Screenshots and recent-app previews are blocked."
+                        "Screenshots are now allowed. Use with care."
                     } else {
-                        "Screenshot protection is off. Use with care."
+                        "Screenshots and recent-app previews are blocked."
                     },
-                    messageIsError = !enabled
+                    messageIsError = enabled
                 )
             }
         }

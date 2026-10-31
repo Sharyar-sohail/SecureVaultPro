@@ -32,7 +32,7 @@ class GoogleRestoreFlowTest {
             "an account without a Drive grant must still reach Google's picker",
             viewModel.contains("hasDriveAccess(")
         )
-        val oneTapCalls = Regex("restoreFromDrive\\(email, passphrase = null\\)").findAll(viewModel).count()
+        val oneTapCalls = Regex("restoreFromDrive\\(email\\)").findAll(viewModel).count()
         assertTrue(
             "both the cached-account tap and the post-picker hand-off must restore without a phrase, found $oneTapCalls",
             oneTapCalls >= 2
@@ -40,14 +40,27 @@ class GoogleRestoreFlowTest {
     }
 
     @Test
-    fun `the drive restore never reads the file-import passphrase`() {
+    fun `the restore path has no passphrase parameter and no passphrase state`() {
         val body = viewModel.substringAfter("private suspend fun restoreFromDrive(")
             .substringBefore("fun importLocalFile(")
         assertFalse(
-            "the Google path must not borrow the passphrase typed in the file sheet",
-            body.contains("state.value.restorePassphrase")
+            "the restore must not read any typed secret",
+            body.contains("passphrase", ignoreCase = true)
         )
-        assertTrue("the opt-in path passes its own passphrase through", viewModel.contains("restoreFromDrive(email, passphrase)"))
+        assertTrue(
+            "the walk must be handed nothing but the account",
+            body.contains("restoreAnyCloudBackup(email)")
+        )
+        assertFalse("the gate still carries passphrase state", viewModel.contains("restorePassphrase"))
+        assertFalse("the gate still exposes a passphrase setter", viewModel.contains("setRestorePassphrase"))
+    }
+
+    @Test
+    fun `the screen offers no passphrase or seed entry point at all`() {
+        assertFalse("a Drive phrase sheet is back", screen.contains("showDrivePassphraseDialog"))
+        assertFalse("a passphrase field is back", screen.contains("SecurePasswordField"))
+        assertFalse("the seed sheet is back", screen.contains("RecoverySeedSection"))
+        assertFalse("a seed tab is back", screen.contains("\"Seed phrase\""))
     }
 
     @Test

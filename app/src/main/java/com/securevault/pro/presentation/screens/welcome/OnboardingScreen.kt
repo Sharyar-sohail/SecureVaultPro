@@ -5,7 +5,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -52,8 +51,6 @@ import com.securevault.pro.presentation.components.NeonBackground
 import com.securevault.pro.presentation.components.ThemedIcon
 import com.securevault.pro.presentation.components.queryDisplayName
 import com.securevault.pro.presentation.components.readDocumentBytes
-import com.securevault.pro.presentation.screens.secureinput.RecoverySeedSection
-import com.securevault.pro.security.keyboard.SecurePasswordField
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import com.securevault.pro.presentation.theme.VaultColor
@@ -62,9 +59,11 @@ import com.securevault.pro.presentation.theme.VaultType
 import com.securevault.pro.presentation.components.Glyph
 
 /**
- * The only pre-login surface: Google restore, encrypted file import, a master
- * recovery seed, or a brand-new local vault. Every path shares the activity-scoped
- * [SetupViewModel] with [SetupScreen] so their progress survives the hand-off.
+ * The only pre-login surface: Google restore, encrypted file import, or a brand-new local
+ * vault. Nothing on this screen asks for a passphrase or a seed phrase: the Google account
+ * is the authentication and the file is opened with the keys this vault has always used.
+ * Every path shares the activity-scoped [SetupViewModel] with [SetupScreen] so progress
+ * survives the hand-off.
  */
 @Composable
 fun OnboardingScreen(
@@ -80,17 +79,6 @@ fun OnboardingScreen(
     // both cause; without it the finished restore has nothing to hand off to.
     var flowStarted by rememberSaveable { mutableStateOf(false) }
     var showImportDialog by remember { mutableStateOf(false) }
-    var importWantsSeed by rememberSaveable { mutableStateOf(false) }
-    var passphrase by remember { mutableStateOf("") }
-
-    // Asked once before a Drive restore: the typed passphrase is the only secret a fresh install
-    // can be given, so it is what opens a vault sealed before this device held a vault key.
-    var showDrivePassphraseDialog by rememberSaveable { mutableStateOf(false) }
-    var drivePassphrase by remember { mutableStateOf("") }
-
-    // The seed way in is a screen of its own, drawn over this list: it owns its own steps
-    // and never touches Google.
-    var showSeedRestore by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         viewModel.onWelcomeOpened()
@@ -145,16 +133,8 @@ fun OnboardingScreen(
 
     val openBackupPicker: () -> Unit = {
         showImportDialog = false
-        importWantsSeed = false
-        viewModel.setRestorePassphrase(passphrase)
         flowStarted = true
         backupPicker.launch(arrayOf("*/*"))
-    }
-
-    val startDriveRestore: () -> Unit = {
-        showDrivePassphraseDialog = false
-        flowStarted = true
-        viewModel.restoreFromExistingDrive(drivePassphrase.trim().takeIf { it.isNotBlank() })
     }
 
     NeonBackground {
@@ -239,7 +219,7 @@ fun OnboardingScreen(
                 accent = VaultColor.warning,
                 badge = "LOCAL",
                 title = "Import backup file",
-                description = "Open an encrypted .enc export, or type a recovery seed phrase",
+                description = "Open an encrypted .enc export from this device or Drive",
                 enabled = !state.busy && !cloudState.active,
                 onClick = { showImportDialog = true }
             )
@@ -288,23 +268,6 @@ fun OnboardingScreen(
                                     color = VaultColor.textFaint
                                 )
                             }
-                            // Opt-in escape hatch for a vault the owner sealed with their own
-                            // passphrase. It is never asked for on the ordinary Google tap.
-                            if (state.restoreMode == SetupRestoreMode.DRIVE &&
-                                !state.busy && !cloudState.active
-                            ) {
-                                TextButton(
-                                    onClick = { showDrivePassphraseDialog = true },
-                                    contentPadding = PaddingValues(0.dp)
-                                ) {
-                                    Text(
-                                        text = "This vault uses a passphrase",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = accent,
-                                        fontWeight = FontWeight.SemiBold
-                                    )
-                                }
-                            }
                         }
                     }
                 }
@@ -329,115 +292,23 @@ fun OnboardingScreen(
             containerColor = VaultColor.elevated,
             titleContentColor = VaultColor.textStrong,
             textContentColor = VaultColor.textBody,
-            title = {
-                Text(if (importWantsSeed) "Recover with your seed phrase" else "Import encrypted backup")
-            },
+            title = { Text("Import encrypted backup") },
             text = {
-                Column(
-                    modifier = Modifier.verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        TextButton(onClick = { importWantsSeed = false }) {
-                            Text(
-                                text = "Backup file",
-                                color = if (!importWantsSeed) VaultColor.accent else VaultColor.textBody,
-                                fontWeight = if (!importWantsSeed) FontWeight.Bold else FontWeight.Normal
-                            )
-                        }
-                        TextButton(onClick = { importWantsSeed = true }) {
-                            Text(
-                                text = "Seed phrase",
-                                color = if (importWantsSeed) VaultColor.accent else VaultColor.textBody,
-                                fontWeight = if (importWantsSeed) FontWeight.Bold else FontWeight.Normal
-                            )
-                        }
-                    }
-                    if (importWantsSeed) {
-                        Text(
-                            text = "Twelve or twenty-four words open this vault with no Google account " +
-                                "and no network. Nothing is sent anywhere while you type them.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = VaultColor.textBody,
-                            lineHeight = 18.sp
-                        )
-                    } else {
-                        Text(
-                            text = "Select a Secure Wallet Pro .enc export. Leave the passphrase empty if it was sealed with the universal cloud key.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = VaultColor.textBody,
-                            lineHeight = 18.sp
-                        )
-                        SecurePasswordField(
-                            value = passphrase,
-                            onValueChange = { passphrase = it },
-                            label = "Passphrase (optional)",
-                            onSubmit = { openBackupPicker() }
-                        )
-                    }
-                }
+                Text(
+                    text = "Choose a Secure Wallet Pro .enc or .xml.enc export. It opens " +
+                        "automatically with the keys this vault has always used. Nothing is typed.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = VaultColor.textBody,
+                    lineHeight = 18.sp
+                )
             },
             confirmButton = {
-                TextButton(
-                    onClick = {
-                        if (importWantsSeed) {
-                            showImportDialog = false
-                            showSeedRestore = true
-                        } else {
-                            openBackupPicker()
-                        }
-                    }
-                ) {
-                    Text(
-                        text = if (importWantsSeed) "Type seed phrase" else "Choose file",
-                        color = VaultColor.accent,
-                        fontWeight = FontWeight.Bold
-                    )
+                TextButton(onClick = { openBackupPicker() }) {
+                    Text("Choose file", color = VaultColor.accent, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showImportDialog = false }) {
-                    Text("Cancel", color = VaultColor.textBody)
-                }
-            }
-        )
-    }
-
-    if (showDrivePassphraseDialog) {
-        AlertDialog(
-            onDismissRequest = { showDrivePassphraseDialog = false },
-            containerColor = VaultColor.elevated,
-            titleContentColor = VaultColor.textStrong,
-            textContentColor = VaultColor.textBody,
-            title = { Text("Vault passphrase") },
-            text = {
-                Column(
-                    modifier = Modifier.verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Text(
-                        text = "Only for a vault you sealed with your own passphrase. The ordinary " +
-                            "Google tap needs no phrase at all. Every copy in Drive is tried with " +
-                            "this passphrase, then with this device's own key.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = VaultColor.textBody,
-                        lineHeight = 18.sp
-                    )
-                    SecurePasswordField(
-                        value = drivePassphrase,
-                        onValueChange = { drivePassphrase = it },
-                        label = "Passphrase (optional)",
-                        onSubmit = { startDriveRestore() }
-                    )
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { startDriveRestore() }) {
-                    Text("Restore", color = VaultColor.accent, fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDrivePassphraseDialog = false }) {
                     Text("Cancel", color = VaultColor.textBody)
                 }
             }
@@ -505,20 +376,6 @@ fun OnboardingScreen(
         }
     )
 
-    // The offline way in: the phrase, then a recovery file, then a new unlock passphrase - and
-    // straight into setup with that passphrase already typed. No Google call happens in here.
-    if (showSeedRestore) {
-        RecoverySeedSection(
-            startInRestore = true,
-            onBack = { showSeedRestore = false },
-            onRestoreFinished = { chosen ->
-                showSeedRestore = false
-                viewModel.setMasterPassword(chosen)
-                viewModel.setConfirmPassword(chosen)
-                onFinished()
-            }
-        )
-    }
 }
 
 private const val CANCEL_GRACE_MS = 6_000L
