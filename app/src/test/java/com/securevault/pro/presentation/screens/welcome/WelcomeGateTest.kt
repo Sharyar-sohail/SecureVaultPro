@@ -121,7 +121,7 @@ class WelcomeGateTest {
     fun `a connected drive hands the gate forward by itself and never in red`() {
         assertTrue(
             "the gate must advance on its own once a restore is reachable",
-            source.contains("if (flowStarted && state.readyForSetup) onFinished()")
+            source.contains("if (state.readyForSetup && (flowStarted || state.driveRestoreQueued)) onFinished()")
         )
         assertTrue(
             "the card's colour and icon must both follow the error state",
@@ -133,6 +133,44 @@ class WelcomeGateTest {
             .substringBefore("Spacer(Modifier.height(30.dp))")
         assertTrue("the only typed secret at the gate is an export passphrase", card.contains("Export passphrase"))
         assertFalse("the gate never asks for a master password for a cloud backup", card.contains("Master password"))
+    }
+
+    /**
+     * The watchdog's quiet stop can clear the tap flag while the final Drive file is still in
+     * flight; the cancelled flow then finishes with the restore queued for this phone's unlock.
+     * The gate must still hand forward - that result means "walk to setup", not "wait here".
+     */
+    @Test
+    fun `a queued restore advances the gate even after the watchdog cleared the tap flag`() {
+        assertTrue(
+            "the queued-restore arm must outlive a cleared tap flag",
+            source.contains("state.readyForSetup && (flowStarted || state.driveRestoreQueued)")
+        )
+        assertTrue(
+            "the banner must tell the owner the one working tap when the advance fails",
+            viewModelSource().contains("tap \" +") &&
+                viewModelSource().contains("Set up this device to create it now.")
+        )
+    }
+
+    @Test
+    fun `the quiet stop outlives Drive's own timeouts but stays a backstop`() {
+        val stop = constLong("AUTO_STOP_MS")
+        val grace = constLong("CANCEL_GRACE_MS")
+        assertTrue("grace $grace must stay well under the $stop ms backstop", grace < stop)
+        // Drive's per-call timeouts are 45-60 s; the backstop may not fire before a dead
+        // restore has had the chance to die by itself.
+        assertTrue("the backstop must outlive one full Drive timeout", stop >= 90_000L)
+    }
+
+    private fun viewModelSource(): String {
+        val candidates = listOf(
+            File("src/main/java/com/securevault/pro/presentation/screens/welcome/SetupViewModel.kt"),
+            File("app/src/main/java/com/securevault/pro/presentation/screens/welcome/SetupViewModel.kt"),
+            File("../src/main/java/com/securevault/pro/presentation/screens/welcome/SetupViewModel.kt")
+        )
+        return candidates.firstOrNull { it.isFile }?.readText()
+            ?: throw IllegalStateException("cannot locate SetupViewModel.kt from ${File(".").absolutePath}")
     }
 
     private fun constLong(name: String): Long {

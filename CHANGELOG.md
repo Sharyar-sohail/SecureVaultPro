@@ -20,6 +20,18 @@ Blogger XML artifact, and the backup/checkpoint snapshots, which hold vault and 
 data. One stale 3.3.4 theme export under `release-site/` is left on disk but untracked because
 it embedded a Firebase `apiKey`; themes we ship carry a blank `var SEED` and no cloud config.
 
+## [3.8.1] — 2026-11-06 (versionCode 385)
+
+One fix, from the owner's phone: the welcome gate could pin itself. The green "your backups load
+on their own once this phone has its unlock" banner is the queued-restore result, and the gate is
+supposed to hand itself forward to vault setup the moment it lands. On a slow link the 30-second
+quiet watchdog could fire while the last Drive file was still mid-flight — clearing the tap flag —
+and the cancelled flow then finished with the banner, leaving a screen that told the owner the
+restore would walk on by itself and then refused to walk. The advance guard now also fires on the
+queued-restore flag, the quiet backstop is 120 s (Drive's own 45-60 s timeouts bound dead calls,
+so a live slow download gets its room), and the banner names the one tap that always works:
+"Set up this device". The Blogger XML is unchanged from 3.8.0.
+
 ## [3.8.0] — 2026-11-06 (versionCode 384)
 
 One theme: the two faces of the vault now wear the same clothes. The web page used to ship a single

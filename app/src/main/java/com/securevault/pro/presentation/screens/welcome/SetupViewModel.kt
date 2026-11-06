@@ -445,7 +445,8 @@ class SetupViewModel @Inject constructor(
                             notice = when {
                                 awaitsOwnUnlock ->
                                     "Signed in as $email. Your backups are safe in Google Drive and " +
-                                        "load on their own once this phone has its unlock."
+                                        "load on their own once this phone has its unlock - tap " +
+                                        "Set up this device to create it now."
                                 keyRejected ->
                                     "Signed in as $email. ${EnvelopeDiagnostics.KEY_NOT_ON_THIS_DEVICE}"
                                 else -> message.ifBlank { "The cloud restore could not complete." }

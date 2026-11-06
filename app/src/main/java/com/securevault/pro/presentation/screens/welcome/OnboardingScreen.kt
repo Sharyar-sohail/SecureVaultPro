@@ -87,8 +87,14 @@ fun OnboardingScreen(
         viewModel.onWelcomeOpened()
     }
 
-    LaunchedEffect(state.readyForSetup) {
-        if (flowStarted && state.readyForSetup) onFinished()
+    // The gate must hand itself forward in both endings. `flowStarted` covers the normal one.
+    // The queued-restore flag covers the race the watchdog can produce on a slow link: the
+    // 30 s quiet stop clears `flowStarted` while the last Drive file is still mid-flight, the
+    // cancelled flow then finishes, and the ViewModel lands the "waiting for this phone's
+    // unlock" result with the tap flag gone. Without the second arm that result pins the
+    // owner on this screen — a restore the app itself says will walk on by itself.
+    LaunchedEffect(state.readyForSetup, state.driveRestoreQueued) {
+        if (state.readyForSetup && (flowStarted || state.driveRestoreQueued)) onFinished()
     }
 
     val googleLauncher = rememberLauncherForActivityResult(
@@ -453,7 +459,12 @@ fun OnboardingScreen(
 }
 
 private const val CANCEL_GRACE_MS = 6_000L
-private const val AUTO_STOP_MS = 30_000L
+// The wall-clock backstop, not a progress timeout: Drive's own calls give up at 45-60 s, so a
+// dead restore dies by itself well inside this window, while a live one on a slow link (5 KB/s
+// moves one percent every minutes) needs the room. 30 s used to cancel restores that were
+// downloading, and the orphaned result then pinned the gate behind a "waiting for your unlock"
+// banner the screen could no longer hand forward.
+private const val AUTO_STOP_MS = 120_000L
 private const val STOP_TICK_MS = 250L
 
 @Composable
