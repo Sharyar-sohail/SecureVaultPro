@@ -293,7 +293,9 @@ function main() {
   if (outPath === path.resolve(templatePath)) {
     throw new Error('Refusing to write onto the template itself (' + templatePath + '). ' +
       'The template is the source of truth and must stay free of any injected project values; ' +
-      'pass --out <upload copy>, and keep app/src/main/assets/blogger_theme.xml identical to the template.');
+      'pass --out <upload copy>. The bundled app/src/main/assets/blogger_theme.xml is a generated ' +
+      'file - regenerate it with the same options so a theme exported on the phone carries the ' +
+      'project web key too.');
   }
   fs.mkdirSync(path.dirname(outPath), { recursive: true });
   fs.writeFileSync(outPath, xml, 'utf8');

@@ -74,64 +74,64 @@ const MODULES = [
  */
 const THEMES = [
     { id: 'ios', name: 'iOS Glass', grammar: 'GLASS_SILVERWARE', inspiredBy: 'Apple iOS',
-        colors: ['#0A84FF', '#30D158', '#5E5CE6', '#FF9F0A', '#FFD60A', '#FF2D92',
-            '#64D2FF', '#BF5AF2', '#FF3B30', '#00C7BE', '#FF6B22', '#8E8E93'], home: '#0A84FF' },
+        colors: ['#0A84FF', '#30D158', '#5E5CE6', '#FF9F0A', '#FFD60A', '#FF3A2D',
+            '#64D2FF', '#5A6BF2', '#FF3B30', '#00C7BE', '#FF6B22', '#8E8E93'], home: '#0A84FF' },
     { id: 'oneui', name: 'Samsung One UI', grammar: 'COMFORT_SHOULDER', inspiredBy: 'Samsung One UI',
-        colors: ['#1B6EF3', '#14B87A', '#6A5BF7', '#E88B00', '#0A9CE5', '#9C6ADE',
+        colors: ['#1B6EF3', '#14B87A', '#6A5BF7', '#E88B00', '#0A9CE5', '#6A8ADE',
             '#23B473', '#F26A21', '#E64545', '#00B2A8', '#5A6FE8', '#6AA500'], home: '#1B6EF3' },
     { id: 'arctic', name: 'Neumorphic Soft', grammar: 'NEUMORPH_EXTRUDE', inspiredBy: 'Neumorphism',
         // Neumorphism is monochrome: lit slate-blues deep enough to hold white ink.
         colors: ['#4E6478', '#3E5C74', '#5A6E82', '#2F4B63', '#61748A', '#47607A',
             '#3A5468', '#6A7E94', '#33566E', '#55697F', '#2C4560', '#5F7488'], home: '#4E6478' },
     { id: 'voltra', name: 'Cyberpunk Neon', grammar: 'NEON_CHAMFER', inspiredBy: 'Arcade night',
-        colors: ['#C9F23D', '#23E3FF', '#38F2A0', '#FFD400', '#B14DFF', '#FF3D71',
-            '#A8D62F', '#1FC9E6', '#2ED68C', '#E6BC00', '#9A3DE0', '#E63563'], home: '#C9F23D' },
+        colors: ['#C9F23D', '#23E3FF', '#38F2A0', '#FFD400', '#4D6EFF', '#FF573D',
+            '#A8D62F', '#1FC9E6', '#2ED68C', '#E6BC00', '#3D5AE0', '#E64D35'], home: '#C9F23D' },
     { id: 'terra', name: 'Claymorphism', grammar: 'CLAY_PUFF', inspiredBy: 'Kiln pottery',
         colors: ['#A85433', '#3E6B55', '#7A9E5E', '#D98A4E', '#C08A8A', '#C65B4C',
             '#8F4A2E', '#4E7B62', '#6B8F52', '#C1763E', '#A87878', '#B04E40'], home: '#A85433' },
     { id: 'slate', name: 'Retro 8-Bit', grammar: 'PIXEL_SPRITE', inspiredBy: 'Cartridge game',
         // Cartridge palette: saturated, but sunk to the tone a white sprite reads on.
-        colors: ['#C21807', '#1F6FB2', '#2C7A3F', '#B36B00', '#7A3FB8', '#C05A1E',
-            '#0F8A8A', '#8A1F6E', '#4B5E13', '#A02020', '#1F4FA8', '#9A6A00'], home: '#C21807' },
+        colors: ['#C21807', '#1F6FB2', '#2C7A3F', '#B36B00', '#3F5CB8', '#C05A1E',
+            '#0F8A8A', '#1F8A78', '#4B5E13', '#A02020', '#1F4FA8', '#9A6A00'], home: '#C21807' },
     { id: 'royal', name: 'Liquid Metal', grammar: 'CHROME_LENS', inspiredBy: 'Chrome & velvet',
-        colors: ['#A78BFA', '#6C5CE7', '#3ED6A4', '#D9B878', '#C4B5FD', '#F0557A',
-            '#8F70E6', '#5A4AD1', '#32C08F', '#C4A05C', '#B3A0F0', '#D6466A'], home: '#A78BFA' },
+        colors: ['#8BB7FA', '#5CA0E7', '#3ED6A4', '#D9B878', '#B5D4FD', '#F06C55',
+            '#709EE6', '#4A8CD1', '#32C08F', '#C4A05C', '#A0C1F0', '#D65A46'], home: '#8BB7FA' },
     { id: 'light', name: 'Minimal Line', grammar: 'MONOLINE_RING', inspiredBy: 'Material You',
         weight: 'thin', // the one family that ships as single-weight line art
-        colors: ['#6750A4', '#1E8E3E', '#1A73E8', '#B06000', '#00897B', '#A02080',
-            '#00779B', '#6B8E00', '#C5221F', '#4B3DD6', '#D65A00', '#5F6368'], home: '#6750A4' },
+        colors: ['#5070A4', '#1E8E3E', '#1A73E8', '#B06000', '#00897B', '#20A088',
+            '#00779B', '#6B8E00', '#C5221F', '#4B3DD6', '#D65A00', '#5F6368'], home: '#5070A4' },
     { id: 'sunset', name: 'Gradient Mesh', grammar: 'MESH_BLOB', inspiredBy: 'Mesh gradient',
-        colors: ['#FF8A5C', '#6A5AC0', '#5BCF9B', '#FFB35C', '#C99BE0', '#FF6E7F',
-            '#E76F51', '#8B7BD8', '#4BBE8C', '#E89A4E', '#B98AE0', '#FF97A5'], home: '#FF8A5C',
-        tone: ['#FF5C8A', '#FFB86B'] },
+        colors: ['#FF8A5C', '#5A89C0', '#5BCF9B', '#FFB35C', '#9BA3E0', '#FF896E',
+            '#E76F51', '#7BA5D8', '#4BBE8C', '#E89A4E', '#8A9BE0', '#FFAA97'], home: '#FF8A5C',
+        tone: ['#FF715C', '#FFB86B'] },
     { id: 'sakura', name: 'Origami', grammar: 'ORIGAMI_FOLD', inspiredBy: 'Paper folding',
-        colors: ['#B84A78', '#6C5CE0', '#58A574', '#D69345', '#B18AE0', '#D95555',
-            '#A84470', '#5A4AC8', '#4E9668', '#C4842E', '#9A6FC8', '#C04A4A'], home: '#B84A78' },
+        colors: ['#B8534A', '#5C9CE0', '#58A574', '#D69345', '#8AA0E0', '#D95555',
+            '#A84B44', '#4A87C8', '#4E9668', '#C4842E', '#6F84C8', '#C04A4A'], home: '#B8534A' },
     { id: 'carbon', name: 'Bento Grid', grammar: 'BENTO_SUBBOX', inspiredBy: 'Bento box',
         colors: ['#FF7A18', '#6FA8DC', '#3CB073', '#D9A232', '#7A88B6', '#E04848',
             '#E0640E', '#5787B8', '#4FD08A', '#FFC246', '#9AA8D6', '#FF5C5C'], home: '#FF7A18' },
     { id: 'noir', name: 'Dark Academia', grammar: 'ENGRAVED_PLATE', inspiredBy: 'Print editorial',
-        colors: ['#C8A96B', '#8FA3C8', '#A3BE8C', '#D9A45B', '#B7AEC9', '#C96F5E',
-            '#9C8452', '#6E7FA0', '#88A06E', '#C08C45', '#A293B4', '#8F7A6B'], home: '#C8A96B' },
+        colors: ['#C8A96B', '#8FA3C8', '#A3BE8C', '#D9A45B', '#AEB7C9', '#C96F5E',
+            '#9C8452', '#6E7FA0', '#88A06E', '#C08C45', '#939CB4', '#8F7A6B'], home: '#C8A96B' },
     { id: 'mint', name: 'Vibrant Duotone', grammar: 'DUOTONE_SPLIT', inspiredBy: 'Duotone print',
-        colors: ['#0C7C70', '#4B6BCB', '#2FA36B', '#E3A23C', '#8A7FBF', '#D6604A',
-            '#0E8A7C', '#3E7BC4', '#5FBF8A', '#C98A22', '#7A6FB0', '#4A9E93'], home: '#0C7C70',
+        colors: ['#0C7C70', '#4B6BCB', '#2FA36B', '#E3A23C', '#7F9CBF', '#D6604A',
+            '#0E8A7C', '#3E7BC4', '#5FBF8A', '#C98A22', '#6F8CB0', '#4A9E93'], home: '#0C7C70',
         // Second tone of the split, also required to hold white ink.
-        tone: ['#2B4C8F', '#8F3D6B', '#1F6B52', '#8A5A1F', '#3D4C8F', '#8F2B3D',
-            '#1F6B6B', '#6B3D8F', '#2B6B3D', '#8F5B2B', '#4A3D8F', '#3D5A6B'] },
+        tone: ['#2B4C8F', '#8F403D', '#1F6B52', '#8A5A1F', '#3D4C8F', '#8F3C2B',
+            '#1F6B6B', '#3D4C8F', '#2B6B3D', '#8F5B2B', '#3D638F', '#3D5A6B'] },
     { id: 'aqua', name: 'Aurora', grammar: 'WAVE_FIELD', inspiredBy: 'Polar light',
-        colors: ['#2ED3B7', '#5EE6A0', '#6C8CFF', '#FFB44D', '#33C4FF', '#B08CFF',
-            '#FF6F8B', '#00E5A8', '#4DA3FF', '#F5C97B', '#FF9EB1', '#8FF3D6'], home: '#2ED3B7',
+        colors: ['#2ED3B7', '#5EE6A0', '#6C8CFF', '#FFB44D', '#33C4FF', '#8CB5FF',
+            '#FF866F', '#00E5A8', '#4DA3FF', '#F5C97B', '#FFAE9E', '#8FF3D6'], home: '#2ED3B7',
         tone: ['#4DE3C0', '#6C8CFF'] },
     { id: 'dark', name: 'Emulate OS Deep Dark', grammar: 'OLED_NOTCH', inspiredBy: 'OLED black',
-        colors: ['#9C7CFF', '#34C775', '#5B9CFF', '#D98A1F', '#2BC4D4', '#D96BC4',
-            '#35B6E0', '#8FBF1F', '#F2555A', '#7C7BFF', '#E86FA4', '#9AA0A6'], home: '#9C7CFF' }
+        colors: ['#7CB1FF', '#34C775', '#5B9CFF', '#D98A1F', '#2BC4D4', '#6BD9BD',
+            '#35B6E0', '#8FBF1F', '#F2555A', '#7C7BFF', '#E8786F', '#9AA0A6'], home: '#7CB1FF' }
 ];
 
 /* Ids that no longer ship; their drawables are pruned on every build. The user-facing
  * migration for saved preferences is VaultPalettes.legacyAliases in the theme layer. */
 const DEFAULT_THEME = 'aqua';
-const RETIRED_THEMES = ['lumen', 'hyper', 'funtouch', 'volt'];
+const RETIRED_THEMES = ['lumen', 'hyper', 'funtouch', 'volt', 'terra', 'slate', 'carbon'];
 
 /* ===========================================================================
  * PLATE PREP — correct each ramp against the stack its grammar really lands on

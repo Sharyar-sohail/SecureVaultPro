@@ -2,10 +2,11 @@
 
 This folder contains a zero-dependency Node.js utility that turns a passphrase-sealed
 Secure Wallet Pro export into a complete **Blogger Layouts v2 XML theme**. The theme
-renders a password-protected web vault: unlock with your export password, browse and search
+renders a web vault that opens with Google sign-in and the vault passphrase: browse and search
 every module, reveal/copy secrets, generate live TOTP codes, download encrypted
 attachments, edit logins, seal an updated archive, and optionally browse/save sealed files
-in Google Drive.
+in Google Drive. The offline file picker additionally opens a backup the owner sealed with a
+password of their own choosing when exporting it.
 
 The app can also produce the same file directly (**Backup → Export Blogger XML**); this
 generator is the desktop equivalent. The APK bundles the XML template, not the Node.js generator.
@@ -18,10 +19,11 @@ generator is the desktop equivalent. The APK bundles the XML template, not the N
 - A passphrase-sealed export from the app: **Backup → Export encrypted backup**.
   That produces `SecureWallet_Backup_YYYYMMDD_HHMMSS.enc` (envelope v3 JSON).
 
-> The automatic `vault_backup.enc` that the app mirrors to Drive is sealed with the
-> app's shared universal cloud key. Do **not** embed that file in a public theme:
-> anyone who views the page source would be able to decrypt every user's cloud backup.
-> Always export with your own passphrase first.
+> The automatic `vault_backup*.enc` that the app mirrors to Drive is sealed with **your own
+> account's vault key** — the same 32 bytes the keyring publishes and the page unwraps after
+> Google sign-in. Embedding it in a public theme is still pointless and wrong: the theme would
+> carry a copy of your vault that only your Google session can open, and every visitor would
+> download that ciphertext. Embed a file you exported yourself, or none at all.
 
 ## Generate the theme
 
@@ -37,7 +39,10 @@ node generate.js \
 
 Write the upload copy somewhere else than this folder: the generator refuses to overwrite
 `secure_wallet_blogger_theme.xml`, because that file is the source template and must stay free of
-injected project values (the repo test asserts the APK asset is byte-identical to it).
+injected project values. `app/src/main/assets/blogger_theme.xml` is the opposite: it is a *generated*
+file, rebuilt with the project's own `google-services.json`, because the app's own theme export starts
+from that asset and can only add the snapshot — a bare template there would ship an empty web key and
+the page would never draw its Google button. The repo test regenerates and compares it byte for byte.
 
 Options:
 
@@ -112,13 +117,15 @@ Only `<b:section/>` and the script remain in `<body>`. Do not move the UI back i
 
 ## Using the web vault
 
-- **Unlock** — two independent routes.
-  *Sealed file*: type the password chosen in Backup when exporting this file or theme; PBKDF2-SHA256
-  (600,000 rounds) + AES-256-GCM run locally via WebCrypto.
-  *Realtime*: sign in with Google and unlock with the vault passphrase, which opens the
-  published keyring (see **Realtime mode**). In both routes the key is derived in the browser
-  and never travels; the Google session only fetches ciphertext, so no design ever publishes a
-  shared cloud key.
+- **Unlock** — the vault key route comes first.
+  *Realtime and the app's own Drive backups*: sign in with Google and unlock with the vault
+  passphrase, which opens the published keyring (see **Realtime mode**). The same unwrapped
+  vault key is what the app stretches to seal `vault_backup*.enc`, so those copies open here
+  with no further typing — the page never asks a human for a backup password for them.
+  *Sealed file*: a copy the owner protected with a password of their own in Backup opens with
+  that password; PBKDF2-SHA256 (600,000 rounds) + AES-256-GCM run locally via WebCrypto.
+  Every key is derived in the browser and never travels; the Google session only fetches
+  ciphertext, so no design ever publishes a shared cloud key.
 - **Modules** — Logins, Cards, 2FA, Notes, Contacts, Crypto wallets and Files, with global search.
 - **TOTP** — codes refresh every second using the stored secret, digits and period.
 - **Files** — realtime entries preview/download through your own Drive session; attachments
@@ -139,8 +146,11 @@ short-lived access token, then calls the Drive REST v3 API from the browser. It 
 sealed files in the app's hidden `appDataFolder`, opens one for unlocking, and can save
 `secure_wallet_web.enc` back to that folder.
 
-Signing in replaces the *access* step only. Password-protected backups still need their
-export password, because a Drive token can fetch ciphertext but cannot derive the AES key.
+Signing in is the whole access step for a backup the app wrote on its own: those copies are
+sealed with your account's vault key, which the page already holds after you sign in with
+Google and enter the vault passphrase, so it opens them without asking for any backup
+password. A copy you sealed with a password of your own when exporting it still needs that
+password, because a Drive token can fetch ciphertext but cannot derive that key.
 
 Setup:
 
@@ -163,12 +173,15 @@ A client ID is a public identifier; no secret is used in the browser. An **Andro
 client ID will not work here — GIS only accepts a *Web application* client whose
 authorised JavaScript origin matches the page.
 
-The known `vault_backup.enc`, `vault_backup.xml.enc` and timestamped sync filenames
-are marked **App only** because the mobile app seals them with its shared cloud key,
-not the user's export password. This is a filename hint, not cryptographic detection.
-The public viewer does not contain that key. Use **Backup → Export encrypted backup**
-and **Open encrypted backup** for a password-protected copy. Local export does not upload
-that file to the hidden Drive folder automatically. Web saves use `secure_wallet_web.enc`.
+The `vault_backup.enc`, `vault_backup.xml.enc` and timestamped sync filenames are the app's
+own automatic copies, sealed with **your account's vault key** — the keyring secret the page
+unwraps after Google sign-in, never a key shipped in the theme. The filename is only the hint
+for a copy written before the file itself named its key; a copy that says `kid: vault` is
+recognised from the file. So these open in the Drive browser as soon as the keyring is
+unlocked, and no export password is ever asked for one. What remains on the typed-password
+route is a copy the owner sealed with their own password in **Backup → Export encrypted
+backup** (`SecureWallet_*.enc`, `kid: passphrase`). Local export does not upload that file to
+the hidden Drive folder automatically. Web saves use `secure_wallet_web.enc`.
 
 Notes:
 
@@ -196,8 +209,9 @@ input, or use **New code** to issue a fresh one. **Unpair** clears both the stor
 and the issued code.
 
 The six characters are a presence handshake only — never a key, passphrase or record. They
-let the page mark itself as "this is my browser"; nothing decrypts without the export
-password. Codes use the alphabet `ABCDEFGHJKLMNPQRSTUVWXYZ23456789` (no I, O, 0, 1).
+let the page mark itself as "this is my browser"; nothing decrypts without the vault key this
+page holds after Google sign-in, or the password the owner typed for that particular export.
+Codes use the alphabet `ABCDEFGHJKLMNPQRSTUVWXYZ23456789` (no I, O, 0, 1).
 
 ## Security model
 
