@@ -2,6 +2,7 @@ package com.securevault.pro.presentation
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.securevault.pro.data.remote.firebase.FaceMirror
 import com.securevault.pro.data.remote.google.CloudSyncManager
 import com.securevault.pro.data.repository.VaultRepository
 import com.securevault.pro.security.AppLockManager
@@ -34,6 +35,7 @@ class AppViewModel @Inject constructor(
     private val appLockManager: AppLockManager,
     private val sessionManager: SessionManager,
     private val cloudSyncManager: CloudSyncManager,
+    private val faceMirror: FaceMirror,
     private val vaultRepository: VaultRepository
 ) : ViewModel() {
 
@@ -129,6 +131,17 @@ class AppViewModel @Inject constructor(
             val saved = runCatching { appLockManager.themeId.first() }.getOrDefault(VaultPalettes.DEFAULT_ID)
             val resolved = VaultPalettes.find(saved)
             if (resolved.id != saved) runCatching { appLockManager.setThemeId(resolved.id) }
+        }
+        viewModelScope.launch {
+            // The browser face wears whatever the phone is wearing. Every theme path - the Settings
+            // switcher, the light/dark toggle, the retired-id repair above - ends in this same flow,
+            // so observing it here covers all of them without touching the sync engine. Only a real
+            // session publishes: a decoy or locked screen has no mirror to dress.
+            appLockManager.themeId.collect { id ->
+                if (sessionManager.mode.value == SessionMode.REAL) {
+                    runCatching { faceMirror.publish(id) }
+                }
+            }
         }
     }
 

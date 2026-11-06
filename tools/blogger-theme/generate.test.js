@@ -276,3 +276,76 @@ test('the generator refuses to overwrite the template it reads', () => {
   const template = fs.readFileSync(path.join(__dirname, 'secure_wallet_blogger_theme.xml'), 'utf8');
   assert.ok(template.includes("apiKey: ''"), 'the template must stay free of injected project values');
 });
+
+/* ---- two faces, one lineup: the web must wear the app's themes, not its own ---- */
+
+const paletteBridge = require('./palette-bridge');
+const PALETTE_PATH = path.join(root, 'app/src/main/java/com/securevault/pro/presentation/theme/Palette.kt');
+
+function webFaces(xml) {
+  const line = xml.match(/var SVP_THEMES = (\[[\s\S]*?\]);/);
+  assert.ok(line, 'the generated theme must carry a face list');
+  return JSON.parse(line[1]);
+}
+
+test('every app theme is bridged into the web page, in the app order', t => {
+  // The complaint this guards against is structural, not cosmetic: the page used to ship one
+  // hand-written skin while the app shipped 15, so "same coin" was true of the data and false of
+  // the interface. Deriving the list from Palette.kt makes the drift unshippable.
+  const xml = generate(t, ['--title', 'Secure Wallet Pro']);
+  const appFaces = paletteBridge.bridge(PALETTE_PATH).themes;
+  const webFacesList = webFaces(xml);
+  assert.deepEqual(webFacesList.map((face) => face.id), appFaces.map((face) => face.id),
+    'the web face list must be the app list, in order');
+  assert.ok(appFaces.length >= 15, 'the shipped lineup is 15 faces');
+  assert.deepEqual(webFacesList.map((face) => face.tokens.bg), appFaces.map((face) => face.tokens.bg),
+    'a face must not change colour on the way to the browser');
+});
+
+test('the first paint uses the app default face instead of a colour picked here', t => {
+  const bridged = paletteBridge.bridge(PALETTE_PATH);
+  const xml = generate(t);
+  const root = xml.match(/^:root\{([^\n]*)\}/m);
+  assert.ok(root, 'the skin must open with a :root fallback');
+  const vars = Object.fromEntries(root[1].split(';').map((row) => row.split(/:(.+)/)));
+  const wanted = bridged.themes.find((face) => face.id === bridged.defaultId);
+  assert.equal(vars['--bg'], wanted.tokens.bg, 'the fallback background is the default face background');
+  assert.equal(vars['--cyan'], wanted.tokens.accent, 'the fallback accent is the default face accent');
+  assert.ok(xml.includes("var SVP_DEFAULT_FACE = '" + bridged.defaultId + "';"),
+    'the page must default to the face the app defaults to');
+});
+
+test('the page follows the phone face and still lets the owner choose one', t => {
+  const xml = generate(t);
+  const js = script(xml);
+  assert.doesNotThrow(() => new vm.Script(js), 'the face layer must stay parseable');
+  assert.ok(xml.includes("id='svp-face'"), 'the header carries the face picker');
+  for (const needle of [
+    'function applyFace(',
+    'function renderFacePicker()',
+    'function watchPhoneFace()',
+    "rtRef('meta/face')",
+    'mirrorPhoneFace(snap',
+    'applyFace(storedFace() || SVP_DEFAULT_FACE',
+  ]) {
+    assert.ok(js.includes(needle), 'the face layer is missing ' + needle);
+  }
+  // The phone owns the choice once a live session exists, so a browser-only setting cannot win.
+  assert.ok(js.indexOf('watchPhoneFace();') > js.indexOf('function enterLive()'),
+    'the mirror is armed when the live vault opens');
+});
+
+test('the page dresses every token the bridge emits, and no others', t => {
+  const bridged = paletteBridge.bridge(PALETTE_PATH);
+  const js = script(generate(t));
+  const declared = js.match(/var FACE_TOKENS = \{([\s\S]*?)\};/);
+  assert.ok(declared, 'the face layer must declare its token map');
+  const pageKeys = [...declared[1].matchAll(/([a-z0-9]+)\s*:/g)].map((m) => m[1]).sort();
+  const bridgeKeys = Object.values(paletteBridge.COLOR_KEYS).sort();
+  assert.deepEqual(pageKeys, bridgeKeys,
+    'a bridged token the page never reads would be a silently missing colour');
+  for (const face of bridged.themes) {
+    const unknown = Object.keys(face.tokens).filter((key) => !bridgeKeys.includes(key));
+    assert.deepEqual(unknown, [], face.id + ' carries a token the page cannot dress');
+  }
+});

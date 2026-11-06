@@ -8,17 +8,20 @@
 <b:include data='blog' name='all-head-content'/>
 <title><data:blog.pageTitle/></title>
 <b:skin><![CDATA[
-:root{--bg:#05070d;--panel:rgba(17,23,37,.78);--panel2:rgba(24,32,50,.7);--line:rgba(122,180,255,.16);--cyan:#38e8ff;--mint:#3ef0b0;--indigo:#2563eb;--amber:#ffc85c;--coral:#ff4136;--text:#eaf2ff;--muted:#8b9bb4}
+:root{--bg:#04101c;--panel:#0a1b2c;--panel2:#12293f;--line:rgba(122,180,255,.16);--cyan:#38bdf8;--mint:#5ee6a0;--indigo:#6c8cff;--amber:#ffb44d;--coral:#ff6b6b;--lavender:#ffd400;--text:#f7fcff;--text2:#c3dcf0;--muted:#91b2cc;--on-accent:#04121f;--card-r:32px;--btn-r:26px;--input-r:20px;--chip-r:16px;--card-border:1px;--card-shadow:0 8px 22px rgba(0,0,0,.32);--label-transform:none;--btn-fill:linear-gradient(135deg,#38bdf8,#5ee6a0);--grid-cols:repeat(5,minmax(0,1fr));--face-blur:18px}
 *{box-sizing:border-box}html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
-body{min-height:100vh;background:radial-gradient(900px 500px at 12% -10%,rgba(56,232,255,.13),transparent 60%),radial-gradient(800px 520px at 88% 0,rgba(37,99,235,.16),transparent 55%),radial-gradient(700px 600px at 50% 110%,rgba(62,240,176,.08),transparent 60%),#05070d;background-attachment:fixed}
+body{min-height:100vh;background:radial-gradient(900px 500px at 12% -10%,rgba(56,232,255,.13),transparent 60%),radial-gradient(800px 520px at 88% 0,rgba(37,99,235,.16),transparent 55%),radial-gradient(700px 600px at 50% 110%,rgba(62,240,176,.08),transparent 60%),var(--bg);background-attachment:fixed}
 a{color:var(--cyan)}.svp-wrap{max-width:1080px;margin:0 auto;padding:28px 18px 40px;position:relative;z-index:2}
 .svp-top{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:22px;flex-wrap:wrap}
 .svp-brand{display:flex;align-items:center;gap:12px}
-.svp-logo{width:44px;height:44px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:20px;color:#031018;background:linear-gradient(135deg,var(--cyan),var(--mint));box-shadow:0 10px 30px rgba(56,232,255,.25)}
+.svp-logo{width:44px;height:44px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:20px;color:var(--on-accent);background:var(--btn-fill);box-shadow:0 10px 30px rgba(56,232,255,.25)}
 .svp-brand h1{font-size:20px;line-height:1.2;margin:0;letter-spacing:.2px}
 .svp-brand p{margin:2px 0 0;font-size:11px;color:var(--muted);letter-spacing:.14em;text-transform:uppercase}
-.svp-top-actions{display:flex;gap:8px;flex-wrap:wrap}
-.svp-card{background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:20px;backdrop-filter:blur(18px);box-shadow:0 24px 60px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.04)}
+.svp-top-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.svp-face{display:inline-flex}
+.svp-face-select{appearance:none;background:var(--panel2);border:var(--card-border) solid var(--line);border-radius:var(--chip-r);color:var(--text);padding:8px 12px;font-size:12px;font-family:inherit;cursor:pointer;max-width:190px}
+.svp-face-select:focus{outline:none;border-color:var(--cyan);box-shadow:0 0 0 3px rgba(56,189,248,.15)}
+.svp-card{background:var(--panel);border:var(--card-border) solid var(--line);border-radius:var(--card-r);padding:20px;backdrop-filter:blur(18px);box-shadow:0 24px 60px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.04)}
 .svp-lock{max-width:520px;margin:8vh auto 0;text-align:left;border-color:rgba(56,232,255,.26)}
 .svp-lock h2{margin:0 0 6px;font-size:22px}
 .svp-muted{color:var(--muted);font-size:13px;line-height:1.55;margin:0 0 14px}
@@ -31,7 +34,7 @@ textarea{min-height:88px;resize:vertical}
 .svp-btn{border:1px solid var(--line);border-radius:12px;padding:10px 15px;font-size:13px;font-weight:600;cursor:pointer;background:rgba(255,255,255,.04);color:var(--text);font-family:inherit;transition:transform .12s ease,background .2s ease,border-color .2s ease}
 .svp-btn:hover{transform:translateY(-1px);border-color:rgba(56,232,255,.4)}
 .svp-btn:disabled{opacity:.55;cursor:not-allowed;transform:none}
-.svp-btn.primary{background:linear-gradient(135deg,var(--cyan),var(--mint));color:#031018;border:0;box-shadow:0 10px 26px rgba(56,232,255,.22)}
+.svp-btn.primary{background:var(--btn-fill);color:var(--on-accent);border:0;box-shadow:0 10px 26px rgba(56,232,255,.22)}
 .svp-btn.ghost{background:rgba(255,255,255,.03)}
 .svp-btn.icon{padding:10px 12px;min-width:52px}
 .svp-btn.danger{border-color:rgba(255,65,54,.35);color:var(--coral)}
@@ -46,13 +49,13 @@ textarea{min-height:88px;resize:vertical}
 .svp-toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
 .svp-tabs{display:flex;gap:6px;flex-wrap:wrap;flex:1}
 .svp-tab{border:1px solid var(--line);background:rgba(255,255,255,.025);color:var(--muted);border-radius:999px;padding:7px 13px;font-size:12px;cursor:pointer;font-family:inherit}
-.svp-tab.active{color:#031018;background:linear-gradient(135deg,var(--cyan),var(--mint));border-color:transparent;font-weight:700}
+.svp-tab.active{color:var(--on-accent);background:var(--btn-fill);border-color:transparent;font-weight:700}
 .svp-tab b{opacity:.75;font-weight:600;margin-left:4px}
 .svp-search{max-width:260px;flex:1 1 180px}
 .svp-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px}
 .svp-item{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:16px;display:flex;flex-direction:column;gap:10px;backdrop-filter:blur(14px)}
 .svp-item-head{display:flex;gap:10px;align-items:flex-start}
-.svp-avatar{width:38px;height:38px;flex:0 0 38px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;color:#031018;background:linear-gradient(135deg,var(--cyan),var(--indigo))}
+.svp-avatar{width:38px;height:38px;flex:0 0 38px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;color:var(--on-accent);background:linear-gradient(135deg,var(--cyan),var(--indigo))}
 .svp-item-title{font-size:15px;font-weight:700;line-height:1.25;word-break:break-word;margin:0}
 .svp-item-sub{font-size:12px;color:var(--muted);margin:2px 0 0;word-break:break-word}
 .svp-tags{display:flex;gap:6px;flex-wrap:wrap}
@@ -141,6 +144,138 @@ textarea{min-height:88px;resize:vertical}
      Google setup, which keeps it in localStorage only. */
   var FB_VERSION = '10.12.2';
   var FB_CFG = { apiKey: 'AIzaSyB6O6LUanMOsXDaChVcuuem4veo8AUwUH8', authDomain: 'vault-35423.firebaseapp.com', projectId: 'vault-35423', databaseURL: 'https://vault-35423-default-rtdb.asia-southeast1.firebasedatabase.app', webClientId: '908900914248-pse5k128rl0hoqb07oebhsnngt1i80uj.apps.googleusercontent.com' };
+  /* The 15 faces of the app, bridged from Palette.kt by generate.js at build time. An empty list is
+     only ever a template placeholder: a shipped theme always carries all 15, so the page and the
+     phone cannot drift into two different lineups. */
+  var SVP_THEMES = [{"id":"solstice","tokens":{"bg":"#fff6df","panel":"#ffffff","panel2":"#ffe9b8","accent":"#c1121f","gold":"#ffb000","link":"#1d4ed8","good":"#00b84c","bad":"#ff6b6b","soft":"#ffd400","text":"#150e00","text2":"#4a3a18","muted":"#6e5d34"},"flags":{"hardOutline":true,"gradientButtons":true,"glow":false,"uppercaseLabels":true,"monoTags":true,"cardGradient":false,"sheen":false,"navFloating":false,"layout":"MOSAIC","backdrop":"HARD_GRID","header":"INLINE_BOLD","dock":"FLAT_PLATE","pieForm":"WEDGE_3D","iconStyle":"FILLED","design":"NEUTRAL","cardCorner":10,"buttonCorner":8,"inputCorner":6,"chipCorner":4,"navHeight":68,"pieInnerRatio":0.88},"name":"Solar Pop","isLight":true},{"id":"oneui","tokens":{"bg":"#f6f7fb","panel":"#ffffff","panel2":"#e9ecf5","accent":"#2563eb","gold":"#e88b00","link":"#1d4ed8","good":"#14b87a","bad":"#e64545","soft":"#ffd400","text":"#0d1017","text2":"#4b5261","muted":"#868d9c"},"flags":{"gradientButtons":false,"glow":false,"cardGradient":false,"navFloating":true,"layout":"ADAPTIVE","backdrop":"TEXTURED","header":"LARGE_COMFORT","dock":"COMFORT_PANEL","pieForm":"RING","iconStyle":"OUTLINED","design":"GENERATIVE","cardCorner":26,"buttonCorner":26,"inputCorner":20,"chipCorner":16,"navHeight":76,"pieInnerRatio":0.78},"name":"Comfort Panel","isLight":true},{"id":"aqua","tokens":{"bg":"#04101c","panel":"#0a1b2c","panel2":"#12293f","accent":"#38bdf8","gold":"#ffb44d","link":"#6c8cff","good":"#5ee6a0","bad":"#ff6b6b","soft":"#ffd400","text":"#f7fcff","text2":"#c3dcf0","muted":"#91b2cc"},"flags":{"sheen":true,"layout":"COMPACT","backdrop":"AURORA_MESH","header":"CENTERED","dock":"PILL_FROSTED","pieForm":"STACKED_RING","iconStyle":"OUTLINED","design":"LIQUID_GLASS","cardCorner":32,"buttonCorner":26,"inputCorner":20,"chipCorner":16,"navHeight":64,"pieInnerRatio":0.5},"name":"Aqua Tint","isLight":false},{"id":"lime","tokens":{"bg":"#f3fff0","panel":"#ffffff","panel2":"#e3ffd6","accent":"#2bd46a","gold":"#ffb000","link":"#1d4ed8","good":"#00c853","bad":"#d2222f","soft":"#38bdf8","text":"#07130a","text2":"#2e4a34","muted":"#52705a"},"flags":{"hardOutline":true,"gradientButtons":true,"glow":true,"uppercaseLabels":true,"monoTags":true,"cardGradient":true,"sheen":false,"navFloating":true,"layout":"CLASSIC","backdrop":"NEON_MESH","header":"TAB_UPPER","dock":"SOFT_FLOATING","pieForm":"SEGMENTED","iconStyle":"SHARP","design":"CYBERPUNK","cardCorner":4.5,"buttonCorner":3.5,"inputCorner":3,"chipCorner":2.5,"navHeight":64,"pieInnerRatio":0.55},"name":"Neon Lime","isLight":true},{"id":"dark","tokens":{"bg":"#0a0a12","panel":"#12121c","panel2":"#1f1f2e","accent":"#ffd400","gold":"#ffc400","link":"#2563eb","good":"#00ff9d","bad":"#ff5c5c","soft":"#38bdf8","text":"#f7f5ff","text2":"#d2dcec","muted":"#a4aabe"},"flags":{"gradientButtons":false,"glow":false,"cardGradient":false,"navFloating":false,"layout":"LEDGER","backdrop":"NEON_MESH","header":"INLINE_BOLD","dock":"MINIMAL_BAR","pieForm":"BARS","iconStyle":"OUTLINED","design":"GENERATIVE","cardCorner":12,"buttonCorner":24,"inputCorner":12,"chipCorner":8,"navHeight":74,"pieInnerRatio":0.6},"name":"Midnight Pop","isLight":false},{"id":"noir","tokens":{"bg":"#121418","panel":"#1a1d22","panel2":"#242830","accent":"#ffc94d","gold":"#ff9f1c","link":"#6ea8ff","good":"#7be495","bad":"#ff6b5e","soft":"#38bdf8","text":"#fbf8ef","text2":"#cfc9b8","muted":"#9c9688"},"flags":{"gradientButtons":false,"glow":false,"uppercaseLabels":true,"cardGradient":false,"sheen":false,"navFloating":false,"layout":"DENSE","backdrop":"CALM","header":"TAB_UPPER","dock":"MINIMAL_BAR","pieForm":"WEDGE","iconStyle":"OUTLINED","design":"AGENTIC","cardCorner":16,"buttonCorner":12,"inputCorner":12,"chipCorner":6,"navHeight":58,"pieInnerRatio":0.9},"name":"Obsidian Noir","isLight":false},{"id":"mint","tokens":{"bg":"#e8f3ec","panel":"#f6fbf7","panel2":"#ddebe2","accent":"#00c853","gold":"#e3a23c","link":"#4b6bcb","good":"#2fa36b","bad":"#d6604a","soft":"#38bdf8","text":"#0f2a22","text2":"#3e5c50","muted":"#6e8b7e"},"flags":{"gradientButtons":true,"glow":false,"cardGradient":false,"sheen":false,"navFloating":true,"layout":"DUO","backdrop":"PULSE_MESH","header":"LARGE_COMFORT","dock":"SOFT_FLOATING","pieForm":"RING","iconStyle":"ROUNDED","design":"BENTO","cardCorner":24,"buttonCorner":20,"inputCorner":16,"chipCorner":12,"navHeight":70,"pieInnerRatio":0.72},"name":"Mint Ledger","isLight":true},{"id":"sunset","tokens":{"bg":"#131313","panel":"#2a1a16","panel2":"#3a241c","accent":"#ff7a7a","gold":"#ffb35c","link":"#2563eb","good":"#5bcf9b","bad":"#d2222f","soft":"#ffd400","text":"#ffede2","text2":"#d6afa0","muted":"#9e7e73"},"flags":{"gradientButtons":true,"glow":false,"cardGradient":true,"sheen":true,"navFloating":true,"layout":"GALLERY","backdrop":"AURORA_MESH","header":"INLINE_BOLD","dock":"PILL_FROSTED","pieForm":"STACKED_RING","iconStyle":"ROUNDED","design":"GENERATIVE","cardCorner":28,"buttonCorner":22,"inputCorner":18,"chipCorner":14,"navHeight":64,"pieInnerRatio":0.85},"name":"Sunset Dusk","isLight":false},{"id":"arctic","tokens":{"bg":"#edf2f8","panel":"#f8fbfe","panel2":"#dce7f2","accent":"#1d4ed8","gold":"#d9a648","link":"#5b7fd4","good":"#35b87f","bad":"#e4574c","soft":"#38bdf8","text":"#0c1b2a","text2":"#3d556e","muted":"#6e86a0"},"flags":{"gradientButtons":true,"glow":false,"cardGradient":true,"sheen":true,"navFloating":true,"layout":"TRIAD","backdrop":"PULSE_MESH","header":"CENTERED","dock":"PILL_FROSTED","pieForm":"WEDGE","iconStyle":"ROUNDED","design":"LIQUID_GLASS","cardCorner":32,"buttonCorner":26,"inputCorner":22,"chipCorner":18,"navHeight":68,"pieInnerRatio":0.74},"name":"Arctic Frost","isLight":true},{"id":"voltra","tokens":{"bg":"#05080a","panel":"#0d1316","panel2":"#17242b","accent":"#00e676","gold":"#ffd400","link":"#23e3ff","good":"#38f2a0","bad":"#ff5c5c","soft":"#38bdf8","text":"#ecfff4","text2":"#9fc4b8","muted":"#62827a"},"flags":{"hardOutline":true,"gradientButtons":true,"glow":true,"uppercaseLabels":true,"monoTags":true,"cardGradient":false,"sheen":false,"navFloating":true,"layout":"SPLIT","backdrop":"NEON_MESH","header":"TAB_UPPER","dock":"SOFT_FLOATING","pieForm":"SEGMENTED","iconStyle":"SHARP","design":"CYBERPUNK","cardCorner":6,"buttonCorner":4,"inputCorner":4,"chipCorner":2,"navHeight":64,"pieInnerRatio":0.9},"name":"Volt Aura","isLight":false},{"id":"neon_cyan","tokens":{"bg":"#04070c","panel":"#0a1119","panel2":"#122030","accent":"#5bb8f5","gold":"#ffd54d","link":"#0b6bff","good":"#4dffb0","bad":"#ff6b6b","soft":"#ffd400","text":"#effdff","text2":"#b4d8e6","muted":"#7e9fae"},"flags":{"hardOutline":true,"gradientButtons":true,"glow":true,"uppercaseLabels":true,"monoTags":true,"cardGradient":false,"sheen":false,"navFloating":true,"layout":"AGENTIC","backdrop":"NEON_MESH","header":"TAB_UPPER","dock":"SOFT_FLOATING","pieForm":"BARS","iconStyle":"SHARP","design":"CYBERPUNK","cardCorner":8,"buttonCorner":6,"inputCorner":6,"chipCorner":3,"navHeight":64,"pieInnerRatio":0.9},"name":"Neon Cyan","isLight":false},{"id":"royal","tokens":{"bg":"#060b18","panel":"#0c1428","panel2":"#16223f","accent":"#1e40af","gold":"#f5c518","link":"#2563eb","good":"#3ed6a4","bad":"#ff6b6b","soft":"#38bdf8","text":"#eef4ff","text2":"#b4c4e0","muted":"#7e8da8"},"flags":{"gradientButtons":true,"glow":false,"cardGradient":true,"sheen":false,"navFloating":true,"layout":"STRIP","backdrop":"AURORA_MESH","header":"CENTERED","dock":"PILL_FROSTED","pieForm":"RING","iconStyle":"OUTLINED","design":"BENTO","cardCorner":24,"buttonCorner":18,"inputCorner":16,"chipCorner":12,"navHeight":66,"pieInnerRatio":0.68},"name":"Royal Blue","isLight":false},{"id":"neon_magenta","tokens":{"bg":"#0a0a0a","panel":"#121212","panel2":"#1d1d1d","accent":"#d2222f","gold":"#ffc24d","link":"#2563eb","good":"#35f5c0","bad":"#ff6b6b","soft":"#38bdf8","text":"#fff2f1","text2":"#e8c3bf","muted":"#ae8b8b"},"flags":{"hardOutline":true,"gradientButtons":true,"glow":true,"uppercaseLabels":true,"monoTags":true,"cardGradient":false,"sheen":false,"navFloating":true,"layout":"COLUMN","backdrop":"NEON_MESH","header":"CENTERED","dock":"PILL_FROSTED","pieForm":"WEDGE_3D","iconStyle":"SHARP","design":"CYBERPUNK","cardCorner":10,"buttonCorner":8,"inputCorner":8,"chipCorner":4,"navHeight":66,"pieInnerRatio":0.52},"name":"Signal Red","isLight":false},{"id":"sakura","tokens":{"bg":"#edf4fa","panel":"#fbfdff","panel2":"#dce9f4","accent":"#7dd3fc","gold":"#e5a75f","link":"#2563eb","good":"#58a574","bad":"#d95555","soft":"#5bb8f5","text":"#14283c","text2":"#3d5a6b","muted":"#6c8698"},"flags":{"gradientButtons":true,"glow":false,"cardGradient":false,"sheen":false,"navFloating":true,"layout":"BENTO","backdrop":"PULSE_MESH","header":"LARGE_COMFORT","dock":"SOFT_FLOATING","pieForm":"STACKED_RING","iconStyle":"ROUNDED","design":"CLAYMORPHISM","cardCorner":30,"buttonCorner":26,"inputCorner":22,"chipCorner":22,"navHeight":72,"pieInnerRatio":0.5},"name":"Glacier Blue","isLight":true},{"id":"neon_plasma","tokens":{"bg":"#070707","panel":"#101010","panel2":"#1a1a1a","accent":"#ff6b6b","gold":"#ffc94d","link":"#2563eb","good":"#38f5c8","bad":"#d2222f","soft":"#62e8ff","text":"#f6f4f6","text2":"#c9c4cc","muted":"#8e8f98"},"flags":{"hardOutline":true,"gradientButtons":true,"glow":true,"uppercaseLabels":true,"monoTags":true,"cardGradient":true,"sheen":false,"navFloating":true,"layout":"GENERATIVE","backdrop":"NEON_MESH","header":"LARGE_COMFORT","dock":"COMFORT_PANEL","pieForm":"BARS","iconStyle":"SHARP","design":"CYBERPUNK","cardCorner":30,"buttonCorner":24,"inputCorner":18,"chipCorner":14,"navHeight":72,"pieInnerRatio":0.66},"name":"Neon Plasma","isLight":false}];
+  var SVP_DEFAULT_FACE = 'aqua';
+
+  /* ===================== THE FACE LAYER (same 15 themes as the app) =====================
+   * Every rule in the skin reads a CSS variable, so dressing the page is one pass of
+   * setProperty over the bridged tokens - no second stylesheet and no second opinion about what
+   * "Solstice" looks like. The phone owns the choice: `meta/face` carries the id the app is
+   * wearing, and this page follows it. With nothing signed in there is no phone to follow, so the
+   * picker at the top of the page decides and remembers.
+   */
+  var FACE_TOKENS = {
+    bg: '--bg', panel: '--panel', panel2: '--panel2', accent: '--cyan', gold: '--amber',
+    link: '--indigo', good: '--mint', bad: '--coral', soft: '--lavender', text: '--text',
+    text2: '--text2', muted: '--muted'
+  };
+  var FACE_STORAGE = 'svp.face';
+
+  function faceById(id) {
+    for (var i = 0; i < SVP_THEMES.length; i++) if (SVP_THEMES[i].id === id) return SVP_THEMES[i];
+    return null;
+  }
+
+  function faceList() { return SVP_THEMES.slice(); }
+
+  /** Contrast for text that sits on a filled accent button, tab or avatar. */
+  function inkOn(hexOrRgba) {
+    var m = /#([0-9a-f]{6})/i.exec(hexOrRgba || '');
+    if (!m) return '#04121f';
+    var n = parseInt(m[1], 16);
+    var r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+    return (0.299 * r + 0.587 * g + 0.114 * b) > 150 ? '#10141c' : '#f7fbff';
+  }
+
+  function applyFace(id, remember) {
+    var theme = faceById(id) || faceById(SVP_DEFAULT_FACE) || faceList()[0];
+    if (!theme) return '';
+    var style = document.documentElement.style;
+    var tokens = theme.tokens || {};
+    for (var key in FACE_TOKENS) if (tokens[key]) style.setProperty(FACE_TOKENS[key], tokens[key]);
+    var flags = theme.flags || {};
+    style.setProperty('--line', flags.hardOutline ? (tokens.text || '#000') : 'rgba(128,128,128,.30)');
+    style.setProperty('--on-accent', inkOn(tokens.accent));
+    style.setProperty('--card-r', pxOr(flags.cardCorner, 16));
+    style.setProperty('--btn-r', pxOr(flags.buttonCorner, 12));
+    style.setProperty('--input-r', pxOr(flags.inputCorner, 12));
+    style.setProperty('--chip-r', pxOr(flags.chipCorner, 999));
+    style.setProperty('--card-border', flags.hardOutline ? '2px' : '1px');
+    style.setProperty('--card-shadow', flags.glow ? '0 18px 46px rgba(0,0,0,.32)' : '0 8px 22px rgba(0,0,0,.10)');
+    style.setProperty('--label-transform', flags.uppercaseLabels ? 'uppercase' : 'none');
+    style.setProperty('--btn-fill', flags.gradientButtons
+      ? 'linear-gradient(135deg,' + (tokens.accent || '#2563eb') + ',' + (tokens.good || '#00b84c') + ')'
+      : (tokens.accent || '#2563eb'));
+    style.setProperty('--grid-cols', layoutColumns(flags.layout));
+    style.setProperty('--face-blur', flags.sheen ? '18px' : '0px');
+    document.documentElement.setAttribute('data-svp-face', theme.id);
+    try { if (remember) localStorage.setItem(FACE_STORAGE, theme.id); } catch (e) { /* private mode */ }
+    return theme.id;
+  }
+
+  function pxOr(value, fallback) { return (typeof value === 'number' && isFinite(value)) ? value + 'px' : fallback + 'px'; }
+
+  var FACE_COLUMNS = {
+    CLASSIC: 'repeat(4,minmax(0,1fr))', BENTO: 'repeat(4,minmax(0,1fr))', STRIP: 'repeat(4,minmax(0,1fr))',
+    AGENTIC: 'repeat(2,minmax(0,1fr))', ADAPTIVE: 'repeat(2,minmax(0,1fr))', DUO: 'repeat(2,minmax(0,1fr))',
+    LEDGER: 'repeat(2,minmax(0,1fr))', SPLIT: 'repeat(2,minmax(0,1fr))', TRIAD: 'repeat(2,minmax(0,1fr))',
+    GENERATIVE: 'repeat(3,minmax(0,1fr))', MOSAIC: 'repeat(3,minmax(0,1fr))', COLUMN: 'repeat(3,minmax(0,1fr))',
+    GALLERY: 'repeat(3,minmax(0,1fr))', COMPACT: 'repeat(5,minmax(0,1fr))', DENSE: 'repeat(6,minmax(0,1fr))'
+  };
+  function layoutColumns(layout) {
+    return FACE_COLUMNS[layout] || 'repeat(auto-fill,minmax(150px,1fr))';
+  }
+
+  function storedFace() {
+    try { return localStorage.getItem(FACE_STORAGE) || ''; } catch (e) { return ''; }
+  }
+
+  /** The picker in the header: the app's 15 names, in the app's order. */
+  function renderFacePicker() {
+    var host = document.getElementById('svp-face');
+    if (!host) return;
+    var themes = faceList();
+    if (!themes.length) { host.textContent = 'No themes are bridged into this file.'; return; }
+    var current = document.documentElement.getAttribute('data-svp-face') || '';
+    while (host.firstChild) host.removeChild(host.firstChild);
+    var select = document.createElement('select');
+    select.id = 'svp-face-select';
+    select.className = 'svp-face-select';
+    select.setAttribute('aria-label', 'Theme face');
+    themes.forEach(function (theme) {
+      var option = document.createElement('option');
+      option.value = theme.id;
+      option.textContent = theme.name || theme.id;
+      if (theme.id === current) option.selected = true;
+      select.appendChild(option);
+    });
+    select.addEventListener('change', function () { applyFace(select.value, true); repaintFace(); });
+    host.appendChild(select);
+  }
+
+  /** Re-render whatever reads colours: the list, the counts and the composition ring. */
+  function repaintFace() {
+    if (typeof scheduleRender === 'function') scheduleRender();
+    if (typeof drawComposition === 'function') drawComposition();
+  }
+
+  /** Follow the phone: the app writes the id it is wearing, and this side puts it on. */
+  function mirrorPhoneFace(raw) {
+    var id = typeof raw === 'string' ? raw : (raw && raw.face) || '';
+    if (!id || !faceById(id)) return false;
+    applyFace(id, true);
+    renderFacePicker();
+    repaintFace();
+    return true;
+  }
+
+  /* One listener on one plain string. `meta/face` is not vault data, so it is read the moment a
+     live session exists and never blocks or retries: if the phone has not written one yet, the
+     browser keeps the face its owner last chose here. */
+  function watchPhoneFace() {
+    if (!RT.ns || !RT.uid) return;
+    try {
+      var ref = rtRef('meta/face');
+      if (!ref || typeof ref.on !== 'function') return;
+      if (RT.faceOff) { try { RT.faceOff(); } catch (e) { /* already detached */ } }
+      RT.faceOff = ref.on('value', function (snap) {
+        mirrorPhoneFace(snap && typeof snap.val === 'function' ? snap.val() : '');
+      });
+    } catch (e) { /* the face is cosmetic; a lost listener must not reach the vault */ }
+  }
   /* The frozen wire contract: RECORD-FORMAT-v1 sections 1-4. */
   var LIVE_MODULES = ['notes', 'entries', 'cards', 'totps', 'contacts', 'cryptoWallets', 'files'];
   var RECORD_KEYS = {
@@ -211,6 +346,7 @@ textarea{min-height:88px;resize:vertical}
       </div>
     </div>
     <div class='svp-top-actions'>
+      <span class='svp-face' id='svp-face'></span>
       <span class='svp-chip' id='svp-chip' hidden='hidden'>offline</span>
       <button class='svp-btn ghost' id='svp-drive-btn' type='button'>Connect Drive</button>
       <button class='svp-btn ghost' id='svp-lock-btn' type='button' hidden='hidden'>Lock</button>
@@ -2547,6 +2683,7 @@ textarea{min-height:88px;resize:vertical}
     note.className = 'svp-muted';
     note.textContent = 'Live: edits are sealed with your vault key and written to the same nodes the app reads.';
     liveStatus('subscribing to 7 modules', 'warn');
+    watchPhoneFace();
     setLiveBusy(false);
     attachListeners();
     return reconcile().then(function () {
@@ -3641,6 +3778,10 @@ textarea{min-height:88px;resize:vertical}
     if (S.envelope && !sealedWithVaultKey(S.envelope, S.fileName)) $('svp-pass').focus();
     var logNode = $('svp-log');
     if (logNode) logNode.hidden = true;
+    // Dress the page before anything paints a list: the face the owner left on this browser wins
+    // until the phone says otherwise, and `meta/face` takes over the moment a live session starts.
+    applyFace(storedFace() || SVP_DEFAULT_FACE, false);
+    renderFacePicker();
     initLiveMode();
     updateChip();
   }

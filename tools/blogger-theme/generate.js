@@ -29,6 +29,10 @@ const ITERATIONS = 600000;
 const DEFAULT_PACKAGE = 'com.securevault.app';
 const DEFAULT_RTDB_REGION = 'asia-southeast1';
 const DEFAULT_FIREBASE_VERSION = '10.12.2';
+const DEFAULT_PALETTE_PATH = path.resolve(
+  __dirname,
+  '../../app/src/main/java/com/securevault/pro/presentation/theme/Palette.kt'
+);
 
 function usage() {
   process.stdout.write(
@@ -244,8 +248,26 @@ function buildTheme(options) {
     if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error('--firebase-version must look like 10.12.2');
     out = out.replace(/var FB_VERSION = '[^']*';/, () => "var FB_VERSION = '" + jsString(version) + "';");
   }
+  const faces = bridgeFaces(options.palettePath || DEFAULT_PALETTE_PATH);
+  out = out.replace(/var SVP_THEMES = \[[\s\S]*?\];/, () => 'var SVP_THEMES = ' + JSON.stringify(faces.themes) + ';');
+  out = out.replace(/var SVP_DEFAULT_FACE = '[^']*';/, () => "var SVP_DEFAULT_FACE = '" + jsString(faces.defaultId) + "';");
+  out = out.replace(/^:root\{[^\n]*\}/m, () => faces.rootCss);
   const safeTitle = jsString(xmlEscape(options.title));
   return out.replace(/<h1 id='svp-title'>[^<]*<\/h1>/, () => "<h1 id='svp-title'>" + safeTitle + "</h1>");
+}
+
+/* The 15 faces come from the app's own Palette.kt, never from a copy kept here: a theme that only
+   exists on one side of the two-face pair is a bug the generator cannot ship. */
+function bridgeFaces(palettePath) {
+  const bridge = require('./palette-bridge');
+  const bridged = bridge.bridge(palettePath);
+  if (!bridged.themes.length) throw new Error('Palette.kt produced no themes to bridge');
+  const ids = bridged.themes.map((theme) => theme.id);
+  if (new Set(ids).size !== ids.length) throw new Error('Palette.kt lists a theme id twice: ' + ids.join(', '));
+  if (!bridged.themes.some((theme) => theme.id === bridged.defaultId)) {
+    throw new Error('Palette.kt defaults to "' + bridged.defaultId + '", which is not in its own list');
+  }
+  return bridged;
 }
 
 function main() {

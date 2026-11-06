@@ -20,6 +20,74 @@ Blogger XML artifact, and the backup/checkpoint snapshots, which hold vault and 
 data. One stale 3.3.4 theme export under `release-site/` is left on disk but untracked because
 it embedded a Firebase `apiKey`; themes we ship carry a blank `var SEED` and no cloud config.
 
+## [3.8.0] — 2026-11-06 (versionCode 384)
+
+One theme: the two faces of the vault now wear the same clothes. The web page used to ship a single
+hand-written dark skin that knew nothing about the 15 palettes on the phone, and the phone never told
+the page which one it was wearing. Both halves are fixed, and neither fix reaches the encryption
+envelope, the record nodes, the revision counter or the reconcile loop — the frozen systems are
+byte-for-byte what 3.7.0 shipped.
+
+### The web face list is derived from the app, not copied into it
+
+`tools/blogger-theme/palette-bridge.js` parses `VaultPalettes` out of
+`app/src/main/java/com/securevault/pro/presentation/theme/Palette.kt` and emits, per theme, the CSS
+custom-property block the page renders from (`--bg`, `--panel`, `--accent`, corner radii, border
+weight, label case, accent-fill gradients and the layout column count). `generate.js` injects three
+things it could not inject before: `var SVP_THEMES`, `var SVP_DEFAULT_FACE` and the `:root` fallback,
+which is generated from the app's default face rather than a colour picked in the template. A theme
+that exists on one side and not the other is now a build failure, not a silent divergence — the
+generator suite asserts the id lists are deep-equal, in order. Ten hardcoded hexes remain in the
+template and all ten live inside the generated `:root`.
+
+### The phone publishes its face; the page follows
+
+`FaceMirror` (`data/remote/firebase/FaceMirror.kt`) writes the theme id to `svp1/users/$uid/meta/face`
+— a plain string on a node the sync engine already treats as its own bookkeeping. It is deliberately
+not part of the engine: 8-second timeout, no retry, and a failure is invisible, because a cosmetic
+write must never surface as a vault error or touch a record. `AppViewModel` observes the single funnel
+every theme path ends in (`appLockManager.themeId`) — the Settings switcher, the light/dark toggle and
+the retired-id repair all pass through it — and publishes only while the session is `REAL`, so a decoy
+or locked screen has no mirror to dress.
+
+On the page, `watchPhoneFace()` subscribes to `meta/face` once live mode starts and repaints; a
+`<select>` in the header lets the owner pick a face locally (remembered in `svp.face`) without ever
+writing back to the phone. `bumpMeta()` and `nextRevision()` both read-then-write inside a
+transaction, so neither clobbers the other's children — that was verified against the shipped sources
+before this node was used.
+
+### The disk was the actual blocker
+
+`D:` was 100% full (370 MB free): 74 loose release APKs sat in the project root, plus a 1.4 GB
+pre-sweep backup. `tools/move-root-apks.sh` copied every one to
+`C:\Users\Sharyar\SmartVaultate-APK-Archive`, md5-verified each copy and only then removed the
+source — nothing was deleted outright. 370 MB became 5.7 GB.
+
+Two folders now exist outside the project: `D:\sharyar\backup_broken_v4_2026-11-06` (47 MB, all 723
+source files, md5-matched samples, zero-byte count 0) as the untouched reference copy, and
+`D:\sharyar\SecureWalletPro_v5_Rebuild` — the same engine with the build caches, stale artifacts and
+checkpoints excluded (30 MB), which compiles and packages clean. The rebuild is a verified-clean tree
+of the shipped code, not a second fork: the app source, crypto and sync logic are the files git
+tracks here, and the deliverables below are built from them.
+
+### Measured, not assumed, about the XML
+
+The premise "the Blogger XML is completely non-functional" was tested before being acted on. The
+deployed page renders, throws no console errors, carries the Firebase 10.12.2 ESM client with the real
+project config, ships the Google button and the pairing QR, and its generator contract tests pass. The
+real gaps were the two fixed above, plus one that no XML rewrite can close: **web Google sign-in still
+needs `securevaultpro.blogspot.com` added to Firebase Auth → Settings → Authorized domains**, an
+owner-side console entry. Until that is done the page's sign-in refuses by design and names the entry.
+
+### Not proven
+
+No emulator or adb here, so the on-device behaviour of the new publisher, the theme switch and the
+secure keyboard is unverified on hardware — the evidence is the JVM suite, the generator suite and a
+signed release build. And on "vibrant light colours, no dark": 9 of the 15 shipped palettes are still
+`isLight = false` by design (the 3 Neon skins, dark, noir, royal and four others are intentionally
+dark accent studies). Converting them is a lineup decision, not a bug, so it is left for the owner to
+call rather than changed under a rebuild label.
+
 ## [3.7.0] — 2026-11-06 (versionCode 383)
 
 One professional-audit wave: each functionality — email, crypto balances and sends, the document

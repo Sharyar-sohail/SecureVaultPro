@@ -8,17 +8,20 @@
 <b:include data='blog' name='all-head-content'/>
 <title><data:blog.pageTitle/></title>
 <b:skin><![CDATA[
-:root{--bg:#05070d;--panel:rgba(17,23,37,.78);--panel2:rgba(24,32,50,.7);--line:rgba(122,180,255,.16);--cyan:#38e8ff;--mint:#3ef0b0;--indigo:#2563eb;--amber:#ffc85c;--coral:#ff4136;--text:#eaf2ff;--muted:#8b9bb4}
+:root{--bg:#04101c;--panel:#0a1b2c;--panel2:#12293f;--line:rgba(122,180,255,.16);--cyan:#38bdf8;--mint:#5ee6a0;--indigo:#6c8cff;--amber:#ffb44d;--coral:#ff6b6b;--lavender:#ffd400;--text:#f7fcff;--text2:#c3dcf0;--muted:#91b2cc;--on-accent:#04121f;--card-r:16px;--btn-r:12px;--input-r:12px;--chip-r:999px;--card-border:1px;--card-shadow:0 8px 22px rgba(0,0,0,.32);--label-transform:uppercase;--btn-fill:var(--btn-fill);--grid-cols:repeat(5,minmax(0,1fr));--face-blur:18px}
 *{box-sizing:border-box}html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
-body{min-height:100vh;background:radial-gradient(900px 500px at 12% -10%,rgba(56,232,255,.13),transparent 60%),radial-gradient(800px 520px at 88% 0,rgba(37,99,235,.16),transparent 55%),radial-gradient(700px 600px at 50% 110%,rgba(62,240,176,.08),transparent 60%),#05070d;background-attachment:fixed}
+body{min-height:100vh;background:radial-gradient(900px 500px at 12% -10%,rgba(56,232,255,.13),transparent 60%),radial-gradient(800px 520px at 88% 0,rgba(37,99,235,.16),transparent 55%),radial-gradient(700px 600px at 50% 110%,rgba(62,240,176,.08),transparent 60%),var(--bg);background-attachment:fixed}
 a{color:var(--cyan)}.svp-wrap{max-width:1080px;margin:0 auto;padding:28px 18px 40px;position:relative;z-index:2}
 .svp-top{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:22px;flex-wrap:wrap}
 .svp-brand{display:flex;align-items:center;gap:12px}
-.svp-logo{width:44px;height:44px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:20px;color:#031018;background:linear-gradient(135deg,var(--cyan),var(--mint));box-shadow:0 10px 30px rgba(56,232,255,.25)}
+.svp-logo{width:44px;height:44px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:20px;color:var(--on-accent);background:var(--btn-fill);box-shadow:0 10px 30px rgba(56,232,255,.25)}
 .svp-brand h1{font-size:20px;line-height:1.2;margin:0;letter-spacing:.2px}
 .svp-brand p{margin:2px 0 0;font-size:11px;color:var(--muted);letter-spacing:.14em;text-transform:uppercase}
-.svp-top-actions{display:flex;gap:8px;flex-wrap:wrap}
-.svp-card{background:var(--panel);border:1px solid var(--line);border-radius:20px;padding:20px;backdrop-filter:blur(18px);box-shadow:0 24px 60px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.04)}
+.svp-top-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.svp-face{display:inline-flex}
+.svp-face-select{appearance:none;background:var(--panel2);border:var(--card-border) solid var(--line);border-radius:var(--chip-r);color:var(--text);padding:8px 12px;font-size:12px;font-family:inherit;cursor:pointer;max-width:190px}
+.svp-face-select:focus{outline:none;border-color:var(--cyan);box-shadow:0 0 0 3px rgba(56,189,248,.15)}
+.svp-card{background:var(--panel);border:var(--card-border) solid var(--line);border-radius:var(--card-r);padding:20px;backdrop-filter:blur(18px);box-shadow:0 24px 60px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.04)}
 .svp-lock{max-width:520px;margin:8vh auto 0;text-align:left;border-color:rgba(56,232,255,.26)}
 .svp-lock h2{margin:0 0 6px;font-size:22px}
 .svp-muted{color:var(--muted);font-size:13px;line-height:1.55;margin:0 0 14px}
@@ -31,7 +34,7 @@ textarea{min-height:88px;resize:vertical}
 .svp-btn{border:1px solid var(--line);border-radius:12px;padding:10px 15px;font-size:13px;font-weight:600;cursor:pointer;background:rgba(255,255,255,.04);color:var(--text);font-family:inherit;transition:transform .12s ease,background .2s ease,border-color .2s ease}
 .svp-btn:hover{transform:translateY(-1px);border-color:rgba(56,232,255,.4)}
 .svp-btn:disabled{opacity:.55;cursor:not-allowed;transform:none}
-.svp-btn.primary{background:linear-gradient(135deg,var(--cyan),var(--mint));color:#031018;border:0;box-shadow:0 10px 26px rgba(56,232,255,.22)}
+.svp-btn.primary{background:var(--btn-fill);color:var(--on-accent);border:0;box-shadow:0 10px 26px rgba(56,232,255,.22)}
 .svp-btn.ghost{background:rgba(255,255,255,.03)}
 .svp-btn.icon{padding:10px 12px;min-width:52px}
 .svp-btn.danger{border-color:rgba(255,65,54,.35);color:var(--coral)}
@@ -46,13 +49,13 @@ textarea{min-height:88px;resize:vertical}
 .svp-toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
 .svp-tabs{display:flex;gap:6px;flex-wrap:wrap;flex:1}
 .svp-tab{border:1px solid var(--line);background:rgba(255,255,255,.025);color:var(--muted);border-radius:999px;padding:7px 13px;font-size:12px;cursor:pointer;font-family:inherit}
-.svp-tab.active{color:#031018;background:linear-gradient(135deg,var(--cyan),var(--mint));border-color:transparent;font-weight:700}
+.svp-tab.active{color:var(--on-accent);background:var(--btn-fill);border-color:transparent;font-weight:700}
 .svp-tab b{opacity:.75;font-weight:600;margin-left:4px}
 .svp-search{max-width:260px;flex:1 1 180px}
 .svp-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:12px}
 .svp-item{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:16px;display:flex;flex-direction:column;gap:10px;backdrop-filter:blur(14px)}
 .svp-item-head{display:flex;gap:10px;align-items:flex-start}
-.svp-avatar{width:38px;height:38px;flex:0 0 38px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;color:#031018;background:linear-gradient(135deg,var(--cyan),var(--indigo))}
+.svp-avatar{width:38px;height:38px;flex:0 0 38px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;color:var(--on-accent);background:linear-gradient(135deg,var(--cyan),var(--indigo))}
 .svp-item-title{font-size:15px;font-weight:700;line-height:1.25;word-break:break-word;margin:0}
 .svp-item-sub{font-size:12px;color:var(--muted);margin:2px 0 0;word-break:break-word}
 .svp-tags{display:flex;gap:6px;flex-wrap:wrap}
@@ -141,6 +144,138 @@ textarea{min-height:88px;resize:vertical}
      Google setup, which keeps it in localStorage only. */
   var FB_VERSION = '10.12.2';
   var FB_CFG = { apiKey: '', authDomain: 'vault-35423.firebaseapp.com', projectId: 'vault-35423', databaseURL: 'https://vault-35423-default-rtdb.asia-southeast1.firebasedatabase.app', webClientId: '908900914248-pse5k128rl0hoqb07oebhsnngt1i80uj.apps.googleusercontent.com' };
+  /* The 15 faces of the app, bridged from Palette.kt by generate.js at build time. An empty list is
+     only ever a template placeholder: a shipped theme always carries all 15, so the page and the
+     phone cannot drift into two different lineups. */
+  var SVP_THEMES = [];
+  var SVP_DEFAULT_FACE = 'aqua';
+
+  /* ===================== THE FACE LAYER (same 15 themes as the app) =====================
+   * Every rule in the skin reads a CSS variable, so dressing the page is one pass of
+   * setProperty over the bridged tokens - no second stylesheet and no second opinion about what
+   * "Solstice" looks like. The phone owns the choice: `meta/face` carries the id the app is
+   * wearing, and this page follows it. With nothing signed in there is no phone to follow, so the
+   * picker at the top of the page decides and remembers.
+   */
+  var FACE_TOKENS = {
+    bg: '--bg', panel: '--panel', panel2: '--panel2', accent: '--cyan', gold: '--amber',
+    link: '--indigo', good: '--mint', bad: '--coral', soft: '--lavender', text: '--text',
+    text2: '--text2', muted: '--muted'
+  };
+  var FACE_STORAGE = 'svp.face';
+
+  function faceById(id) {
+    for (var i = 0; i < SVP_THEMES.length; i++) if (SVP_THEMES[i].id === id) return SVP_THEMES[i];
+    return null;
+  }
+
+  function faceList() { return SVP_THEMES.slice(); }
+
+  /** Contrast for text that sits on a filled accent button, tab or avatar. */
+  function inkOn(hexOrRgba) {
+    var m = /#([0-9a-f]{6})/i.exec(hexOrRgba || '');
+    if (!m) return '#04121f';
+    var n = parseInt(m[1], 16);
+    var r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+    return (0.299 * r + 0.587 * g + 0.114 * b) > 150 ? '#10141c' : '#f7fbff';
+  }
+
+  function applyFace(id, remember) {
+    var theme = faceById(id) || faceById(SVP_DEFAULT_FACE) || faceList()[0];
+    if (!theme) return '';
+    var style = document.documentElement.style;
+    var tokens = theme.tokens || {};
+    for (var key in FACE_TOKENS) if (tokens[key]) style.setProperty(FACE_TOKENS[key], tokens[key]);
+    var flags = theme.flags || {};
+    style.setProperty('--line', flags.hardOutline ? (tokens.text || '#000') : 'rgba(128,128,128,.30)');
+    style.setProperty('--on-accent', inkOn(tokens.accent));
+    style.setProperty('--card-r', pxOr(flags.cardCorner, 16));
+    style.setProperty('--btn-r', pxOr(flags.buttonCorner, 12));
+    style.setProperty('--input-r', pxOr(flags.inputCorner, 12));
+    style.setProperty('--chip-r', pxOr(flags.chipCorner, 999));
+    style.setProperty('--card-border', flags.hardOutline ? '2px' : '1px');
+    style.setProperty('--card-shadow', flags.glow ? '0 18px 46px rgba(0,0,0,.32)' : '0 8px 22px rgba(0,0,0,.10)');
+    style.setProperty('--label-transform', flags.uppercaseLabels ? 'uppercase' : 'none');
+    style.setProperty('--btn-fill', flags.gradientButtons
+      ? 'linear-gradient(135deg,' + (tokens.accent || '#2563eb') + ',' + (tokens.good || '#00b84c') + ')'
+      : (tokens.accent || '#2563eb'));
+    style.setProperty('--grid-cols', layoutColumns(flags.layout));
+    style.setProperty('--face-blur', flags.sheen ? '18px' : '0px');
+    document.documentElement.setAttribute('data-svp-face', theme.id);
+    try { if (remember) localStorage.setItem(FACE_STORAGE, theme.id); } catch (e) { /* private mode */ }
+    return theme.id;
+  }
+
+  function pxOr(value, fallback) { return (typeof value === 'number' && isFinite(value)) ? value + 'px' : fallback + 'px'; }
+
+  var FACE_COLUMNS = {
+    CLASSIC: 'repeat(4,minmax(0,1fr))', BENTO: 'repeat(4,minmax(0,1fr))', STRIP: 'repeat(4,minmax(0,1fr))',
+    AGENTIC: 'repeat(2,minmax(0,1fr))', ADAPTIVE: 'repeat(2,minmax(0,1fr))', DUO: 'repeat(2,minmax(0,1fr))',
+    LEDGER: 'repeat(2,minmax(0,1fr))', SPLIT: 'repeat(2,minmax(0,1fr))', TRIAD: 'repeat(2,minmax(0,1fr))',
+    GENERATIVE: 'repeat(3,minmax(0,1fr))', MOSAIC: 'repeat(3,minmax(0,1fr))', COLUMN: 'repeat(3,minmax(0,1fr))',
+    GALLERY: 'repeat(3,minmax(0,1fr))', COMPACT: 'repeat(5,minmax(0,1fr))', DENSE: 'repeat(6,minmax(0,1fr))'
+  };
+  function layoutColumns(layout) {
+    return FACE_COLUMNS[layout] || 'repeat(auto-fill,minmax(150px,1fr))';
+  }
+
+  function storedFace() {
+    try { return localStorage.getItem(FACE_STORAGE) || ''; } catch (e) { return ''; }
+  }
+
+  /** The picker in the header: the app's 15 names, in the app's order. */
+  function renderFacePicker() {
+    var host = document.getElementById('svp-face');
+    if (!host) return;
+    var themes = faceList();
+    if (!themes.length) { host.textContent = 'No themes are bridged into this file.'; return; }
+    var current = document.documentElement.getAttribute('data-svp-face') || '';
+    while (host.firstChild) host.removeChild(host.firstChild);
+    var select = document.createElement('select');
+    select.id = 'svp-face-select';
+    select.className = 'svp-face-select';
+    select.setAttribute('aria-label', 'Theme face');
+    themes.forEach(function (theme) {
+      var option = document.createElement('option');
+      option.value = theme.id;
+      option.textContent = theme.name || theme.id;
+      if (theme.id === current) option.selected = true;
+      select.appendChild(option);
+    });
+    select.addEventListener('change', function () { applyFace(select.value, true); repaintFace(); });
+    host.appendChild(select);
+  }
+
+  /** Re-render whatever reads colours: the list, the counts and the composition ring. */
+  function repaintFace() {
+    if (typeof scheduleRender === 'function') scheduleRender();
+    if (typeof drawComposition === 'function') drawComposition();
+  }
+
+  /** Follow the phone: the app writes the id it is wearing, and this side puts it on. */
+  function mirrorPhoneFace(raw) {
+    var id = typeof raw === 'string' ? raw : (raw && raw.face) || '';
+    if (!id || !faceById(id)) return false;
+    applyFace(id, true);
+    renderFacePicker();
+    repaintFace();
+    return true;
+  }
+
+  /* One listener on one plain string. `meta/face` is not vault data, so it is read the moment a
+     live session exists and never blocks or retries: if the phone has not written one yet, the
+     browser keeps the face its owner last chose here. */
+  function watchPhoneFace() {
+    if (!RT.ns || !RT.uid) return;
+    try {
+      var ref = rtRef('meta/face');
+      if (!ref || typeof ref.on !== 'function') return;
+      if (RT.faceOff) { try { RT.faceOff(); } catch (e) { /* already detached */ } }
+      RT.faceOff = ref.on('value', function (snap) {
+        mirrorPhoneFace(snap && typeof snap.val === 'function' ? snap.val() : '');
+      });
+    } catch (e) { /* the face is cosmetic; a lost listener must not reach the vault */ }
+  }
   /* The frozen wire contract: RECORD-FORMAT-v1 sections 1-4. */
   var LIVE_MODULES = ['notes', 'entries', 'cards', 'totps', 'contacts', 'cryptoWallets', 'files'];
   var RECORD_KEYS = {
@@ -211,6 +346,7 @@ textarea{min-height:88px;resize:vertical}
       </div>
     </div>
     <div class='svp-top-actions'>
+      <span class='svp-face' id='svp-face'></span>
       <span class='svp-chip' id='svp-chip' hidden='hidden'>offline</span>
       <button class='svp-btn ghost' id='svp-drive-btn' type='button'>Connect Drive</button>
       <button class='svp-btn ghost' id='svp-lock-btn' type='button' hidden='hidden'>Lock</button>
@@ -2547,6 +2683,7 @@ textarea{min-height:88px;resize:vertical}
     note.className = 'svp-muted';
     note.textContent = 'Live: edits are sealed with your vault key and written to the same nodes the app reads.';
     liveStatus('subscribing to 7 modules', 'warn');
+    watchPhoneFace();
     setLiveBusy(false);
     attachListeners();
     return reconcile().then(function () {
@@ -3641,6 +3778,10 @@ textarea{min-height:88px;resize:vertical}
     if (S.envelope && !sealedWithVaultKey(S.envelope, S.fileName)) $('svp-pass').focus();
     var logNode = $('svp-log');
     if (logNode) logNode.hidden = true;
+    // Dress the page before anything paints a list: the face the owner left on this browser wins
+    // until the phone says otherwise, and `meta/face` takes over the moment a live session starts.
+    applyFace(storedFace() || SVP_DEFAULT_FACE, false);
+    renderFacePicker();
     initLiveMode();
     updateChip();
   }
