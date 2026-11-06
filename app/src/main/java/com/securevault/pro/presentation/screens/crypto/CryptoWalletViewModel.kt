@@ -2,9 +2,11 @@ package com.securevault.pro.presentation.screens.crypto
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.securevault.pro.crypto.ChainRegistry
 import com.securevault.pro.crypto.CryptoNetwork
 import com.securevault.pro.crypto.WalletAddress
 import com.securevault.pro.crypto.WalletImportKind
+import com.securevault.pro.data.remote.realtime.RealtimeModule
 import com.securevault.pro.data.repository.VaultRepository
 import com.securevault.pro.data.wallet.CryptoBalanceService
 import com.securevault.pro.data.wallet.CryptoTransferService
@@ -47,6 +49,7 @@ data class CryptoUiState(
     val busy: Boolean = false,
     val refreshing: Set<String> = emptySet(),
     val scanErrors: Map<String, String> = emptyMap(),
+    val scanNotice: String? = null,
     val error: String? = null,
     val transfer: TransferUiState = TransferUiState(),
     val keys: KeyUiState = KeyUiState()
@@ -78,30 +81,51 @@ data class KeyUiState(
     val revealing: Boolean get() = revealedKey != null
 }
 
-/** Only funded coins are surfaced; empty derivation addresses stay hidden. */
+/**
+ * Only funded coins are surfaced; empty derivation addresses stay hidden.
+ *
+ * A discovered token row carries the contract and decimals it was read from, so it becomes an
+ * asset that can be sent. A row with neither — a token this app only ever knew by ticker — is still
+ * shown in the portfolio but not offered as an asset, because signing against an address the scan
+ * never read is exactly the mistake the pre-signing gate refuses to make.
+ */
 fun CryptoWallet.fundedAssets(): List<TransferAsset> = balances
     .filter { it.amount > 0.0 }
     .mapNotNull { balance ->
         val network = CryptoNetwork.entries.firstOrNull { it.id == balance.networkId }
             ?: return@mapNotNull null
-        val native = balance.symbol == network.symbol
-        val spec = if (native) null else CryptoTransferService.TOKEN_SPECS.firstOrNull {
-            it.network == network && it.symbol.equals(balance.symbol, true)
+        val descriptor = ChainRegistry.descriptorOrNull(balance.networkId)
+        val contract = balance.contract ?: knownContractFor(network, balance.symbol)
+        val native = contract.isNullOrBlank() && balance.symbol == network.symbol
+        if (!native && contract.isNullOrBlank()) return@mapNotNull null
+        val decimals = when {
+            native -> descriptor?.decimals ?: network.decimals
+            balance.decimals > 0 -> balance.decimals
+            else -> knownDecimalsFor(network, balance.symbol) ?: return@mapNotNull null
         }
-        if (!native && spec == null) return@mapNotNull null
         TransferAsset(
             networkId = network.id,
             networkName = network.displayName,
             symbol = balance.symbol,
             name = balance.name,
-            contract = spec?.contract,
-            decimals = spec?.decimals ?: network.decimals,
+            contract = contract,
+            decimals = decimals,
             isNative = native,
             amount = balance.amount,
             priceUsd = balance.priceUsd
         )
     }
     .distinctBy { it.key }
+
+private fun knownContractFor(network: CryptoNetwork, symbol: String): String? =
+    CryptoTransferService.TOKEN_SPECS.firstOrNull {
+        it.network == network && it.symbol.equals(symbol, true)
+    }?.contract
+
+private fun knownDecimalsFor(network: CryptoNetwork, symbol: String): Int? =
+    CryptoTransferService.TOKEN_SPECS.firstOrNull {
+        it.network == network && it.symbol.equals(symbol, true)
+    }?.decimals
 
 @HiltViewModel
 class CryptoWalletViewModel @Inject constructor(
@@ -158,7 +182,7 @@ class CryptoWalletViewModel @Inject constructor(
             }
             _state.update { it.copy(busy = false) }
             result.onSuccess { wallet ->
-                vaultRepository.notifyMutation()
+                vaultRepository.notifyMutation(RealtimeModule.CRYPTO_WALLETS.segment, wallet.id)
                 loadKeys()
                 onResult(null)
                 refresh(wallet.id)
@@ -179,6 +203,7 @@ class CryptoWalletViewModel @Inject constructor(
                     // A refreshAll batch starts with an empty set; later parallel
                     // refreshes must not wipe the notices collected so far.
                     scanErrors = if (current.refreshing.isEmpty()) emptyMap() else current.scanErrors,
+                    scanNotice = if (current.refreshing.isEmpty()) null else current.scanNotice,
                     error = null
                 )
             }
@@ -186,15 +211,19 @@ class CryptoWalletViewModel @Inject constructor(
             // Balances, the portfolio total and lastSyncedAt are Room state, so a scan
             // is a vault mutation: without this the Drive mirror keeps advertising the
             // figures from before the refresh.
-            if (result.isSuccess) vaultRepository.notifyMutation()
+            if (result.isSuccess) vaultRepository.notifyMutation(RealtimeModule.CRYPTO_WALLETS.segment, id)
             _state.update { current ->
-                val errors = result.getOrNull()?.errors.orEmpty()
+                val scan = result.getOrNull()
+                val errors = scan?.errors.orEmpty()
                     .mapKeys { (networkId, _) ->
                         CryptoNetwork.entries.firstOrNull { it.id == networkId }?.displayName ?: networkId
                     }
                 current.copy(
                     refreshing = current.refreshing - id,
                     scanErrors = errors,
+                    // The scan says in one line why it found nothing, e.g. every chain is switched
+                    // off in Settings. A chain that simply failed already has its own line above.
+                    scanNotice = scan?.notice,
                     error = result.exceptionOrNull()?.message
                 )
             }
@@ -210,7 +239,7 @@ class CryptoWalletViewModel @Inject constructor(
         if (decoy) return
         viewModelScope.launch {
             repository.delete(id)
-            vaultRepository.notifyMutation()
+            vaultRepository.notifyMutation(RealtimeModule.CRYPTO_WALLETS.segment, id, deleted = true)
             loadKeys()
         }
     }
@@ -345,7 +374,7 @@ class CryptoWalletViewModel @Inject constructor(
     }
 
     fun clearError() {
-        _state.update { it.copy(error = null, scanErrors = emptyMap()) }
+        _state.update { it.copy(error = null, scanErrors = emptyMap(), scanNotice = null) }
     }
 
     // -------------------------------------------------------------- transfers
@@ -471,7 +500,7 @@ class CryptoWalletViewModel @Inject constructor(
                             )
                         )
                     }
-                    vaultRepository.notifyMutation()
+                    vaultRepository.notifyMutation(RealtimeModule.CRYPTO_WALLETS.segment, wallet.id)
                     refresh(wallet.id)
                 },
                 onFailure = { error ->

@@ -24,7 +24,13 @@ data class BackupEnvelope(
      * diagnostics read sensibly, but an unstated file is older than v3 for decryption purposes: the
      * reader must offer it the pre-v3 keys and counts, not the narrower current list.
      */
-    val statedVersion: Boolean = true
+    val statedVersion: Boolean = true,
+    /**
+     * Which key the writer used, as stated by the file itself in its `kid` field — `vault`,
+     * `passphrase`, or null when the copy predates the field. A restore reads this to derive one
+     * key instead of trying a list, so it is a fact about the file, never a guess.
+     */
+    val keyId: String? = null
 ) {
     val saltBytes: Int get() = salt.size
 
@@ -58,6 +64,9 @@ data class BackupEnvelope(
 
         /** The keys past builds used to state their own PBKDF2 count. */
         val ITERATION_FIELDS = listOf("iterations", "iter", "kdfIterations", "pbkdf2Iterations")
+
+        /** The keys a writer may use to state which key sealed the body. */
+        val KEY_ID_FIELDS = listOf("kid", "keyId")
 
         /** The keys past builds used to state their envelope version. */
         val VERSION_FIELDS = listOf("v", "version")
@@ -97,11 +106,12 @@ object BackupEnvelopeFormat {
     }
 
     /** A sealed body as it goes on the wire: the shipped `v`/`salt`/`data` triple. */
-    fun envelopeJson(version: Int, saltBase64: String, data: String): String {
+    fun envelopeJson(version: Int, saltBase64: String, data: String, keyId: String? = null): String {
         val obj = JsonObject()
         obj.addProperty("v", version)
         obj.addProperty("salt", saltBase64)
         obj.addProperty("data", data)
+        keyId?.takeIf { it.isNotBlank() }?.let { obj.addProperty("kid", it) }
         return obj.toString()
     }
 
@@ -154,7 +164,8 @@ object BackupEnvelopeFormat {
             version = readVersion(obj),
             iterations = readIterations(obj),
             recognised = true,
-            statedVersion = statedVersion
+            statedVersion = statedVersion,
+            keyId = firstPrimitive(obj, BackupEnvelope.KEY_ID_FIELDS)?.trim()?.takeIf { it.isNotEmpty() }
         )
     }
 

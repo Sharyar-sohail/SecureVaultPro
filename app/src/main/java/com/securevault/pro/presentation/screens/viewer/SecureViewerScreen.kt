@@ -8,6 +8,7 @@ import android.widget.MediaController
 import android.widget.VideoView
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -35,6 +36,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -234,40 +236,114 @@ private fun ViewerBody(state: ViewerState) {
         )
         return
     }
-    when (state.kind) {
-        ViewerKind.IMAGE -> ZoomableImage(path = path, title = state.title)
-        ViewerKind.PDF -> PdfViewer(path = path)
-        ViewerKind.VIDEO -> MediaViewer(path = path, audio = false)
-        ViewerKind.AUDIO -> MediaViewer(path = path, audio = true)
-        ViewerKind.TEXT, ViewerKind.OFFICE -> TextDocument(
-            title = state.title,
-            text = state.text,
-            office = state.kind == ViewerKind.OFFICE
-        )
-        ViewerKind.UNSUPPORTED -> Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = vaultGutter(), vertical = 24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            EmptyState(
-                icon = Glyph.description,
-                title = "Preview not supported",
-                message = "This file type cannot be rendered safely inside the encrypted viewer. Use the share action to open an explicit copy in another app."
-            )
-            GlassCard {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("File", style = MaterialTheme.typography.labelSmall, color = VaultColor.textFaint)
-                    Text(state.title, style = MaterialTheme.typography.titleSmall, color = VaultColor.textStrong)
-                    Text(
-                        "${state.mimeType.ifBlank { "unknown type" }} · ${formatBytes(state.size)}",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = VaultColor.textBody
-                    )
-                }
+    /** Kept here so one tap turns the page and the photo alike, and leaving the file resets it. */
+    var rotation by remember(state.id, path) { mutableIntStateOf(0) }
+    val rotatable = state.kind == ViewerKind.IMAGE || state.kind == ViewerKind.PDF
+    Column(modifier = Modifier.fillMaxSize()) {
+        Box(modifier = Modifier.weight(1f)) {
+            when (state.kind) {
+                ViewerKind.IMAGE -> ZoomableImage(path = path, title = state.title, rotation = rotation)
+                ViewerKind.PDF -> PdfViewer(path = path, rotation = rotation)
+                ViewerKind.VIDEO -> MediaViewer(path = path, audio = false)
+                ViewerKind.AUDIO -> MediaViewer(path = path, audio = true)
+                ViewerKind.TEXT, ViewerKind.OFFICE -> TextDocument(
+                    title = state.title,
+                    text = state.text,
+                    office = state.kind == ViewerKind.OFFICE
+                )
+                ViewerKind.UNSUPPORTED -> UnsupportedDocument(state)
             }
         }
+        if (rotatable) {
+            ViewerRotateBar(
+                rotation = rotation,
+                onRotate = { rotation = (rotation + 90) % 360 },
+                onFit = { rotation = 0 }
+            )
+        }
+    }
+}
+
+/**
+ * What the viewer can decode but not draw: a TIFF, a RAW, an archive.
+ *
+ * Naming the type is the whole point — "unsupported" with no type next to it leaves the owner
+ * guessing whether the vault lost the file or the phone just cannot paint it.
+ */
+@Composable
+private fun UnsupportedDocument(state: ViewerState) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = vaultGutter(), vertical = 24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        EmptyState(
+            icon = Glyph.description,
+            title = "Preview not supported",
+            message = "This phone has no decoder for ${describeType(state.mimeType, state.title)}, so the " +
+                "secure viewer will not guess at its pixels. The stored file is untouched — use Share to " +
+                "open an explicit copy in an app that reads this type."
+        )
+        GlassCard {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("File", style = MaterialTheme.typography.labelSmall, color = VaultColor.textFaint)
+                Text(state.title, style = MaterialTheme.typography.titleSmall, color = VaultColor.textStrong)
+                Text(
+                    "${state.mimeType.ifBlank { "unknown type" }} · ${formatBytes(state.size)}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = VaultColor.textBody
+                )
+            }
+        }
+    }
+}
+
+/** The one-line type a row or an error message shows the owner instead of a bare MIME string. */
+private fun describeType(mimeType: String, name: String): String {
+    val mime = mimeType.lowercase()
+    val ext = name.substringAfterLast('.', "").lowercase()
+    return when {
+        mime.startsWith("image/") || ext in setOf("jpg", "jpeg", "png", "webp", "gif", "bmp", "heic", "heif", "tiff") ->
+            "the image type ${ext.ifBlank { mime.substringAfter('/') }}"
+        mime.startsWith("video/") -> "the video type ${ext.ifBlank { mime.substringAfter('/') }}"
+        mime.startsWith("audio/") -> "the audio type ${ext.ifBlank { mime.substringAfter('/') }}"
+        mime == "application/pdf" -> "this PDF"
+        mime.isBlank() || mime == "application/octet-stream" ->
+            if (ext.isBlank()) "a file with no type recorded" else "the .$ext type"
+        else -> mime
+    }
+}
+
+/**
+ * Rotate / fit strip for the two kinds that have an orientation.
+ *
+ * A photo scanned in landscape and a page photographed sideways were previously readable only by
+ * turning the phone, and turning the phone re-laid the whole screen out mid-gesture.
+ */
+@Composable
+private fun ViewerRotateBar(rotation: Int, onRotate: () -> Unit, onFit: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = vaultGutter(), vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        GhostButton(
+            text = "Rotate",
+            icon = Glyph.refresh,
+            modifier = Modifier.weight(1f),
+            onClick = onRotate
+        )
+        GhostButton(
+            text = if (rotation == 0) "Fit" else "Fit · ${rotation}°",
+            icon = Glyph.close,
+            modifier = Modifier.weight(1f),
+            enabled = rotation != 0,
+            onClick = onFit
+        )
     }
 }
 
@@ -324,20 +400,50 @@ private fun TextDocument(title: String, text: String?, office: Boolean) {
     }
 }
 
+/**
+ * A 48 MP photo decoded straight from disk is ~190 MB of ARGB pixels — more than this process is
+ * allowed, and the phone simply died with no message on the way back. The decoder therefore halves
+ * the image until both the long edge and the total pixel count fit a stated budget, and drops to
+ * 16-bit colour for a still-huge raster: nothing on this screen needs the eighth bit of a scan.
+ */
+private const val MAX_IMAGE_EDGE = 2200
+private const val MAX_IMAGE_PIXELS = 9_000_000L
+private const val LOW_BIT_DEPTH_PIXELS = 5_000_000L
+
+/** Decodes [path] inside the budget above, or null when this phone has no decoder for it. */
+private fun decodeBounded(path: String): Bitmap? {
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    BitmapFactory.decodeFile(path, bounds)
+    if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+    var sample = 1
+    while (maxOf(bounds.outWidth, bounds.outHeight) / sample > MAX_IMAGE_EDGE ||
+        bounds.outWidth.toLong() * bounds.outHeight.toLong() / (sample.toLong() * sample) > MAX_IMAGE_PIXELS
+    ) {
+        sample *= 2
+    }
+    val options = BitmapFactory.Options().apply { inSampleSize = sample }
+    if (bounds.outWidth.toLong() * bounds.outHeight.toLong() / (sample.toLong() * sample) > LOW_BIT_DEPTH_PIXELS) {
+        options.inPreferredConfig = Bitmap.Config.RGB_565
+    }
+    return runCatching { BitmapFactory.decodeFile(path, options) }.getOrNull()
+}
+
+/** Turns a decoded raster by [degrees] without ever holding the original at full size. */
+private fun rotateBitmap(source: Bitmap, degrees: Int): Bitmap = runCatching {
+    val matrix = android.graphics.Matrix().apply { postRotate(degrees.toFloat()) }
+    Bitmap.createBitmap(source, 0, 0, source.width, source.height, matrix, true)
+}.getOrDefault(source)
+
 @Composable
-private fun ZoomableImage(path: String, title: String) {
-    val image by produceState<Result<ImageBitmap>?>(initialValue = null, path) {
+private fun ZoomableImage(path: String, title: String, rotation: Int) {
+    val source by produceState<Bitmap?>(initialValue = null, key1 = path) {
+        value = withContext(Dispatchers.IO) { decodeBounded(path) }
+    }
+    val image by produceState<Result<ImageBitmap>?>(initialValue = null, key1 = source, key2 = rotation) {
         value = withContext(Dispatchers.IO) {
             runCatching {
-                val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-                BitmapFactory.decodeFile(path, bounds)
-                var sample = 1
-                while (bounds.outWidth / sample > 2600 || bounds.outHeight / sample > 2600) {
-                    sample *= 2
-                }
-                val options = BitmapFactory.Options().apply { inSampleSize = sample }
-                BitmapFactory.decodeFile(path, options)?.asImageBitmap()
-                    ?: error("This image cannot be decoded")
+                val base = source ?: error("This image cannot be decoded")
+                if (rotation % 360 == 0) base.asImageBitmap() else rotateBitmap(base, rotation).asImageBitmap()
             }
         }
     }
@@ -348,6 +454,14 @@ private fun ZoomableImage(path: String, title: String) {
         modifier = Modifier
             .fillMaxSize()
             .clipToBounds()
+            .pointerInput(path) {
+                detectTapGestures(onDoubleTap = {
+                    // A second tap gives the image back at one scale, because pan/zoom on a phone
+                    // has no other reset and a lost photo is one gesture from looking deleted.
+                    scale = 1f
+                    offset = Offset.Zero
+                })
+            }
             .pointerInput(Unit) {
                 detectTransformGestures { _, pan, zoom, _ ->
                     scale = (scale * zoom).coerceIn(1f, 6f)
@@ -378,14 +492,15 @@ private fun ZoomableImage(path: String, title: String) {
             else -> EmptyState(
                 icon = Glyph.brokenImage,
                 title = "Preview unavailable",
-                message = "This image could not be decoded. The stored file is untouched."
+                message = "This image could not be decoded on this phone. The stored file is untouched — " +
+                    "use Share to open it in an app that reads this type."
             )
         }
     }
 }
 
 @Composable
-private fun PdfViewer(path: String) {
+private fun PdfViewer(path: String, rotation: Int) {
     val holder = remember(path) {
         runCatching {
             val descriptor = ParcelFileDescriptor.open(
@@ -399,7 +514,9 @@ private fun PdfViewer(path: String) {
         EmptyState(
             icon = Glyph.description,
             title = "PDF cannot be rendered",
-            message = "The document may be damaged or password protected."
+            message = "Android's built-in PDF reader opens no password-protected document and rejects a " +
+                "damaged one. The file itself is still sealed in the vault — use Share to open it in a " +
+                "PDF app."
         )
         return
     }
@@ -411,23 +528,33 @@ private fun PdfViewer(path: String) {
             runCatching { holder.first.close() }
         }
     }
+    val pages = renderer.pageCount
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        items(renderer.pageCount) { index ->
-            PdfPage(renderer = renderer, lock = lock, index = index)
+        item {
+            Text(
+                text = "$pages page${if (pages == 1) "" else "s"} · scroll to read",
+                style = MaterialTheme.typography.labelSmall,
+                color = VaultColor.textFaint,
+                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+            )
+        }
+        items(pages) { index ->
+            PdfPage(renderer = renderer, lock = lock, index = index, pages = pages, rotation = rotation)
         }
     }
 }
 
 @Composable
-private fun PdfPage(renderer: PdfRenderer, lock: Mutex, index: Int) {
+private fun PdfPage(renderer: PdfRenderer, lock: Mutex, index: Int, pages: Int, rotation: Int) {
     val bitmap by produceState<ImageBitmap?>(
         initialValue = null,
         key1 = renderer,
-        key2 = index
+        key2 = index,
+        key3 = rotation
     ) {
         value = withContext(Dispatchers.IO) {
             lock.withLock {
@@ -438,7 +565,7 @@ private fun PdfPage(renderer: PdfRenderer, lock: Mutex, index: Int) {
                         val scale = targetWidth.toFloat() / page.width.coerceAtLeast(1)
                         val scaledHeight = (page.height * scale).coerceAtLeast(1f)
                         // Tall pages are downscaled so a single bitmap cannot exhaust the heap.
-                        val maxHeight = 4096f
+                        val maxHeight = 3000f
                         val renderWidth: Int
                         val renderHeight: Int
                         if (scaledHeight > maxHeight) {
@@ -456,7 +583,9 @@ private fun PdfPage(renderer: PdfRenderer, lock: Mutex, index: Int) {
                         )
                         output.eraseColor(android.graphics.Color.WHITE)
                         page.render(output, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
-                        output.asImageBitmap()
+                        val turned = if (rotation % 360 == 0) output else rotateBitmap(output, rotation)
+                        if (turned !== output) runCatching { output.recycle() }
+                        turned.asImageBitmap()
                     } finally {
                         page.close()
                     }
@@ -484,12 +613,23 @@ private fun PdfPage(renderer: PdfRenderer, lock: Mutex, index: Int) {
                     .fillMaxWidth()
                     .clip(VaultShapes.button)
             )
+            Text(
+                text = "Page ${index + 1} of $pages",
+                style = MaterialTheme.typography.labelSmall,
+                color = VaultColor.textFaint,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+            )
         }
     }
 }
 
 @Composable
 private fun MediaViewer(path: String, audio: Boolean) {
+    /**
+     * The player framework gives a code pair and nothing else; a black rectangle with no explanation
+     * is what the owner used to get for an unsupported codec or a damaged container.
+     */
+    var playbackError by remember(path) { mutableStateOf<String?>(null) }
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -538,6 +678,16 @@ private fun MediaViewer(path: String, audio: Boolean) {
                 controller.setAnchorView(player)
                 player.setMediaController(controller)
                 player.setOnPreparedListener { controller.show(0) }
+                player.setOnErrorListener { _, _, _ ->
+                    playbackError = if (audio) {
+                        "This phone's player cannot open that audio format. The memo is still sealed in the " +
+                            "vault — use Share to hand a copy to a player that can."
+                    } else {
+                        "This video uses a codec this phone will not decode, or the file is damaged. The " +
+                            "stored copy is untouched — use Share to open it in another player."
+                    }
+                    true
+                }
                 player.setVideoPath(path)
                 player
             },
@@ -545,7 +695,33 @@ private fun MediaViewer(path: String, audio: Boolean) {
                 runCatching { view.stopPlayback() }
             }
         )
-        if (!audio) {
+        playbackError?.let { failure ->
+            Spacer(Modifier.height(12.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(VaultShapes.input)
+                    .background(VaultColor.debit.copy(alpha = 0.10f))
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                ThemedIcon(
+                    glyph = Glyph.errorOutline,
+                    contentDescription = null,
+                    tint = VaultColor.debit,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(Modifier.size(8.dp))
+                Text(
+                    text = failure,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = VaultColor.textBody,
+                    lineHeight = 15.sp,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+        if (!audio && playbackError == null) {
             Spacer(Modifier.height(10.dp))
             Text(
                 text = "Tap the video to reveal controls",

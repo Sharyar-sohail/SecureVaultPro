@@ -6,6 +6,7 @@ import com.securevault.pro.data.remote.google.CloudSyncManager
 import com.securevault.pro.data.remote.realtime.RealtimeEngine
 import com.securevault.pro.data.local.dao.MailAccountDao
 import com.securevault.pro.data.repository.VaultRepository
+import com.securevault.pro.data.wallet.WalletKeyStore
 import com.securevault.pro.diagnostics.CrashLogger
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
@@ -107,7 +108,8 @@ class LocalWipeService @Inject constructor(
     private val sessionManager: SessionManager,
     private val keyring: Keyring,
     private val realtimeEngine: RealtimeEngine,
-    private val mailAccountDao: MailAccountDao
+    private val mailAccountDao: MailAccountDao,
+    private val walletKeys: WalletKeyStore
 ) {
 
     private companion object {
@@ -181,6 +183,11 @@ class LocalWipeService @Inject constructor(
             // nothing else would clear them: `Erase everything` means the configured mailboxes go
             // too. Deliberately not a TTL or a background sweep — this is the owner's press.
             runCatching { mailAccountDao.deleteAll() }
+            // Crypto wallet keys live in their own file, outside the database the call above just
+            // cleared, and a Drive restore puts them back there. Erasing the rows but not the file
+            // would leave a label and a masked address behind for wallets that no longer exist —
+            // and the next restore would check a real key against a record from the destroyed vault.
+            runCatching { walletKeys.wipeEverything() }
             runCatching { crypto.deleteKeystoreKey() }
             runCatching { appLockManager.wipeSecurityPrefs() }
             // The stego read-once ledger is metadata about saved carriers, and "all data" includes

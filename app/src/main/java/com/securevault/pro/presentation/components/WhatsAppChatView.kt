@@ -10,8 +10,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -94,8 +94,8 @@ private data class ChatInk(
 
 /** The hues WhatsApp hands out to group participants, one per speaker. */
 private val SpeakerColors = listOf(
-    Color(0xFFE5425E), Color(0xFFC4306F), Color(0xFF7E55D3), Color(0xFF3F73E7),
-    Color(0xFF1F9B8F), Color(0xFF7FA300), Color(0xFFE08A00), Color(0xFF6D5BD6)
+    Color(0xFFF2555A), Color(0xFF16C65B), Color(0xFF1E4FD8), Color(0xFF3F73E7),
+    Color(0xFF1F9B8F), Color(0xFF7FA300), Color(0xFFE08A00), Color(0xFF38BDF8)
 )
 
 private sealed interface ChatRow {
@@ -417,7 +417,9 @@ private fun ImageMedia(
             bitmap = bitmap,
             contentDescription = attachment.name,
             contentScale = ContentScale.Crop,
-            modifier = Modifier.width(240.dp).height(180.dp)
+            // The thumb keeps its 4:3 silhouette and follows the bubble instead of forcing it:
+            // a fixed 240.dp was wider than a split-view window, so the photo ran off the screen.
+            modifier = Modifier.widthIn(max = 240.dp).fillMaxWidth().aspectRatio(4f / 3f)
         )
     }
 }

@@ -1,13 +1,18 @@
 package com.securevault.pro.security.keyboard
 
+import android.view.View
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -32,9 +37,15 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusEvent
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.TextLayoutResult
@@ -91,8 +102,17 @@ fun SecurePasswordField(
 ) {
     val keyboard = LocalSoftwareKeyboardController.current
     val view = LocalView.current
-    val dock = LocalSecureKeyboardDock.current
+    val dock = reachableSecureKeyboardDock()
     val focusRequester = remember { FocusRequester() }
+
+    // Identity token for the dock: it is how the dock knows *this* field owns the board, so a
+    // second field taking over — or this one leaving composition — never drops the wrong board.
+    val boardOwner = remember { Any() }
+
+    // The field's live on-screen bounds, refreshed by placement into a plain slot: no snapshot
+    // state, so being positioned never recomposes anything, and the tap-outside check can read
+    // the freshest rectangle the moment a pointer event lands.
+    val fieldBounds = remember { arrayOfNulls<Rect>(1) }
 
     var buffer by remember { mutableStateOf(SecureTextBuffer.of(value)) }
     var layout by remember {
@@ -102,11 +122,20 @@ fun SecurePasswordField(
     var revealed by remember { mutableStateOf(false) }
     var caretRect by remember { mutableStateOf<Rect?>(null) }
 
+    /**
+     * The last string this field handed to its caller, in a plain slot rather than observed state:
+     * reading it must never recompose anything, and writing it must never recompose anything either.
+     */
+    val lastEmitted = remember { arrayOf(value) }
+
     // The caller owns the value (a ViewModel field can be cleared by an error, a draft restore or a
-    // successful submit). Adopt an outside change, keeping the caret where it still fits.
+    // successful submit). Adopt an outside change, keeping the caret where it still fits. An echo of
+    // what this field just handed out is not such a change: it arrives a recomposition late and
+    // would write an older string over a newer one, losing the character typed in between.
     LaunchedEffect(value) {
-        if (value != buffer.text) {
+        if (value != buffer.text && value != lastEmitted[0]) {
             buffer = SecureTextBuffer(value, cursor = buffer.cursor.coerceAtMost(value.length))
+            lastEmitted[0] = value
         }
     }
 
@@ -117,16 +146,21 @@ fun SecurePasswordField(
         }
     }
 
+    fun emitNext(text: String) {
+        lastEmitted[0] = text
+        onValueChange(text)
+    }
+
     fun handle(command: SecureKeyCommand) {
         when (command) {
             is SecureKeyCommand.Insert -> {
                 buffer = buffer.insert(command.text)
-                onValueChange(buffer.text)
+                emitNext(buffer.text)
             }
 
             SecureKeyCommand.Backspace -> {
                 buffer = buffer.backspace()
-                onValueChange(buffer.text)
+                emitNext(buffer.text)
             }
 
             SecureKeyCommand.Enter -> when {
@@ -137,7 +171,7 @@ fun SecurePasswordField(
 
                 !singleLine -> {
                     buffer = buffer.appendNewline()
-                    onValueChange(buffer.text)
+                    emitNext(buffer.text)
                 }
 
                 else -> engaged = false
@@ -153,15 +187,35 @@ fun SecurePasswordField(
         handle(command)
     }
 
-    // Docked mode: the host owns the board, this field publishes its state to it.
+    // The inline board is handed one stable handler for the whole session, and that handler reads
+    // through a plain slot refreshed on every composition. A fresh lambda per character would make
+    // the key grid look like changed input and rebuild all forty caps for each keystroke; a stale
+    // one would type into the wrong field. This is neither.
+    val boardTap = remember { SecureFieldTap() }
+    boardTap.press = ::press
+    boardTap.dismiss = { engaged = false }
+    val pressBoard: (SecureKey) -> Unit = remember(boardTap) { { key -> boardTap.press(key) } }
+    val closeBoard: () -> Unit = remember(boardTap) { { boardTap.dismiss() } }
+    val boardOffset = remember { Modifier.padding(top = 10.dp) }
+
+    // Docked mode: the host owns the board, this field publishes its layout to it. The publish is
+    // synchronous, behind an identity check, and keyed on the layout — never on the text. The panel
+    // draws the layout, not the value, so a keystroke that leaves shift/layer/shuffle alone writes
+    // no dock state at all; the frame that paints the pressed key is the frame that shows it.
     if (dock != null) {
-        LaunchedEffect(engaged, layout, buffer.text) {
-            if (engaged) {
-                dock.show(layout = layout, onKeyPress = ::press, onDismiss = { engaged = false })
-            }
+        if (engaged) {
+            dock.publish(
+                owner = boardOwner,
+                layout = layout,
+                bounds = fieldBounds[0],
+                onKeyPress = pressBoard,
+                onDismiss = closeBoard,
+            )
+        } else {
+            dock.clearIfOwner(boardOwner)
         }
-        DisposableEffect(engaged, dock) {
-            onDispose { if (engaged) dock.dismiss() }
+        DisposableEffect(dock) {
+            onDispose { dock.clearIfOwner(boardOwner) }
         }
     }
 
@@ -183,6 +237,11 @@ fun SecurePasswordField(
                 .focusRequester(focusRequester)
                 .onFocusEvent { event -> if (!event.hasFocus) engaged = false }
                 .onPreviewKeyEvent { engaged }
+                .onGloballyPositioned { coords ->
+                    val rect = coords.boundsInRoot()
+                    fieldBounds[0] = rect
+                    if (engaged) dock?.reportBounds(boardOwner, rect)
+                }
                 .clickable {
                     engaged = true
                     runCatching { focusRequester.requestFocus() }
@@ -192,9 +251,9 @@ fun SecurePasswordField(
         if (dock == null && engaged) {
             SecureKeyboardPanel(
                 layout = layout,
-                onKeyPress = ::press,
-                onDismiss = { engaged = false },
-                modifier = Modifier.padding(top = 10.dp),
+                onKeyPress = pressBoard,
+                onDismiss = closeBoard,
+                modifier = boardOffset,
             )
         }
     }
@@ -222,6 +281,7 @@ private fun SecureFieldChrome(
     modifier: Modifier = Modifier,
 ) {
     val bodyStyle = MaterialTheme.typography.bodyLarge
+    val caretHeight = with(LocalDensity.current) { bodyStyle.fontSize.toDp() }
     val textColor = if (value.isEmpty()) VaultColor.textFaint else VaultColor.textStrong
     Column(
         modifier = modifier
@@ -265,8 +325,7 @@ private fun SecureFieldChrome(
                 },
                 cursorBrush = SolidColor(VaultColor.accent),
                 onTextLayout = { result ->
-                    val offset = cursor.coerceAtMost(result.layoutInput.text.length)
-                    caretRectOf(result, offset)?.let(onCaretRect)
+                    caretRectOf(result, cursor, caretHeight.value)?.let(onCaretRect)
                 },
             )
             if (value.isEmpty() && !engaged) {
@@ -285,7 +344,7 @@ private fun SecureFieldChrome(
                             .padding(top = 6.dp)
                             .offset(x = rect.left.dp, y = rect.top.dp)
                             .width(2.dp)
-                            .height(rect.height.dp.coerceAtLeast(16.dp))
+                            .height(rect.height.dp.coerceAtLeast(10.dp))
                             .background(VaultColor.accent)
                     )
                 } else {
@@ -293,9 +352,9 @@ private fun SecureFieldChrome(
                     // field never looks dead while the owner is choosing where to type.
                     Box(
                         modifier = Modifier
-                            .padding(top = 8.dp)
+                            .padding(top = 10.dp)
                             .width(2.dp)
-                            .height(20.dp)
+                            .height(caretHeight)
                             .background(VaultColor.accent)
                     )
                 }
@@ -305,13 +364,39 @@ private fun SecureFieldChrome(
 }
 
 /**
- * The caret rectangle for [offset], or null when the layout cannot answer yet.
+ * The caret rectangle for [cursor], or null when the layout cannot answer yet.
+ *
+ * [getCursorRect] returns the whole line box, and a line is taller than the letters inside it —
+ * bodyLarge gives 24sp of line for 16sp of text — so a caret copied from it reads as a bar rather
+ * than a cursor. This keeps the horizontal position and the baseline the layout measured, and trims
+ * the vertical extent to one em sitting on that baseline, which is what the glyphs occupy.
  *
  * A read-only editor with a visual transformation can be asked for a position outside the painted
  * text for one frame; that is not an error worth crashing the screen over.
  */
-private fun caretRectOf(result: TextLayoutResult, offset: Int): Rect? =
-    runCatching { result.getCursorRect(offset) }.getOrNull()
+private fun caretRectOf(result: TextLayoutResult, cursor: Int, emDp: Float): Rect? =
+    runCatching {
+        val offset = cursor.coerceAtMost(result.layoutInput.text.length)
+        val raw = result.getCursorRect(offset)
+        val baseline = result.getLineBaseline(result.getLineForOffset(offset))
+        Rect(raw.left, baseline - emDp * ASCENT_SHARE, raw.right, baseline + emDp * DESCENT_SHARE)
+    }.getOrNull()
+
+private const val ASCENT_SHARE = 0.86f
+private const val DESCENT_SHARE = 0.14f
+
+/**
+ * Plain slots for the callbacks a board handler needs.
+ *
+ * The inline board is handed one lambda that never changes, so the key grid is rebuilt when the
+ * layout changes and not on every character. The lambdas inside this object are refreshed from the
+ * field's own composition, which is how a handler that is stable forever still calls the handler
+ * that is current.
+ */
+private class SecureFieldTap {
+    var press: (SecureKey) -> Unit = {}
+    var dismiss: () -> Unit = {}
+}
 
 @Composable
 private fun SecureFieldHeader(
@@ -354,12 +439,39 @@ private fun SecureFieldHeader(
  * A screen that wants the keyboard pinned to the bottom of the viewport wraps its content in
  * [SecureKeyboardHost]; every [SecurePasswordField] inside then publishes its layout to this dock
  * instead of stacking a board under the field. One field is engaged at a time — the last one tapped
- * owns the board.
+ * owns the board, and a tap outside that field hands the board away or drops it (see
+ * [SecureKeyboardHost]).
+ *
+ * Publishing is synchronous and identity-gated: [publish] is called straight from the field's
+ * composition, and it only writes the observable [layout] when the layout itself changed. A
+ * keystroke that does not move shift, the layer or the shuffle therefore writes no dock state and
+ * recomposes nothing — the value lives in the field, and the board never needed it.
  */
 @Stable
 class SecureKeyboardDock internal constructor() {
     var layout by mutableStateOf<SecureKeyboardLayoutState?>(null)
         private set
+
+    /** The engaged field's bounds in root coordinates; read at tap time, never by composition. */
+    internal var ownerBounds: Rect? = null
+
+    /** The board strip's own bounds, so a tap that lands on the keyboard is never "outside". */
+    internal var boardBounds: Rect? = null
+
+    /** This host's bounds in root coordinates: the transform from event space to rectangle space. */
+    internal var hostBounds: Rect? = null
+
+    /**
+     * The view tree the board strip is drawn in. A field compares itself against this before
+     * publishing: a bottom sheet or dialog composes in its own window, so a board published here
+     * would land behind that sheet and the field would look like it opens no keyboard at all.
+     */
+    internal var boardView: View? = null
+
+    private var owner: Any? = null
+
+    /** Plain mirror of the last published layout: the identity gate that keeps publishing free. */
+    private var publishedLayout: SecureKeyboardLayoutState? = null
 
     private var onKeyPress: ((SecureKey) -> Unit)? = null
     private var onDismiss: (() -> Unit)? = null
@@ -367,14 +479,27 @@ class SecureKeyboardDock internal constructor() {
     /** True while some field is asking for the board. */
     val isEngaged: Boolean get() = layout != null
 
-    internal fun show(
+    /** Claim the board for [owner] and show [layout]. Cheap: it writes state only on a real change. */
+    internal fun publish(
+        owner: Any,
         layout: SecureKeyboardLayoutState,
+        bounds: Rect?,
         onKeyPress: (SecureKey) -> Unit,
         onDismiss: () -> Unit,
     ) {
-        this.layout = layout
+        this.owner = owner
         this.onKeyPress = onKeyPress
         this.onDismiss = onDismiss
+        if (bounds != null) ownerBounds = bounds
+        if (publishedLayout != layout) {
+            publishedLayout = layout
+            this.layout = layout
+        }
+    }
+
+    /** Keep the tap-outside check honest when the engaged field moves (a scroll, a resize). */
+    internal fun reportBounds(owner: Any, bounds: Rect) {
+        if (owner === this.owner) ownerBounds = bounds
     }
 
     internal fun press(key: SecureKey) {
@@ -384,10 +509,22 @@ class SecureKeyboardDock internal constructor() {
     /** Drop the board and hand the field back, clearing every handler with it. */
     internal fun dismiss() {
         val handler = onDismiss
-        layout = null
+        clear()
+        handler?.invoke()
+    }
+
+    /** Release the board only if [owner] still holds it: a departing field must not cut another's. */
+    internal fun clearIfOwner(owner: Any) {
+        if (owner === this.owner) dismiss()
+    }
+
+    private fun clear() {
+        owner = null
         onKeyPress = null
         onDismiss = null
-        handler?.invoke()
+        ownerBounds = null
+        publishedLayout = null
+        layout = null
     }
 }
 
@@ -395,12 +532,32 @@ class SecureKeyboardDock internal constructor() {
 val LocalSecureKeyboardDock = staticCompositionLocalOf<SecureKeyboardDock?> { null }
 
 /**
+ * The dock the calling composition can actually reach.
+ *
+ * A bottom sheet or dialog composes in its own window, so a board published to a host in the
+ * activity window lands behind the sheet and the field looks like it opens no keyboard at all.
+ * Where the two views differ this returns null, which is exactly the instruction to draw the board
+ * under the field instead.
+ */
+@Composable
+fun reachableSecureKeyboardDock(): SecureKeyboardDock? {
+    val dock = LocalSecureKeyboardDock.current
+    return if (dock != null && dock.boardView === LocalView.current) dock else null
+}
+
+/**
  * Hosts the secure board once, at the bottom, for a whole screen.
  *
  * The board is a sibling of the content, not an overlay: while it is up, the content is measured
  * against the height the board really takes (plus the gesture-bar inset), so a screen's own height
  * tiers shrink the form instead of the board covering the action button. When no field is engaged
- * the content gets the whole window back.
+ * the content gets the whole window back. The board's height is constant across every layer, so
+ * this single relayout is the only one an owner ever sees — the screen resizes once, smoothly,
+ * instead of bouncing per layer or per keystroke.
+ *
+ * Inset handling is deliberate: this column carries the [Modifier.imePadding] for the whole path
+ * and the dock strip carries [Modifier.navigationBarsPadding]; the content must not re-apply either
+ * on the same path, or the window pays the inset twice and jumps.
  */
 @Composable
 fun SecureKeyboardHost(
@@ -408,8 +565,23 @@ fun SecureKeyboardHost(
     content: @Composable () -> Unit,
 ) {
     val dock = remember { SecureKeyboardDock() }
+    dock.boardView = LocalView.current
     CompositionLocalProvider(LocalSecureKeyboardDock provides dock) {
-        Column(modifier = modifier) {
+        // imePadding() is what makes this behave like the system keyboard: an IME that opens for any
+        // field takes its height from the content column instead of sliding over it, and the gesture
+        // bar inset is already part of the dock's own strip.
+        //
+        // The inset is then consumed, so exactly one layer pays for the keyboard. Without that, every
+        // screen below a host — and three of them host themselves — asks the same inset for itself,
+        // and the content is lifted by two or three keyboard heights at once. That double lift is the
+        // jump the owner feels when the board opens.
+        Column(
+            modifier = modifier
+                .imePadding()
+                .consumeWindowInsets(WindowInsets.ime)
+                .onGloballyPositioned { coords -> dock.hostBounds = coords.boundsInRoot() }
+                .dismissBoardOnOutsideTap(dock),
+        ) {
             Box(
                 modifier = Modifier
                     .weight(1f)
@@ -417,23 +589,62 @@ fun SecureKeyboardHost(
             ) {
                 content()
             }
-            val layout = dock.layout
-            if (layout != null) {
-                // The surface fill is outside the inset padding so the strip under the gesture bar
-                // is part of the board rather than a hole in it.
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(VaultColor.surface.copy(alpha = 0.97f))
-                        .navigationBarsPadding(),
-                ) {
-                    SecureKeyboardPanel(
-                        layout = layout,
-                        onKeyPress = { key -> dock.press(key) },
-                        onDismiss = { dock.dismiss() },
-                    )
+            // The strip reads the dock's layout in its own recomposition scope, so publishing a
+            // layout change never re-runs [content] above it.
+            SecureDockStrip(dock)
+        }
+    }
+}
+
+@Composable
+private fun SecureDockStrip(dock: SecureKeyboardDock) {
+    val layout = dock.layout ?: return
+    // The surface fill is outside the inset padding so the strip under the gesture bar
+    // is part of the board rather than a hole in it.
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(VaultColor.surface.copy(alpha = 0.97f))
+            .navigationBarsPadding()
+            .onGloballyPositioned { coords -> dock.boardBounds = coords.boundsInRoot() },
+    ) {
+        SecureKeyboardPanel(
+            layout = layout,
+            onKeyPress = { key -> dock.press(key) },
+            onDismiss = { dock.dismiss() },
+        )
+    }
+}
+
+/**
+ * Auto-minimise: while a board is up, a tap anywhere that is neither a key on the board nor the
+ * field that owns it closes the board — no close button required.
+ *
+ * The input observes events in [PointerEventPass.Initial], so the parent sees the down *before*
+ * any child consumes it: nothing is eaten. A tap on another field dismisses this owner on the way
+ * down and engages the new field on the way up — the board moves in a single gesture.
+ */
+private fun Modifier.dismissBoardOnOutsideTap(dock: SecureKeyboardDock): Modifier =
+    pointerInput(dock) {
+        awaitPointerEventScope {
+            while (true) {
+                val event = awaitPointerEvent(PointerEventPass.Initial)
+                if (dock.isEngaged) {
+                    val down = event.changes.firstOrNull { change ->
+                        change.pressed && !change.previousPressed
+                    }
+                    if (down != null) {
+                        // Positions arrive in this host's own space; [SecureKeyboardDock.hostBounds]
+                        // shifts them into the root space the field and board rectangles use. Every
+                        // host fills its window section from its own origin, so the shift is the
+                        // honest transform rather than a guess.
+                        val origin = dock.hostBounds?.topLeft ?: Offset.Zero
+                        val position = origin + down.position
+                        val onField = dock.ownerBounds?.contains(position) == true
+                        val onBoard = dock.boardBounds?.contains(position) == true
+                        if (!onField && !onBoard) dock.dismiss()
+                    }
                 }
             }
         }
     }
-}

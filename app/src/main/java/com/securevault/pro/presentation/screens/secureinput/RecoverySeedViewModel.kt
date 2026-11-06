@@ -110,6 +110,9 @@ class RecoverySeedViewModel @Inject constructor(
     private var verifySeed: Long = SecureRandom().nextLong()
     private val answers = mutableListOf<String?>()
 
+    /** Counts the phrase keystrokes so a check that finishes late cannot overtake a newer one. */
+    private var typedPhraseRevision = 0
+
     /** The file the owner picked on the system sheet, held in memory for this flow only. */
     private var pickedBytes: ByteArray? = null
 
@@ -188,9 +191,47 @@ class RecoverySeedViewModel @Inject constructor(
     }
 
     fun setCustomPhrase(value: String) {
+        publishTypedPhrase(value)
+        validateTypedPhrase(value)
+    }
+
+    /**
+     * What the owner types goes on the screen the moment it is typed; only the check behind it runs
+     * later. Waiting for the check before showing the text is how a board ends up appearing to skip
+     * characters, because a fast typist's next tap lands while the previous one is still in flight.
+     */
+    private fun publishTypedPhrase(value: String) {
+        _state.update { it.copy(typedPhrase = value, error = null) }
+    }
+
+    private fun validateTypedPhrase(value: String) {
+        val sequence = ++typedPhraseRevision
         viewModelScope.launch(Dispatchers.IO) {
-            val validation = RecoverySeedLogic.validatePhrase(value, wordList.words)
-            _state.update { it.copy(typedPhrase = value, validation = validation, error = null) }
+            val validation = RecoverySeedLogic.validatePhrase(value, wordList::positionOf)
+            // A slower, earlier check must never overwrite a newer one or label text already replaced.
+            if (sequence == typedPhraseRevision && _state.value.typedPhrase == value) {
+                _state.update { it.copy(validation = validation) }
+            }
+        }
+    }
+
+    /**
+     * Runs [then] with the answer for exactly the text on screen.
+     *
+     * The check behind typing normally lands long before a button is pressed. When both happen in the
+     * same instant the tap wins: the in-flight check is dropped and the tap's own answer is used, so
+     * a phrase is never accepted or refused on the strength of an older draft.
+     */
+    private fun withCurrentPhraseValidation(then: (PhraseValidation) -> Unit) {
+        val typed = _state.value.typedPhrase
+        val published = _state.value.validation
+        if (published != null && published.words.joinToString(" ") == RecoverySeedLogic.normalize(typed)) {
+            then(published)
+            return
+        }
+        typedPhraseRevision++
+        viewModelScope.launch(Dispatchers.IO) {
+            then(RecoverySeedLogic.validatePhrase(typed, wordList::positionOf))
         }
     }
 
@@ -200,14 +241,14 @@ class RecoverySeedViewModel @Inject constructor(
      * phrase a person invented cannot be expected to satisfy a hash they cannot compute.
      */
     fun acceptCustomPhrase() {
-        val snapshot = _state.value
-        val validation = snapshot.validation
-        if (validation == null || !validation.canContinue) {
-            _state.update { it.copy(error = validation?.blockingMessage ?: "Enter your phrase first.") }
-            return
+        withCurrentPhraseValidation { validation ->
+            if (!validation.canContinue) {
+                _state.update { it.copy(error = validation.blockingMessage ?: "Enter your phrase first.") }
+                return@withCurrentPhraseValidation
+            }
+            seedAccepted(validation.words.joinToString(" "), customPhrase = true, step = ManageStep.DISPLAY)
+            _state.update { it.copy(typedPhrase = "", validation = null) }
         }
-        seedAccepted(snapshot.typedPhrase, customPhrase = true, step = ManageStep.DISPLAY)
-        _state.update { it.copy(typedPhrase = "") }
     }
 
     private fun seedAccepted(phrase: String, customPhrase: Boolean, step: ManageStep) {
@@ -412,25 +453,23 @@ class RecoverySeedViewModel @Inject constructor(
     // ---- restore ------------------------------------------------------------------------
 
     fun setTypedPhrase(value: String) {
-        viewModelScope.launch(Dispatchers.IO) {
-            val validation = RecoverySeedLogic.validatePhrase(value, wordList.words)
-            _state.update { it.copy(typedPhrase = value, validation = validation, error = null) }
-        }
+        publishTypedPhrase(value)
+        validateTypedPhrase(value)
     }
 
     fun submitPhrase() {
-        val snapshot = _state.value
-        val validation = snapshot.validation
-        if (validation == null || !validation.canContinue) {
-            _state.update { it.copy(error = validation?.blockingMessage ?: "Enter your recovery phrase.") }
-            return
-        }
-        _state.update {
-            it.copy(
-                restoreStep = RestoreStep.ARCHIVE,
-                error = null,
-                phrase = validation.words.joinToString(" ")
-            )
+        withCurrentPhraseValidation { validation ->
+            if (!validation.canContinue) {
+                _state.update { it.copy(error = validation.blockingMessage ?: "Enter your recovery phrase.") }
+                return@withCurrentPhraseValidation
+            }
+            _state.update {
+                it.copy(
+                    restoreStep = RestoreStep.ARCHIVE,
+                    error = null,
+                    phrase = validation.words.joinToString(" ")
+                )
+            }
         }
     }
 

@@ -53,13 +53,3 @@ object VaultShapes {
         extraLarge = RoundedCornerShape(palette.navCorner)
     )
 }
-
-/**
- * Border widths. `hairline` is the default card rule; `none` lets a filled theme
- * (Material, One UI) sit without an outline at all.
- */
-object VaultStroke {
-    val hairline get() = VaultPaletteController.current.cardBorderWidth
-    val emphasis get() = (VaultPaletteController.current.cardBorderWidth.value * 2f).dp
-    val none = 0.dp
-}

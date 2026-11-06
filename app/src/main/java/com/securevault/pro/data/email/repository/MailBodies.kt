@@ -23,15 +23,22 @@ object MailSections {
     /**
      * The bytes of the section whose *bracket content* matches [want].
      *
-     * `TEXT`, `BODY[TEXT]` and `BODY.PEEK[TEXT]<0.480>` all match a request for `TEXT`; a dotted
-     * part number matches itself (`1.2`), and a header request matches `HEADER` and any
-     * `HEADER.FIELDS (…)`. Longest key wins so `HEADER.FIELDS (SUBJECT)` is never taken for `HEADER`.
+     * Both sides are normalised through [keyOf] before they are compared. This matters: a server
+     * echoes the item name it answered under, so a request written as `BODY[TEXT]<0.480>` comes back
+     * as `BODY.PEEK[TEXT]<0.480>`, and a request for part `1` may be reported as `BODY[1]`,
+     * `BODY.PEEK[1]<0.480>` or `BINARY[1]`. Comparing the raw names would find no match, and a
+     * message whose bytes are in the map would still be shown as having no text.
+     *
+     * `TEXT`, `BODY[TEXT]` and `BODY.PEEK[TEXT]<0.480>` therefore all match a request for `TEXT`; a
+     * dotted part number matches itself (`1.2`); and the whole-message form keeps its own brackets,
+     * so `BODY[]` matches `BODY[]` and nothing else. Longest key wins so
+     * `HEADER.FIELDS (SUBJECT)` is never taken for `HEADER`.
      */
     fun pick(sections: Map<String, ByteArray>, want: String): ByteArray? {
         val target = keyOf(want)
         if (target.isEmpty()) return null
         val match = sections.keys
-            .filter { it == target || it.startsWith("$target<") || it.startsWith("$target ") }
+            .filter { keyOf(it) == target }
             .sortedByDescending { it.length }
             .firstOrNull()
         return match?.let { sections[it] }
@@ -41,7 +48,7 @@ object MailSections {
     fun pickPath(paths: Map<String, String>, want: String): String? {
         val target = keyOf(want)
         val match = paths.keys
-            .filter { it == target || it.startsWith("$target<") || it.startsWith("$target ") }
+            .filter { keyOf(it) == target }
             .sortedByDescending { it.length }
             .firstOrNull()
         return match?.let { paths[it] }
@@ -186,38 +193,136 @@ object MailText {
     /**
      * HTML to readable text.
      *
-     * Not a renderer: script and style contents are dropped whole, block ends become line breaks,
-     * `<br>` becomes one, entities are unescaped for the handful HTML inside an email actually uses,
-     * and tags go. A reader screen showing stripped text is a plain, honest degradation of an IMAP
-     * client that has no WebView in the vault.
+     * Not a renderer: comments and the contents of `script`/`style`/`head`/`title` are dropped whole,
+     * block ends become line breaks, `<br>` becomes one, list items get a bullet, table cells get a
+     * space so two columns do not merge into one word, entities are decoded once, and tags go.
+     *
+     * Decoding happens last and in a single pass on purpose. Unescaping `&amp;lt;` early turns it into
+     * `&lt;`, which a second pass would then turn into `<`, so text the sender meant literally was
+     * being rewritten; a body of `&lt;script&gt;` used to arrive on screen as `<script>`.
+     *
+     * A reader screen showing stripped text is a plain, honest degradation of a mail client that has
+     * no WebView in the vault.
      */
     fun stripHtml(html: String): String {
         val withoutBlocks = html
-            .replace(Regex("(?is)<(script|style|head)[^>]*>.*?</\\1>"), " ")
+            .replace(Regex("(?is)<!--[\\s\\S]*?-->"), " ")
+            .replace(Regex("(?is)<(script|style|head|title)[^>]*>.*?</\\1\\s*>"), " ")
             .replace(Regex("(?is)<br\\s*/?>"), "\n")
-            .replace(Regex("(?is)</(p|div|li|tr|h[1-6]|blockquote|pre)>"), "\n")
-            .replace(Regex("(?is)<li[^>]*>"), "• ")
+            .replace(Regex("(?is)</(p|div|li|ul|ol|tr|table|h[1-6]|blockquote|pre|section|article)>"), "\n")
+            .replace(Regex("(?is)<li[^>]*>"), "\n\u2022 ")
+            .replace(Regex("(?is)<(p|div|ul|ol|tr|table|h[1-6]|blockquote|pre|section|article)[^>]*>"), "\n")
+            .replace(Regex("(?is)</?(td|th)[^>]*>"), " ")
             .replace(Regex("(?is)<[^>]*>"), " ")
-        val unescaped = unescapeEntities(withoutBlocks)
-        return unescaped
+        return decodeEntities(withoutBlocks)
             .replace(Regex("[ \\t]+"), " ")
             .replace(Regex(" ?\n ?"), "\n")
             .replace(Regex("\n{3,}"), "\n\n")
+            .replace('\u00A0', ' ')
             .trim()
     }
 
-    private fun unescapeEntities(value: String): String = value
-        .replace("&nbsp;", " ")
-        .replace("&amp;", "&")
-        .replace("&lt;", "<")
-        .replace("&gt;", ">")
-        .replace("&quot;", "\"")
-        .replace("&#39;", "'")
-        .replace("&apos;", "'")
-        .replace("&#8212;", "—")
-        .replace("&mdash;", "—")
-        .replace("&ndash;", "–")
-        .replace("&hellip;", "…")
+    /**
+     * One pass over the text, decoding named, decimal (`&#709;`) and hex (`&#x20AC;`) entities.
+     *
+     * Known names are handled for the set mail actually uses; a numeric reference becomes the code
+     * point it states unless it is a control character or outside Unicode, in which case it is left
+     * exactly as written. An unknown name (`&fjell;`) is left as written too, because guessing is how
+     * a client eats a word the owner needs.
+     */
+    fun decodeEntities(value: String): String {
+        if (value.indexOf('&') < 0) return value
+        val out = StringBuilder(value.length)
+        var i = 0
+        while (i < value.length) {
+            val c = value[i]
+            if (c != '&') {
+                out.append(c)
+                i++
+                continue
+            }
+            // An entity is & + up to 12 name/body characters + ';'. Longer means it is not one.
+            val end = value.indexOf(';', i + 1)
+            if (end <= i || end - i > NAMED_ENTITY_MAX + 2) {
+                out.append(c)
+                i++
+                continue
+            }
+            val body = value.substring(i + 1, end)
+            val decoded = entityValue(body)
+            if (decoded == null) {
+                out.append(c)
+                i++
+            } else {
+                out.append(decoded)
+                i = end + 1
+            }
+        }
+        return out.toString()
+    }
+
+    private const val NAMED_ENTITY_MAX = 10
+
+    private fun entityValue(body: String): String? {
+        if (body.isEmpty()) return null
+        if (body[0] == '#') {
+            val hex = body.length > 1 && (body[1] == 'x' || body[1] == 'X')
+            val digits = if (hex) body.substring(2) else body.substring(1)
+            if (digits.isEmpty() || !digits.all { it.isDigit() || (hex && it in 'a'..'f') || (hex && it in 'A'..'F') }) {
+                return null
+            }
+            val code = digits.toIntOrNull(if (hex) 16 else 10) ?: return null
+            if (code < 0 || code > 0x10FFFF) return null
+            // C0/C1 controls and surrogates are not text; keep the source instead of injecting them.
+            if (code < 0x20 && code != 0x09 && code != 0x0A && code != 0x0D) return null
+            if (code in 0xD800..0xDFFF) return null
+            if (code in 0x7F..0x9F) return null
+            return String(Character.toChars(code))
+        }
+        return NAMED_ENTITIES[body.lowercase(java.util.Locale.ROOT)]
+    }
+
+    private val NAMED_ENTITIES: Map<String, String> = mapOf(
+        "amp" to "&",
+        "lt" to "<",
+        "gt" to ">",
+        "quot" to "\"",
+        "apos" to "'",
+        "nbsp" to "\u00A0",
+        "shy" to "",
+        "copy" to "\u00A9",
+        "reg" to "\u00AE",
+        "trade" to "\u2122",
+        "hellip" to "\u2026",
+        "mdash" to "\u2014",
+        "ndash" to "\u2013",
+        "laquo" to "\u00AB",
+        "raquo" to "\u00BB",
+        "bull" to "\u2022",
+        "middot" to "\u00B7",
+        "deg" to "\u00B0",
+        "plusmn" to "\u00B1",
+        "times" to "\u00D7",
+        "divide" to "\u00F7",
+        "sect" to "\u00A7",
+        "para" to "\u00B6",
+        "euro" to "\u20AC",
+        "pound" to "\u00A3",
+        "yen" to "\u00A5",
+        "cent" to "\u00A2",
+        "curren" to "\u00A4",
+        "larr" to "\u2190",
+        "rarr" to "\u2192",
+        "uarr" to "\u2191",
+        "darr" to "\u2193",
+        "dagger" to "\u2020",
+        "permil" to "\u2030",
+        "prime" to "\u2032",
+        "rsquo" to "\u2019",
+        "lsquo" to "\u2018",
+        "rdquo" to "\u201D",
+        "ldquo" to "\u201C",
+    )
 
     /**
      * The one-line preview for a list row: whitespace collapsed, capped at [maxChars], with an

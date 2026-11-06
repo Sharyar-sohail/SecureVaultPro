@@ -76,7 +76,7 @@ fun RescueScreen(
     ) {
         Text(
             text = "RECOVERY MODE",
-            color = Color(0xFF7FD8BE),
+            color = Color(0xFF16C65B),
             fontSize = 11.sp,
             letterSpacing = 1.6.sp,
             fontWeight = FontWeight.SemiBold

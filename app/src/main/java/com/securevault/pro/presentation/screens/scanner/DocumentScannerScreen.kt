@@ -646,7 +646,7 @@ fun DocumentScannerScreen(
                         )
                         Spacer(Modifier.width(9.dp))
                         Text(
-                            text = "Pages are processed in background coroutines and saved only as an encrypted .svf container inside phone_vault. Nothing enters the gallery or the cloud unencrypted.",
+                            text = "Pages are processed in the background and saved only as an encrypted file inside your vault. Nothing enters the gallery or the cloud unencrypted.",
                             style = MaterialTheme.typography.bodySmall,
                             color = VaultColor.textFaint,
                             lineHeight = 17.sp

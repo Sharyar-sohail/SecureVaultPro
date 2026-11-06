@@ -4,22 +4,30 @@ import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
 /**
- * The LL sub-band of a two-level Haar wavelet on the luminance plane.
+ * The LL sub-band of a Haar wavelet on the luminance plane, at a chosen cell size.
  *
- * Two separable Haar averaging stages turn a pixel grid into a grid of 4x4 cell means, so the band
- * is stored as one float per cell and pixel `x` belongs to cell `x / 4` in each axis. Edge cells
- * are *shortened* rather than replicated: a cell averages only the pixels that really exist, which
- * keeps the inverse honest — adding a constant to every pixel of a cell moves that cell's mean by
- * exactly that constant. That property is the whole reason the mark is invisible: only the LL
- * branch is touched, every horizontal/vertical/diagonal detail coefficient of both levels is left
- * alone, so texture, edges and noise of the photo are byte-for-byte preserved.
+ * Separable Haar averaging turns a pixel grid into a grid of `cell x cell` means, so the band is
+ * stored as one float per cell and pixel `x` belongs to cell `x / cell` in each axis. Edge cells are
+ * *shortened* rather than replicated: a cell averages only the pixels that really exist, which keeps
+ * the inverse honest — adding a constant to every pixel of a cell moves that cell's mean by exactly
+ * that constant. That property is the whole reason the mark is invisible: only the LL branch is
+ * touched, every horizontal/vertical/diagonal detail coefficient is left alone, so texture, edges and
+ * noise of the photo are byte-for-byte preserved.
+ *
+ * [cellSize] is a channel choice, not a cosmetic one. Four is the fine grid, which is the quietest
+ * mark and the one that survives a print. Eight is the grid a JPEG encoder commits to: its block
+ * quantiser prices a whole 8x8 average almost free while it throws away the finer detail a 4x4 grid
+ * leans on, so a mark written on eight-wide cells rides a chat app's redraw instead of being erased
+ * by it. Both sizes go through the same maths and the same lattice, so the reader tells them apart by
+ * measuring, never by trusting a label.
  */
 class LlBand(
     val planeWidth: Int,
     val planeHeight: Int,
     val cellsWide: Int,
     val cellsHigh: Int,
-    val values: FloatArray
+    val values: FloatArray,
+    val cellSize: Int = DEFAULT_CELL
 ) {
     val cellCount: Int get() = values.size
 
@@ -51,14 +59,22 @@ class LlBand(
         return FloatArray(values.size) { (values[it] - base) / spread }
     }
 
-    fun copy(): LlBand = LlBand(planeWidth, planeHeight, cellsWide, cellsHigh, values.copyOf())
+    fun copy(): LlBand = LlBand(planeWidth, planeHeight, cellsWide, cellsHigh, values.copyOf(), cellSize)
 
     companion object {
         /** Guards against a flat field where the normaliser would otherwise divide by zero. */
         const val MIN_SPREAD = 0.75f
 
-        /** Cell count for one axis: ceil(n / 4), the support of a two-stage Haar average. */
-        fun cellsFor(length: Int): Int = (length + 3) / 4
+        /** The fine grid: the quietest mark, and the one every carrier written before this change uses. */
+        const val DEFAULT_CELL = 4
+
+        /** Cell count for one axis at [cellSize]: ceil(n / cellSize), the support of the average. */
+        fun cellsFor(length: Int): Int = (length + DEFAULT_CELL - 1) / DEFAULT_CELL
+
+        fun cellsFor(length: Int, cellSize: Int): Int {
+            val cell = cellSize.coerceAtLeast(1)
+            return (length + cell - 1) / cell
+        }
     }
 }
 
@@ -68,31 +84,33 @@ class LlBand(
 object HaarLl {
 
     /**
-     * Averages each 4x4 block of the plane (shortened at the right/bottom edge) into one band cell.
-     * Cost is one pass over the pixels, so a carrier at the [StegoLimits.MAX_WORKING_PIXELS] budget
-     * needs about 2 MB for the band rather than a full multi-level coefficient pyramid.
+     * Averages each `cellSize x cellSize` block of the plane (shortened at the right/bottom edge)
+     * into one band cell. Cost is one pass over the pixels, so a carrier at the
+     * [StegoLimits.MAX_WORKING_PIXELS] budget needs a few megabytes for the band rather than a full
+     * multi-level coefficient pyramid.
      */
-    fun of(plane: LumaPlane): LlBand {
-        val cellsWide = LlBand.cellsFor(plane.width)
-        val cellsHigh = LlBand.cellsFor(plane.height)
+    fun of(plane: LumaPlane, cellSize: Int = LlBand.DEFAULT_CELL): LlBand {
+        val cell = cellSize.coerceAtLeast(1)
+        val cellsWide = LlBand.cellsFor(plane.width, cell)
+        val cellsHigh = LlBand.cellsFor(plane.height, cell)
         val sums = FloatArray(cellsWide * cellsHigh)
         val counts = IntArray(cellsWide * cellsHigh)
         for (y in 0 until plane.height) {
-            val cellY = (y / 4).coerceAtMost(cellsHigh - 1)
+            val cellY = (y / cell).coerceAtMost(cellsHigh - 1)
             val row = y * plane.width
             val rowBase = cellY * cellsWide
             for (x in 0 until plane.width) {
-                val cellX = (x / 4).coerceAtMost(cellsWide - 1)
-                val cell = rowBase + cellX
-                sums[cell] += plane.samples[row + x].toFloat()
-                counts[cell] += 1
+                val cellX = (x / cell).coerceAtMost(cellsWide - 1)
+                val index = rowBase + cellX
+                sums[index] += plane.samples[row + x].toFloat()
+                counts[index] += 1
             }
         }
         val values = FloatArray(sums.size) { index ->
             val count = counts[index]
             if (count == 0) 0f else sums[index] / count
         }
-        return LlBand(plane.width, plane.height, cellsWide, cellsHigh, values)
+        return LlBand(plane.width, plane.height, cellsWide, cellsHigh, values, cell)
     }
 
     /**
@@ -101,19 +119,24 @@ object HaarLl {
      * Rounding to 8 bits is the only quantisation the channel sees, and the encoder's refinement
      * passes re-measure the result so the written pixels really carry the intended chips.
      */
-    fun synthesize(plane: LumaPlane, delta: FloatArray): LumaPlane {
-        val cellsWide = LlBand.cellsFor(plane.width)
-        val cellsHigh = LlBand.cellsFor(plane.height)
+    fun synthesize(
+        plane: LumaPlane,
+        delta: FloatArray,
+        cellSize: Int = LlBand.DEFAULT_CELL
+    ): LumaPlane {
+        val cell = cellSize.coerceAtLeast(1)
+        val cellsWide = LlBand.cellsFor(plane.width, cell)
+        val cellsHigh = LlBand.cellsFor(plane.height, cell)
         require(delta.size == cellsWide * cellsHigh) {
             "Band delta must be ${cellsWide * cellsHigh} cells, found ${delta.size}"
         }
         val out = IntArray(plane.samples.size)
         for (y in 0 until plane.height) {
-            val cellY = (y / 4).coerceAtMost(cellsHigh - 1)
+            val cellY = (y / cell).coerceAtMost(cellsHigh - 1)
             val row = y * plane.width
             val rowBase = cellY * cellsWide
             for (x in 0 until plane.width) {
-                val cellX = (x / 4).coerceAtMost(cellsWide - 1)
+                val cellX = (x / cell).coerceAtMost(cellsWide - 1)
                 val value = plane.samples[row + x] + delta[rowBase + cellX]
                 out[row + x] = value.roundToInt().coerceIn(0, 255)
             }

@@ -62,11 +62,14 @@ class PasskeyAvailabilityTest {
         val older = verdict(32)
         assertEquals(PasskeyTransportState.ANDROID_TOO_OLD, older.transport)
         assertEquals("android too old", older.reasonLabel())
-        assertEquals("This Android version has no passkey transport for this app.",
-            PasskeyFailureClassifier.ownerMessage(
-                PasskeyFailure(PasskeyFailureKind.TRANSPORT_UNAVAILABLE, null, null)
-            ).substringBefore(" Passkeys")
+        // The sentence is owner-facing, so the test pins what it must accomplish rather than its
+        // exact wording: say which floor is missing, and say plainly that nothing was lost.
+        val transportMessage = PasskeyFailureClassifier.ownerMessage(
+            PasskeyFailure(PasskeyFailureKind.TRANSPORT_UNAVAILABLE, null, null)
         )
+        assertTrue(transportMessage, transportMessage.contains("Android 14"))
+        assertTrue(transportMessage, transportMessage.contains("nothing was lost"))
+        assertFalse(transportMessage, transportMessage.contains("transport"))
     }
 
     /** API 33 is the one level where an OEM provider *could* be registered; the app has not, so it must say so. */

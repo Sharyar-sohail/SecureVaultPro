@@ -37,22 +37,39 @@ internal object StegoFixtures {
     /** A noisy texture: the same gradient and ripples, plus heavy sensor grain. */
     fun noisyCarrier(): LumaPlane = carrier(grain = 26, seed = 0x51EE02)
 
-    private fun carrier(grain: Int, seed: Int): LumaPlane {
+    /**
+     * A carrier on the grid the app really seals on: [StegoLimits.CANONICAL_LONGEST] along its longer
+     * side, which is the size [com.securevault.pro.presentation.screens.stego.StegoImages] cuts every
+     * picked photo to before writing a mark. The coarse grid has four times fewer cells than the fine
+     * one, so its capacity can only be measured at this size — a 640x480 fixture has no room for it.
+     */
+    fun photoCarrier(): LumaPlane = carrierAt(1280, 960, grain = 26, seed = 0x51EE03)
+
+    /**
+     * A copy whose coarse band is too small to host any lattice: eight-wide cells leave fewer than
+     * 4096 of them, and the smallest ring needs that many slots. Used to prove the seal falls back to
+     * the quiet grid and says it was not measured for a send.
+     */
+    fun tinyPhotoCarrier(): LumaPlane = carrierAt(512, 384, grain = 26, seed = 0x51EE04)
+
+    private fun carrier(grain: Int, seed: Int): LumaPlane = carrierAt(WIDTH, HEIGHT, grain, seed)
+
+    private fun carrierAt(width: Int, height: Int, grain: Int, seed: Int): LumaPlane {
         val random = DeterministicRandom(seed)
-        val samples = IntArray(WIDTH * HEIGHT)
+        val samples = IntArray(width * height)
         val span = 2 * grain + 1
-        for (y in 0 until HEIGHT) {
-            val v = y.toDouble() / (HEIGHT - 1)
-            for (x in 0 until WIDTH) {
-                val u = x.toDouble() / (WIDTH - 1)
+        for (y in 0 until height) {
+            val v = y.toDouble() / (height - 1)
+            for (x in 0 until width) {
+                val u = x.toDouble() / (width - 1)
                 val base = 74.0 + 104.0 * u
                 val low = 18.0 * sin(2 * PI * 1.3 * u) + 12.0 * cos(2 * PI * 0.9 * v)
                 val weave = 9.0 * sin(2 * PI * (2.0 * u + 3.0 * v))
                 val delta = ((random.nextInt().toLong() and 0x7FFF_FFFFL) % span).toInt() - grain
-                samples[y * WIDTH + x] = (base + low + weave + delta).roundToInt().coerceIn(0, 255)
+                samples[y * width + x] = (base + low + weave + delta).roundToInt().coerceIn(0, 255)
             }
         }
-        return LumaPlane(WIDTH, HEIGHT, samples)
+        return LumaPlane(width, height, samples)
     }
 
     fun envelope(

@@ -164,32 +164,63 @@ fun capacityUsedPercent(utilisation: Double): Int =
 /**
  * Why the marked JPEG still reads as a photograph, in the owner's terms.
  *
- * Three true facts, no marketing: the mark rides in luminance only and stays inside a few grey
- * levels, the file is a normal grey JPEG at the engine's own quality, and the name is the camera
- * app's shape. A two-envelope carrier adds the one claim that matters most — the file is the same
- * shape whatever it holds.
+ * Three true facts, no marketing: the mark rides in the photo's brightness and stays inside a few
+ * grey levels, the file is a normal JPEG that keeps the picture's own colours, and the name is the
+ * camera app's shape. A two-envelope carrier adds the one claim that matters most — the file is the
+ * same shape whatever it holds.
+ *
+ * [keepsColor] is honest bookkeeping, not a marketing switch: a photo the owner picked wears its own
+ * colours, a generated cover has none to wear and really does leave as a grey JPEG.
  */
-fun whyItLooksOrdinary(peakGreyLevel: Float, envelopeCount: Int, fileName: String, grain: String): String =
-    "The mark sits in luminance only, never more than ${peakGreyLevel.toInt()} grey levels off the " +
-        "original, on grain this photo already had ($grain). What leaves the app is an ordinary grey " +
-        "JPEG named like a camera file — $fileName. " +
-        if (envelopeCount > 1) {
-            "It carries two padded envelopes, so the file is byte-for-byte the same shape whether it " +
-                "holds one secret or two."
+fun whyItLooksOrdinary(
+    peakGreyLevel: Float,
+    envelopeCount: Int,
+    fileName: String,
+    grain: String,
+    keepsColor: Boolean = true
+): String =
+    "The mark rides in the photo's brightness, never more than ${peakGreyLevel.toInt()} shades off " +
+        "the original, on grain this photo already had ($grain). What leaves the app is " +
+        if (keepsColor) {
+            "an ordinary picture that keeps its own colours, named like a camera file — " +
+                "$fileName. "
         } else {
-            "One envelope, padded, with no marker anywhere that says what it holds."
+            "an ordinary picture named like a camera file — $fileName. "
+        } +
+        if (envelopeCount > 1) {
+            "It holds two messages, one for each passphrase, and the picture is the same shape " +
+                "whichever one is opened."
+        } else {
+            "One message, and nothing on the surface of the picture that says it is there."
         }
 
 // -------------------------------------------------------------------------------------------------
 // State carriers. All plain data; no bitmap, no Uri, no Context, so the whole file compiles on a JVM.
+// Arrays are compared and hashed by content, so a recompose cannot mistake one carrier for another.
 // -------------------------------------------------------------------------------------------------
+
+/** Null-safe colour-array equality, for the optional ARGB fields below. */
+private infix fun IntArray?.sameColorsAs(other: IntArray?): Boolean = when {
+    this == null -> other == null
+    other == null -> false
+    else -> this.contentEquals(other)
+}
 
 /** One photograph the owner picked or the app generated, plus the plane the engine works on. */
 data class StegoCarrier(
     val name: String,
     val plane: LumaPlane,
-    val generated: Boolean = false
-)
+    val generated: Boolean = false,
+    /** The picked photo's own ARGB, on [plane]'s exact grid; null for a generated cover. */
+    val color: IntArray? = null
+) {
+    override fun equals(other: Any?): Boolean =
+        other is StegoCarrier && other.name == name && other.generated == generated &&
+            other.plane === plane && other.color sameColorsAs color
+
+    override fun hashCode(): Int =
+        (name.hashCode() * 31 + plane.hashCode()) * 31 + (color?.contentHashCode() ?: 0)
+}
 
 /** A sealed carrier this flow produced: the bytes, the name it wants, and where it landed. */
 data class StegoArtifact(
@@ -199,16 +230,23 @@ data class StegoArtifact(
     val shareTotal: Int,
     val jpegBytes: ByteArray,
     val preview: LumaPlane,
-    val writtenTo: String? = null
+    val writtenTo: String? = null,
+    /** The colour preview's grid; zeroed and null when the carrier left as a grey JPEG. */
+    val previewWidth: Int = 0,
+    val previewHeight: Int = 0,
+    val previewPixels: IntArray? = null
 ) {
     val saved: Boolean get() = !writtenTo.isNullOrBlank()
     val sizeBytes: Int get() = jpegBytes.size
 
     override fun equals(other: Any?): Boolean =
         other is StegoArtifact && other.key == key && other.writtenTo == writtenTo &&
-            other.jpegBytes.contentEquals(jpegBytes)
+            other.jpegBytes.contentEquals(jpegBytes) &&
+            other.previewPixels sameColorsAs previewPixels
 
-    override fun hashCode(): Int = key.hashCode() * 31 + jpegBytes.contentHashCode()
+    override fun hashCode(): Int =
+        (key.hashCode() * 31 + jpegBytes.contentHashCode()) * 31 +
+            (previewPixels?.contentHashCode() ?: 0)
 }
 
 /** The honest facts a seal reports back, all measured by the engine rather than asserted here. */
@@ -223,15 +261,42 @@ data class StegoSealReport(
     val carrierDescription: String,
     val grainLabel: String,
     val fileName: String,
-    val readOnce: Boolean
+    val readOnce: Boolean,
+    /** False when a cover came from inside the app, which has no colours of its own to wear. */
+    val keepsColor: Boolean = true,
+    /**
+     * True only when the app really re-sent this carrier the way a chat app does — resized,
+     * re-written at send quality, read back — and the message came out of the copy. It is a
+     * measurement of this photo, not a property of the format, so the screen quotes it as what
+     * happened rather than as a promise.
+     */
+    val survivesSend: Boolean = false,
+    /** True when the send round trip really ran on this phone, whatever it proved. */
+    val sendTested: Boolean = false
 ) {
-    /** "4 chips/bit · small lattice · 38% of it" — the capacity line under the result. */
+    /** The capacity line under the result, in room rather than in mark vocabulary. */
     val capacityLine: String
-        get() = "$chipRate chips/bit · $latticeLabel · $capacityUsedPercent% of the lattice"
+        get() = "$capacityUsedPercent% of the room this picture had"
 
-    /** Bytes in hand against the ceiling this very photo can carry. */
+    /** Bytes in hand against the ceiling this very photo can carry, per passphrase. */
     val fillLine: String
-        get() = "$secretBytes of about $perEnvelopeLimit secret bytes per envelope"
+        get() = "Your message is $secretBytes bytes of the roughly $perEnvelopeLimit this " +
+            "picture can hold."
+
+    /** What the send test did or did not manage to prove, said the same way on every screen. */
+    val sendLine: String
+        get() = when {
+            survivesSend ->
+                "This picture was sent the way a chat app sends one and read back from the copy — the " +
+                    "message came out."
+            sendTested ->
+                "This picture went through the send test on this phone and the message did not come back " +
+                    "out of the copy. A bigger, busier photo or a shorter message stands a much better " +
+                    "chance."
+            else ->
+                "This phone could not finish the send test on this picture, so its survival in a chat " +
+                    "app is untested rather than promised."
+        }
 }
 
 /** What one carrier said when it was read, kept so a three-image set can show three verdicts. */

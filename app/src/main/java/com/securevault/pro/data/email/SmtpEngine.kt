@@ -360,35 +360,6 @@ class SmtpEngine(
     private fun base64(bytes: ByteArray): String = java.util.Base64.getEncoder().encodeToString(bytes)
 }
 
-/**
- * The one-shot form of dot-stuffing, for a body small enough to hold in memory. It delegates to
- * [DotStuffedWriter], so the streaming path and this one cannot drift apart — which is exactly what
- * `SmtpSequencingTest` pins when it compares the byte sequences.
- */
-object SmtpDotStuffer {
-
-    /** Every line-leading dot doubled, plus the `\r\n.\r\n` terminator. */
-    fun stuffWhole(body: ByteArray): ByteArray {
-        val out = ByteArrayOutputStream(body.size + 16)
-        val writer = DotStuffedWriter(out)
-        writer.write(body)
-        writer.finish()
-        return out.toByteArray()
-    }
-
-    /** The doubling rule alone, with no terminator: the line-by-line assertion a test wants. */
-    fun stuffLines(body: ByteArray): ByteArray {
-        val out = ByteArrayOutputStream(body.size + 8)
-        var atLineStart = true
-        for (b in body) {
-            if (atLineStart && b == DotStuffedWriter.DOT) out.write('.'.code)
-            out.write(b.toInt())
-            atLineStart = (b == DotStuffedWriter.LF)
-        }
-        return out.toByteArray()
-    }
-}
-
 /** A message body that can be written out in bounded chunks; attachments come through this. */
 interface MessageBodySource {
     /** Total bytes the source will write, so SIZE hints and progress reports can be honest. */

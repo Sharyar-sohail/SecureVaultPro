@@ -277,8 +277,10 @@ class BackupEngine @Inject constructor(
         onStage("Restoring crypto wallets", 86)
         var walletCount = 0
         payload.cryptoWallets.forEach { dto ->
-            if (walletRepository.restore(dto)) walletCount++
-            else warnings += "Wallet '${dto.label ?: "Wallet"}' was skipped"
+            val outcome = walletRepository.restore(dto)
+            if (outcome.restored) walletCount++
+            else warnings += outcome.note
+                ?: "Wallet '${dto.label ?: "Wallet"}' was skipped"
         }
 
         onStage("Restoring encrypted files", 88)

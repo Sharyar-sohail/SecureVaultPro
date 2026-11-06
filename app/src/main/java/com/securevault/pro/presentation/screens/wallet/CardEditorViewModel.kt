@@ -172,8 +172,8 @@ class CardEditorViewModel @Inject constructor(
         val CardGradientPresets = listOf(
             "#1E273E" to "#141B2D",
             "#0B3C4C" to "#071C26",
-            "#3B1D5A" to "#150B24",
-            "#4A1D2B" to "#1E0D14",
+            "#16337E" to "#0B1F52",
+            "#C1121F" to "#8E0D16",
             "#123B2E" to "#0A1F19",
             "#3B2E12" to "#1E1708"
         )

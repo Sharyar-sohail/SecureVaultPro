@@ -39,6 +39,7 @@ object CrashLogger {
     private const val KEY_STREAK = "streak"
     private const val KEY_LAST = "last_step"
     private const val KEY_STARTED = "started_at"
+    private const val KEY_SCREEN = "last_screen"
 
     /** Set by a failed startup probe: open recovery mode on the next launch, crash or no crash. */
     private const val KEY_RESCUE = "force_rescue"
@@ -73,6 +74,24 @@ object CrashLogger {
 
     @Volatile
     private var previousStage: String = "unknown"
+
+    /**
+     * The screen the owner was actually standing on, named by that screen.
+     *
+     * The stage marker comes from the navigation host and can only say which *state* the app was in
+     * ("unlocked", "locked"), so every death during ordinary use names the same place: inside the
+     * vault. A screen passes its own plain-language name here instead, and the previous run's value
+     * is what the report quotes as the place the owner was in.
+     */
+    @Volatile
+    private var screenName: String = ""
+
+    @Volatile
+    private var previousScreen: String = ""
+
+    /** The dead run's own trail lines, read before this process writes anything. */
+    @Volatile
+    private var previousTail: List<String> = emptyList()
 
     @Volatile
     private var startedAt: Long = 0L
@@ -121,6 +140,55 @@ object CrashLogger {
     val lastStage: String get() = previousStage
 
     /**
+     * Where the owner was standing, in the words a screen would use about itself.
+     *
+     * A screen name wins over a stage, because the stage only says which state the app was in.
+     * Nothing here is invented: an unknown stage is quoted as it was written.
+     */
+    val lastPlace: String
+        get() = previousScreen.ifBlank { placeWords(previousStage) }
+
+    /** The place named by a stage token, for reports the owner reads out loud. */
+    private fun placeWords(stage: String): String {
+        val head = stage.substringBefore('/').lowercase()
+        val tail = stage.substringAfter('/', "")
+        return when {
+            head == "unlocked" -> "inside the vault" +
+                if (tail.isBlank()) "" else " (theme $tail)"
+            head.startsWith("rescue") -> "the recovery screen"
+            head.startsWith("activity") -> "opening the app"
+            head.startsWith("camera") -> "the document camera"
+            head.startsWith("locked") -> if (tail.contains("biometric")) {
+                "the unlock screen, face or fingerprint prompt"
+            } else {
+                "the unlock screen"
+            }
+            head == "loading" -> "opening the app"
+            head == "intro" -> "the welcome screen"
+            head == "onboarding" || head == "setup" -> "the setup screens"
+            stage.isBlank() || stage == "unknown" || stage == "startup" -> "the app was still opening"
+            else -> stage
+        }
+    }
+
+    /**
+     * The one line the owner reads first, taken out of a report that may also contain a stack.
+     *
+     * The two reports written without a stack start with `Summary:`. Anything else falls back to the
+     * first real sentence, so the banner never shows a bare build line or a library frame.
+     */
+    fun summaryOf(report: String): String {
+        val lines = report.lineSequence().map { it.trim() }.filter { it.isNotEmpty() }.toList()
+        lines.firstOrNull { it.startsWith("Summary:") }?.let { return it }
+        val sentence = lines.firstOrNull {
+            it.length > 40 && it.contains(' ') && !it.startsWith("at ") && !it.contains('/')
+        }
+        val firstFrame = lines.firstOrNull { it.startsWith("at ") }
+            ?.removePrefix("at ")?.take(160)
+        return (sentence ?: firstFrame ?: lines.firstOrNull().orEmpty()).take(280)
+    }
+
+    /**
      * Where the copy of the report lands, spelled out on every screen that mentions it. The
      * private app folder this used to write is not reachable from a phone's own file manager,
      * so a report nobody can open is the same as no report at all.
@@ -131,6 +199,70 @@ object CrashLogger {
     fun lastSteps(limit: Int = 40): String = runCatching {
         trailFile?.takeIf { it.isFile }?.readText()?.lines()?.takeLast(limit)?.joinToString("\n")
     }.getOrNull().orEmpty()
+
+    /**
+     * The dead run's closing steps, quoted inside a report that has no stack trace to quote.
+     *
+     * Read before this process writes its own launch line, so everything on disk belongs to the run
+     * that ended without saying goodbye. A native death leaves no Java frame at all; the last line it
+     * wrote is the only name the fault can be given. The lines are kept raw so the recovery screen can
+     * quote the same witness without reading the disk again.
+     */
+    private fun previousRunSteps(limit: Int = 9): String {
+        runCatching {
+            val target = trailFile ?: app?.getExternalFilesDir(null)
+                ?.let { File(it, TRAIL_NAME) }
+                ?.also { trailFile = it }
+            target?.takeIf { it.isFile }?.readText()?.lines()?.filter { it.isNotBlank() }
+                ?.let { previousTail = it.takeLast(30) }
+        }
+        return ownerSteps(previousTail, limit)
+    }
+
+    /**
+     * The last thing the dead run wrote down, in the owner's words. For the recovery screen, which
+     * must not go back to the disk for it.
+     */
+    fun deadRunSteps(limit: Int = 8): String = ownerSteps(previousTail, limit)
+
+    /**
+     * Translate the written trail into sentences the owner can act on, dropping the machinery.
+     *
+     * The trail is a developer log: it counts unclean runs, names probes and notes every background
+     * handover. Quoted whole into the one document the owner photographs, that vocabulary is the
+     * reason a readable report kept coming back unreadable. The clock time stays — it is how he
+     * matches a line to what he was doing.
+     */
+    private fun ownerSteps(lines: List<String>, limit: Int): String = lines
+        .mapNotNull { ownerStep(it) }
+        .takeLast(limit)
+        .joinToString("\n")
+
+    private fun ownerStep(raw: String): String? {
+        val line = raw.trim()
+        if (line.isEmpty()) return null
+        val clock = line.substringBefore(' ').substringAfter(' ').take(8)
+        val stamp = if (clock.contains(':')) "$clock  " else ""
+        val body = line.substringAfter(' ', line).trim()
+        return when {
+            body.startsWith("launch:") -> null
+            body.startsWith("background after") -> null
+            body.startsWith("report acknowledged") -> null
+            body.startsWith("stage ->") ->
+                stamp + "opened: " + placeWords(body.substringAfter("->").trim())
+            body.startsWith("screen ->") ->
+                stamp + "you were on: " + body.substringAfter("->").trim()
+            body.startsWith("probe/") ->
+                stamp + "checking ${body.substringAfter("probe/").trim()}"
+            body.startsWith("event/") ->
+                stamp + body.substringAfter("event/").trim()
+            body.startsWith("caught fault:") ->
+                stamp + "a problem it recovered from: " + body.substringAfter(":").trim()
+            body.startsWith("uncaught on") ->
+                stamp + "the app stopped: " + body.substringAfter(":").trim()
+            else -> stamp + body.take(120)
+        }
+    }
 
     /**
      * True while a fault is on record. Screens hold back automatic work — the biometric
@@ -163,6 +295,7 @@ object CrashLogger {
             val wasRunning = disk.getBoolean(KEY_RUNNING, false)
             val lastStep = disk.getString(KEY_LAST, "unknown")
             previousStage = lastStep ?: "unknown"
+            previousScreen = disk.getString(KEY_SCREEN, "").orEmpty()
             val ranFor = startedAt - disk.getLong(KEY_STARTED, startedAt)
             disk.getString(KEY_TRACE, null)?.let { trace ->
                 _pending.value = trace to disk.getString(KEY_PATH, null).orEmpty()
@@ -177,23 +310,42 @@ object CrashLogger {
                     .putBoolean(KEY_RUNNING, true)
                     .commit()
                 if (_pending.value == null) {
-                    _pending.value = buildString {
+                    val life = RunLength.spoken(ranFor)
+                    val report = buildString {
+                        append("Summary: The app closed suddenly. Your records are safe.\n")
                         append("Secure Wallet Pro ").append(BuildConfig.VERSION_NAME)
                         append(" (build ").append(BuildConfig.VERSION_CODE).append(")\n")
                         append(Build.MANUFACTURER).append(' ').append(Build.MODEL)
                         append(" · Android ").append(Build.VERSION.RELEASE)
                         append(" (SDK ").append(Build.VERSION.SDK_INT).append(")\n")
-                        append("The previous run ended without closing cleanly after ")
-                        append("'").append(lastStep).append("' after ").append(ranFor).append(" ms.\n")
-                        append("No crash report was left either, which points at a native ")
-                        append("graphics failure or the system closing the app, not at ")
-                        append("Kotlin code.\n")
-                        append("Consecutive unclean runs: ").append(streak)
+                        append("It had been open for $life when it stopped answering, and it closed ")
+                        append("without showing any error. That is the phone shutting the app down ")
+                        append("or a screen-drawing problem — it is not your vault, and nothing was ")
+                        append("deleted.\n")
+                        append("Where you were: ").append(lastPlace).append('\n')
+                        append("This is the ").append(runCount(streak))
+                        append(" time in a row the app has closed without saying goodbye.\n")
                         if (_safeRender) {
-                            append("\nSafe render mode is ON: backdrop blur and screen-capture")
-                            append(" blocking are disabled until a run closes cleanly.")
+                            append("To keep the app openable, the frosted-glass background and the ")
+                            append("screenshot block are switched off for now. They come back on ")
+                            append("their own after the app closes properly once.")
                         }
-                    } to ""
+                        // The written trail is the only surviving witness of a death like this, so
+                        // it goes into the report itself: the last line names the work in flight.
+                        val steps = previousRunSteps()
+                        if (steps.isNotEmpty()) {
+                            append("\n\nLast steps of that run:\n").append(steps)
+                        }
+                        append("\n\nWhat to do: tap Copy report and send the text over. A copy also ")
+                        append("sits in ").append(REPORT_LOCATION).append(" — open it with Files.")
+                        trailFile?.absolutePath?.let {
+                            append("\nFull trail: ").append(it)
+                            append("\n(The trail file is inside the app's own folder, which Files ")
+                            append("cannot open. You only need the copy above.)")
+                        }
+                    }
+                    _pending.value = report to ""
+                    publishToDownloads(appContext, report)
                 }
                 trail("launch: unclean x$streak, last='$lastStep', safeRender=$_safeRender")
             } else {
@@ -223,6 +375,55 @@ object CrashLogger {
         step = value
         runCatching { store?.edit()?.putString(KEY_LAST, value)?.commit() }
         runCatching { trail("stage -> $value") }
+    }
+
+    /**
+     * The screen the owner is standing on, named by the screen itself.
+     *
+     * [noteStage] can only carry the navigation state, which reads as "inside the vault" for every
+     * screen inside it, so a report could not say where the owner was. This is the missing half: a
+     * screen passes its own plain-language name once, on entry. Like the stage marker it writes only
+     * on a genuine change — never per recomposition — and every write is wrapped.
+     */
+    fun noteScreen(value: String) {
+        val name = value.trim()
+        if (name.isEmpty() || name == screenName) return
+        screenName = name
+        runCatching { store?.edit()?.putString(KEY_SCREEN, name)?.commit() }
+        runCatching { trail("screen -> $name") }
+    }
+
+    /** Where the owner was standing, as this process knows it. */
+    private fun placeForOwner(): String = screenName.ifBlank { placeWords(step) }
+
+    /** "2nd", "3rd", "4th" — a count the owner reads as a count, not as a variable. */
+    private fun runCount(n: Int): String = when (n) {
+        1 -> "1st"
+        2 -> "2nd"
+        3 -> "3rd"
+        else -> "${n}th"
+    }
+
+    /**
+     * Where the run got to, as a step in the written trail rather than as the screen's own stage.
+     *
+     * A startup probe is not a place the owner is standing: it runs on a background thread and can
+     * land minutes after the UI did. Recorded as a stage it was the last line the report quoted, so
+     * every death during ordinary use read as a death on the vault database.
+     */
+    fun noteProbe(name: String) {
+        runCatching { trail("probe/$name") }
+    }
+
+    /**
+     * One transient event — a scan, an import, a camera handover — in the trail.
+     *
+     * These come and go too quickly to be a stage, and a stage that changes twice per minute would
+     * hide where the owner actually was. They are still the first thing to look at when a run dies
+     * without a trace: the last line is the work that was in flight.
+     */
+    fun noteEvent(label: String) {
+        runCatching { trail("event/$label") }
     }
 
     /**
@@ -282,11 +483,14 @@ object CrashLogger {
             val disk = prefs(context.applicationContext)
             val faults = disk.getInt(KEY_STORE_FAULTS, 0) + 1
             val trace = buildString {
+                append("Summary: ").append(label)
+                append(" — the app caught it and carried on.\n")
                 append("Secure Wallet Pro ").append(BuildConfig.VERSION_NAME)
                 append(" (build ").append(BuildConfig.VERSION_CODE).append(")\n")
                 append(label).append(" (reported ").append(faults).append(" time")
                 append(if (faults == 1) ")" else "s)")
-                append("\nScreen: ").append(step).append('\n')
+                append("\nWhere you were: ").append(placeForOwner()).append('\n')
+                append("Technical detail follows; your records are safe.\n")
                 append(Log.getStackTraceString(error))
             }
             // A caught fault is written to disk too. A probe that names the settings store as

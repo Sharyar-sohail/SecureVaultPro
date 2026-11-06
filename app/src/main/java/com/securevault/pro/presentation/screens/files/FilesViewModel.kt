@@ -361,28 +361,33 @@ class FilesViewModel @Inject constructor(
                         .getMimeTypeFromExtension(name.substringAfterLast('.', "").lowercase())
                     ?: "application/octet-stream"
                 val entry = withTimeout(GENERIC_IMPORT_TIMEOUT_MS) {
-                    val staged = stageToCacheFile(uri, name, declared) { fraction ->
+                    val staged = stageToCacheFile(uri, name, declared) { fraction, readBytes ->
                         upload.update { current ->
                             current.copy(
                                 title = "Reading file",
-                                detail = name,
+                                detail = progressDetail(name, readBytes, declared),
                                 percent = (2 + fraction * 34).toInt().coerceIn(2, 36)
                             )
                         }
                     }
-                    upload.value = FileUploadState(
-                        active = true,
-                        title = "Encrypting file",
-                        detail = "AES-256-GCM · sealing into the local vault",
-                        percent = 48
-                    )
+                    // The staged length, not the size the provider claimed: many document providers
+                    // answer 0, and a bar measuring against nothing at all never moves.
+                    val totalBytes = if (declared > 0) declared else staged.length()
                     try {
-                        val saved = repository.fileVault.saveStream(
+                        val saved = repository.fileVault.saveStreamWithProgress(
                             source = staged,
                             displayName = name,
                             mimeType = mime,
                             category = repository.fileVault.guessCategory(name)
-                        )
+                        ) { fraction ->
+                            upload.update { current ->
+                                current.copy(
+                                    title = "Encrypting file",
+                                    detail = progressDetail(name, (totalBytes * fraction).toLong(), totalBytes),
+                                    percent = (38 + fraction * 22).toInt().coerceIn(38, 60)
+                                )
+                            }
+                        }
                         saved.exceptionOrNull()?.let { throw it }
                         saved.getOrThrow()
                     } finally {
@@ -494,19 +499,37 @@ class FilesViewModel @Inject constructor(
         var chats = 0
         var messages = 0
         var media = 0
+        var filesSealed = 0
         val complaints = mutableListOf<String>()
         queued.forEachIndexed { index, entry ->
+            // One entry's own slice of the bar, so four shared files do not look like one upload
+            // that stopped at 25%.
+            val base = (index * 90L / queued.size).toInt().coerceIn(2, 92)
+            val top = ((index + 1) * 90L / queued.size).toInt().coerceAtLeast(base + 2).coerceAtMost(96)
+            val stage = "${index + 1} of ${queued.size}"
+            val chatShare = looksLikeChatShare(entry.name)
             upload.value = FileUploadState(
                 active = true,
-                title = "Sealing the shared chat",
-                detail = "${index + 1} of ${queued.size} · ${entry.name}",
-                percent = ((index + 1) * 90L / queued.size).toInt().coerceIn(2, 96)
+                title = if (chatShare) "Sealing the shared chat" else "Sealing the shared file",
+                detail = "$stage · ${entry.name}",
+                percent = base
             )
             val staged = entry.staged?.let(::File)
             val outcome = try {
                 when {
-                    staged != null && staged.isFile -> importStagedGuarded(staged)
-                    entry.uri != null -> importGuarded(Uri.parse(entry.uri))
+                    !chatShare -> sealSharedFile(entry, staged) { done, total ->
+                        upload.update {
+                            it.copy(
+                                title = "Sealing the shared file",
+                                detail = "$stage · ${progressDetail(entry.name, done, total)}",
+                                percent = (base + (top - base) * done / maxOf(total, 1L)).toInt()
+                                    .coerceIn(base, top)
+                            )
+                        }
+                    }.map { SealedShare(filesSealed = 1) }
+
+                    staged != null && staged.isFile -> importStagedGuarded(staged).map { it.toSealedShare(stage) }
+                    entry.uri != null -> importGuarded(Uri.parse(entry.uri)).map { it.toSealedShare(stage) }
                     else -> Result.failure(IllegalArgumentException(SharedInboxLostHint))
                 }
             } catch (cancelled: CancellationException) {
@@ -518,27 +541,132 @@ class FilesViewModel @Inject constructor(
             SharedInbox.complete(context, entry.id)
             outcome.fold(
                 onSuccess = {
-                    chats++
-                    messages += it.messages
+                    if (it.chatId != null) {
+                        chats++
+                        messages += it.messages
+                        openChatId.value = it.chatId
+                    }
                     media += it.mediaSealed
+                    filesSealed += it.filesSealed
                     complaints += it.warnings
-                    openChatId.value = it.chatId
                 },
-                onFailure = { complaints += "${entry.name}: ${it.message ?: "could not be read"}" }
+                onFailure = { failure ->
+                    // A `.txt` the chat parser refused is still text the owner shared. The only copy
+                    // lives in the queue, and the row goes away either way, so it is sealed into
+                    // Files instead of being reported and dropped.
+                    if (rescueTextShare(entry, staged, base, top)) {
+                        filesSealed++
+                    } else {
+                        complaints += "${entry.name}: ${failure.message ?: "could not be read"}"
+                    }
+                }
             )
         }
         files.value = repository.fileVault.listFiles()
         repository.refreshFileCount()
+        refreshDriveStorage()
         upload.value = FileUploadState()
-        _importSummary.value = if (chats > 0) {
-            buildString {
+        _importSummary.value = buildString {
+            if (chats > 0) {
                 append("$chats chat${if (chats == 1) "" else "s"} imported · $messages messages")
                 if (media > 0) append(" · $media photo${if (media == 1) "" else "s"} & file${if (media == 1) "" else "s"}")
             }
-        } else {
-            "Nothing from that share could be imported"
+            if (filesSealed > 0) {
+                if (isNotEmpty()) append(" · ")
+                append("$filesSealed file${if (filesSealed == 1) "" else "s"} sealed in Files")
+            }
+            if (isEmpty()) append("Nothing from that share could be imported")
         }
         if (complaints.isNotEmpty()) error.value = summarize(complaints.toList())
+    }
+
+    /**
+     * One queue entry, whatever it was: a conversation written into the chat tables, or a plain
+     * document sealed into the file vault. Both answer with the same shape so the summary below
+     * can count them together.
+     */
+    private class SealedShare(
+        val chatId: String? = null,
+        val messages: Int = 0,
+        val mediaSealed: Int = 0,
+        val filesSealed: Int = 0,
+        val warnings: List<String> = emptyList()
+    )
+
+    private fun WhatsAppStreamingImporter.Outcome.toSealedShare(stage: String) = SealedShare(
+        chatId = chatId,
+        messages = messages,
+        mediaSealed = mediaSealed,
+        warnings = if (mediaSkipped > 0) warnings + "$stage · $mediaSkipped media files were skipped" else warnings
+    )
+
+    /**
+     * What WhatsApp's "Export chat" produces: a `.zip` with the media inside, or a plain `.txt`
+     * transcript. Anything else the share sheet hands over — a photo, a PDF, a video, an audio
+     * recording, an Office document — is a file the owner meant to keep, not a conversation: it used
+     * to be pushed through the chat parser, which could only fail, and the queue row was then
+     * deleted with it. Those files are now sealed into the vault and counted in the summary.
+     */
+    private fun looksLikeChatShare(name: String): Boolean {
+        val lower = name.lowercase()
+        return lower.endsWith(".zip") || lower.endsWith(".txt")
+    }
+
+    /** A shared document, sealed from its staged copy (or re-read from the URI) into the file vault. */
+    private suspend fun sealSharedFile(
+        entry: SharedInbox.Pending,
+        staged: File?,
+        onSealed: (done: Long, total: Long) -> Unit
+    ): Result<VaultFile> {
+        val fromQueue = staged?.takeIf { it.isFile }
+        // A copy this method made itself, because the queue's staged file is removed with its row.
+        var madeCopy: File? = null
+        val source = when {
+            fromQueue != null -> fromQueue
+            entry.uri == null -> return Result.failure(IllegalArgumentException(SharedInboxLostHint))
+            else -> runCatching {
+                stageToCacheFile(Uri.parse(entry.uri), entry.name, entry.bytes) { _, _ -> }
+                    .also { madeCopy = it }
+            }.getOrElse { return Result.failure(it) }
+        }
+        val total = if (entry.bytes > 0) entry.bytes else source.length()
+        return try {
+            repository.fileVault.saveStreamWithProgress(
+                source = source,
+                displayName = entry.name,
+                mimeType = repository.fileVault.guessMime(entry.name),
+                category = repository.fileVault.guessCategory(entry.name)
+            ) { fraction ->
+                onSealed((total * fraction).toLong(), total)
+            }.also { if (it.isSuccess) onSealed(total, total) }
+        } finally {
+            madeCopy?.let { runCatching { it.delete() } }
+        }
+    }
+
+    /**
+     * The text half of a failed chat parse: a small `.txt` is sealed as a document, anything bigger
+     * is a real WhatsApp export the owner must hear about instead of a vault full of unreadable
+     * transcripts. Returns false when nothing was rescued.
+     */
+    private suspend fun rescueTextShare(
+        entry: SharedInbox.Pending,
+        staged: File?,
+        base: Int,
+        top: Int
+    ): Boolean {
+        if (!entry.name.lowercase().endsWith(".txt")) return false
+        val bytes = staged?.takeIf { it.isFile }?.length() ?: entry.bytes
+        if (bytes > TEXT_RESCUE_MAX_BYTES) return false
+        return sealSharedFile(entry, staged) { done, total ->
+            upload.update {
+                it.copy(
+                    title = "Sealing the shared text",
+                    detail = progressDetail(entry.name, done, total),
+                    percent = (base + (top - base) * done / maxOf(total, 1L)).toInt().coerceIn(base, top)
+                )
+            }
+        }.isSuccess
     }
 
     private fun publishStage(stage: String, percent: Int) {
@@ -1817,7 +1945,7 @@ class FilesViewModel @Inject constructor(
                 .getMimeTypeFromExtension(name.substringAfterLast('.', "").lowercase())
             ?: "application/octet-stream"
         return runCatching {
-            val staged = stageToCacheFile(uri, name, queryDocumentSize(context, uri)) { }
+            val staged = stageToCacheFile(uri, name, queryDocumentSize(context, uri)) { _, _ -> }
             try {
                 val saved = repository.fileVault.saveStream(
                     source = staged,
@@ -1918,7 +2046,7 @@ class FilesViewModel @Inject constructor(
         uri: Uri,
         name: String,
         declared: Long,
-        onProgress: (Float) -> Unit
+        onProgress: (fraction: Float, readBytes: Long) -> Unit
     ): File = withContext(Dispatchers.IO) {
         val limit = FileVaultRepository.MAX_FILE_BYTES
         if (declared > limit) throw IllegalArgumentException("This file is larger than 2 GB")
@@ -1952,7 +2080,7 @@ class FilesViewModel @Inject constructor(
                     val percent = (fraction * 100).toInt()
                     if (percent != lastPercent) {
                         lastPercent = percent
-                        onProgress(fraction)
+                        onProgress(fraction, total)
                     }
                 }
                 output.flush()
@@ -1962,8 +2090,25 @@ class FilesViewModel @Inject constructor(
             target.delete()
             throw IllegalArgumentException("That file is empty. ($name)")
         }
-        onProgress(1f)
+        onProgress(1f, target.length())
         target
+    }
+
+    /**
+     * What the bar is actually measuring, in megabytes: "Reading file · 18 of 240 MB".
+     *
+     * A bare filename under a percentage that never changes is what made uploads look broken; the
+     * owner could not tell a stalled transfer from a slow one. With the byte counts, both the read
+     * and the sealing pass visibly advance and a real stall is obvious.
+     */
+    private fun progressDetail(name: String, doneBytes: Long, totalBytes: Long): String {
+        val done = doneBytes / (1024 * 1024)
+        val total = totalBytes / (1024 * 1024)
+        return when {
+            totalBytes <= 0 -> "$name · $done MB read"
+            total < 1 -> "$name · under 1 MB"
+            else -> "$name · $done of $total MB"
+        }
     }
 
     fun delete(id: String) {
@@ -2026,5 +2171,12 @@ class FilesViewModel @Inject constructor(
 
         /** A `.txt` export is joined to its media by reading it once; anything larger is not one. */
         const val TRANSCRIPT_JOIN_BYTES = 25L * 1024L * 1024L
+
+        /**
+         * How large a plain text share may be to still count as a document rather than a WhatsApp
+         * export: a rescued memo is a few hundred kilobytes, and sealing a stalled 200 MB transcript
+         * into Files would bury the real problem ("export it without media") under a useless entry.
+         */
+        const val TEXT_RESCUE_MAX_BYTES = 20L * 1024L * 1024L
     }
 }

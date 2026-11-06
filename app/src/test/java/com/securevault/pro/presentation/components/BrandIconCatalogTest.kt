@@ -105,20 +105,20 @@ class BrandIconCatalogTest {
     fun `accents read back as the documented argb and stay srgb`() {
         val expected = listOf(
             Triple("solstice", VaultModule.PASSWORDS, 0xFF06529E),
-            Triple("solstice", VaultModule.STEGO, 0xFF942DC0),
+            Triple("solstice", VaultModule.STEGO, 0xFF16337E),
             Triple("oneui", VaultModule.PASSWORDS, 0xFF1B6DF1),
             Triple("aqua", VaultModule.PASSWORDS, 0xFF1D8371),
             Triple("aqua", VaultModule.CARDS, 0xFF4A69D4),
-            Triple("lime", VaultModule.PASSWORDS, 0xFF582EC6),
-            Triple("dark", VaultModule.PASSWORDS, 0xFF7757D8),
+            Triple("lime", VaultModule.PASSWORDS, 0xFF1E4FD8),
+            Triple("dark", VaultModule.PASSWORDS, 0xFF1D4ED8),
             // Re-cut by tools/brand-icons/vibrancy-pass.mjs to hold white ink and the chroma floor.
             Triple("noir", VaultModule.PASSWORDS, 0xFF926C22),
             Triple("voltra", VaultModule.PASSWORDS, 0xFF687D1D),
-            Triple("sakura", VaultModule.PASSWORDS, 0xFFCF3374),
+            Triple("sakura", VaultModule.PASSWORDS, 0xFFC1121F),
             // The neon trio borrows the closest generated ramp instead of shipping its own plates.
             Triple("neon_cyan", VaultModule.PASSWORDS, 0xFF687D1D),
-            Triple("neon_magenta", VaultModule.PASSWORDS, 0xFF6E4BD5),
-            Triple("neon_plasma", VaultModule.PASSWORDS, 0xFF7757D8),
+            Triple("neon_magenta", VaultModule.PASSWORDS, 0xFF1E4FD8),
+            Triple("neon_plasma", VaultModule.PASSWORDS, 0xFF1D4ED8),
         )
         for ((theme, module, argb) in expected) {
             assertMatches(theme, module, BrandIconCatalog.accent(theme, module), argb.toLong())

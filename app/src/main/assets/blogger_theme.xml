@@ -8,9 +8,9 @@
 <b:include data='blog' name='all-head-content'/>
 <title><data:blog.pageTitle/></title>
 <b:skin><![CDATA[
-:root{--bg:#05070d;--panel:rgba(17,23,37,.78);--panel2:rgba(24,32,50,.7);--line:rgba(122,180,255,.16);--cyan:#38e8ff;--mint:#3ef0b0;--indigo:#8b7bff;--amber:#ffc85c;--coral:#ff6b8a;--text:#eaf2ff;--muted:#8b9bb4}
+:root{--bg:#05070d;--panel:rgba(17,23,37,.78);--panel2:rgba(24,32,50,.7);--line:rgba(122,180,255,.16);--cyan:#38e8ff;--mint:#3ef0b0;--indigo:#2563eb;--amber:#ffc85c;--coral:#ff4136;--text:#eaf2ff;--muted:#8b9bb4}
 *{box-sizing:border-box}html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased}
-body{min-height:100vh;background:radial-gradient(900px 500px at 12% -10%,rgba(56,232,255,.13),transparent 60%),radial-gradient(800px 520px at 88% 0,rgba(139,123,255,.14),transparent 55%),radial-gradient(700px 600px at 50% 110%,rgba(62,240,176,.08),transparent 60%),#05070d;background-attachment:fixed}
+body{min-height:100vh;background:radial-gradient(900px 500px at 12% -10%,rgba(56,232,255,.13),transparent 60%),radial-gradient(800px 520px at 88% 0,rgba(37,99,235,.16),transparent 55%),radial-gradient(700px 600px at 50% 110%,rgba(62,240,176,.08),transparent 60%),#05070d;background-attachment:fixed}
 a{color:var(--cyan)}.svp-wrap{max-width:1080px;margin:0 auto;padding:28px 18px 40px;position:relative;z-index:2}
 .svp-top{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:22px;flex-wrap:wrap}
 .svp-brand{display:flex;align-items:center;gap:12px}
@@ -34,7 +34,7 @@ textarea{min-height:88px;resize:vertical}
 .svp-btn.primary{background:linear-gradient(135deg,var(--cyan),var(--mint));color:#031018;border:0;box-shadow:0 10px 26px rgba(56,232,255,.22)}
 .svp-btn.ghost{background:rgba(255,255,255,.03)}
 .svp-btn.icon{padding:10px 12px;min-width:52px}
-.svp-btn.danger{border-color:rgba(255,107,138,.35);color:var(--coral)}
+.svp-btn.danger{border-color:rgba(255,65,54,.35);color:var(--coral)}
 .svp-btn.wide{width:100%;margin-top:14px;padding:12px}
 .svp-err{color:var(--coral);font-size:13px;margin:12px 0 0;line-height:1.5}
 .svp-split{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
@@ -56,7 +56,7 @@ textarea{min-height:88px;resize:vertical}
 .svp-item-title{font-size:15px;font-weight:700;line-height:1.25;word-break:break-word;margin:0}
 .svp-item-sub{font-size:12px;color:var(--muted);margin:2px 0 0;word-break:break-word}
 .svp-tags{display:flex;gap:6px;flex-wrap:wrap}
-.svp-tag{font-size:9px;letter-spacing:.12em;text-transform:uppercase;padding:3px 8px;border-radius:999px;border:1px solid rgba(139,123,255,.35);color:var(--indigo);background:rgba(139,123,255,.09)}
+.svp-tag{font-size:9px;letter-spacing:.12em;text-transform:uppercase;padding:3px 8px;border-radius:999px;border:1px solid rgba(37,99,235,.40);color:var(--indigo);background:rgba(37,99,235,.10)}
 .svp-tag.fav{color:var(--amber);border-color:rgba(255,200,92,.4);background:rgba(255,200,92,.09)}
 .svp-secret{display:flex;align-items:center;gap:6px;background:rgba(6,10,18,.65);border:1px solid var(--line);border-radius:11px;padding:8px 10px}
 .svp-secret code{flex:1;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12.5px;word-break:break-all;color:var(--text)}
@@ -81,7 +81,6 @@ textarea{min-height:88px;resize:vertical}
 .svp-drive-row div{flex:1;min-width:0}
 .svp-drive-row b{display:block;font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .svp-drive-row span{display:block;font-size:10px;color:var(--muted);margin-top:2px}
-.svp-drive-row.app-only{opacity:.55}
 .svp-row{display:flex;align-items:center;justify-content:space-between;gap:10px}
 .svp-row h2{margin:0;font-size:18px}
 .svp-pairqr{display:flex;gap:16px;align-items:center;justify-content:center;flex-wrap:wrap;margin-top:12px}
@@ -98,14 +97,20 @@ textarea{min-height:88px;resize:vertical}
 .svp-gis{display:flex;justify-content:center;margin:10px 0 0;min-height:0}
 .svp-gis:empty{margin:0}
 .svp-div{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);border-top:1px solid var(--line);margin:16px 0 0;padding-top:12px}
+.svp-offline{margin-top:12px;border-top:1px solid var(--line);padding-top:10px}
+.svp-offline summary{cursor:pointer;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);list-style:none}
+.svp-offline summary::-webkit-details-marker{display:none}
+.svp-offline summary::before{content:'+ ';color:var(--cyan)}
+.svp-offline[open] summary::before{content:'- '}
+.svp-offline[open] summary{margin-bottom:10px}
 .svp-livebar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:var(--panel2);border:1px solid var(--line);border-radius:16px;padding:11px 14px;margin-bottom:14px;font-size:12px;color:var(--muted)}
 .svp-livebar .svp-btn{padding:6px 10px;font-size:11px}
 .svp-dot{width:9px;height:9px;border-radius:50%;background:var(--muted);flex:0 0 9px;box-shadow:0 0 0 3px rgba(139,155,180,.14)}
 .svp-dot.on{background:var(--mint);box-shadow:0 0 10px rgba(62,240,176,.75)}
-.svp-dot.off{background:var(--coral);box-shadow:0 0 10px rgba(255,107,138,.6)}
+.svp-dot.off{background:var(--coral);box-shadow:0 0 10px rgba(255,65,54,.55)}
 .svp-lat{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--text);font-weight:700;padding:3px 9px;border-radius:9px;background:rgba(56,232,255,.10);border:1px solid rgba(56,232,255,.28);font-size:11.5px}
 .svp-lat.warn{color:var(--amber);background:rgba(255,200,92,.10);border-color:rgba(255,200,92,.3)}
-.svp-lat.bad{color:var(--coral);background:rgba(255,107,138,.10);border-color:rgba(255,107,138,.3)}
+.svp-lat.bad{color:var(--coral);background:rgba(255,65,54,.10);border-color:rgba(255,65,54,.3)}
 .svp-log{width:100%;max-height:130px;overflow:auto;font-size:10.5px;line-height:1.55;background:rgba(6,10,18,.6);border:1px solid var(--line);border-radius:12px;padding:8px 10px;white-space:pre-wrap;word-break:break-word;margin:0;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:var(--muted)}
 .svp-stamp{font-size:10px;color:var(--muted);letter-spacing:.08em;margin-top:auto;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
 .svp-viewer-body{margin-top:10px}
@@ -135,7 +140,7 @@ textarea{min-height:88px;resize:vertical}
      the node path. An unbuilt theme can run live mode by typing the API key into
      Google setup, which keeps it in localStorage only. */
   var FB_VERSION = '10.12.2';
-  var FB_CFG = { apiKey: '', authDomain: 'vault-35423.firebaseapp.com', projectId: 'vault-35423', databaseURL: 'https://vault-35423-default-rtdb.asia-southeast1.firebasedatabase.app', webClientId: '908900914248-pse5k128rl0hoqb07oebhsnngt1i80uj.apps.googleusercontent.com' };
+  var FB_CFG = { apiKey: 'AIzaSyB6O6LUanMOsXDaChVcuuem4veo8AUwUH8', authDomain: 'vault-35423.firebaseapp.com', projectId: 'vault-35423', databaseURL: 'https://vault-35423-default-rtdb.asia-southeast1.firebasedatabase.app', webClientId: '908900914248-pse5k128rl0hoqb07oebhsnngt1i80uj.apps.googleusercontent.com' };
   /* The frozen wire contract: RECORD-FORMAT-v1 sections 1-4. */
   var LIVE_MODULES = ['notes', 'entries', 'cards', 'totps', 'contacts', 'cryptoWallets', 'files'];
   var RECORD_KEYS = {
@@ -157,10 +162,10 @@ textarea{min-height:88px;resize:vertical}
      frontends. */
   var CHAT_ROOT = 'chats/';
   var CHAT_MARKS = [
-    ['#25d366', '#0e8f52'], ['#38e8ff', '#1f6fd0'], ['#8b7bff', '#5a3fd0'], ['#ffb347', '#e07a1f'],
-    ['#ff6b8a', '#c2255c'], ['#7bf1a8', '#2f9e5a'], ['#ffd166', '#c98a12'], ['#6ee7ff', '#0f8fbf'],
-    ['#c792ff', '#7b3fd4'], ['#ff9f6e', '#d1531f'], ['#5eead4', '#0f766e'], ['#f472b6', '#be185d'],
-    ['#a3e635', '#4d7c0f'], ['#60a5fa', '#1d4ed8'], ['#f87171', '#b91c1c'], ['#e2e8f0', '#94a3b8']
+    ['#25d366', '#0e8f52'], ['#38e8ff', '#1f6fd0'], ['#ffd400', '#d9a800'], ['#ff4136', '#c1121f'],
+    ['#16c65b', '#0b7a3a'], ['#38bdf8', '#1e4fd8'], ['#ff9f0a', '#cf7000'], ['#5eead4', '#0f766e'],
+    ['#a3e635', '#4d7c0f'], ['#60a5fa', '#1d4ed8'], ['#f2555a', '#8e0d16'], ['#00e5a8', '#07966b'],
+    ['#8ff04a', '#5aa00c'], ['#7fd1ff', '#2b7fd4'], ['#ffe066', '#c9a227'], ['#ff6b4a', '#c2401f']
   ];
 
   function chatSlot(id) {
@@ -221,32 +226,43 @@ textarea{min-height:88px;resize:vertical}
       </div>
       <p class='svp-muted' style='margin:8px 0 0'>Sign in with the Google account that owns the vault, then type the vault passphrase you set in the app. Records stream straight from the database and decrypt in this tab only.</p>
       <div class='svp-gis' id='svp-gis-btn'></div>
-      <p class='svp-muted' id='svp-live-hint' style='margin:8px 0 0;font-size:11px'>Realtime client: loading&#8230; if the button never appears, press Try again or use the sealed backup below.</p>
+      <div class='svp-passrow' id='svp-popup-row' hidden='hidden'>
+        <button class='svp-btn primary' id='svp-live-popup' type='button'>Sign in with Google</button>
+      </div>
+      <p class='svp-muted' id='svp-live-hint' style='margin:8px 0 0;font-size:11px'>Realtime client: loading&#8230;</p>
       <div class='svp-passrow' id='svp-kpass-row' hidden='hidden'>
         <input id='svp-kpass' type='password' autocomplete='off' spellcheck='false' placeholder='Vault passphrase (set in the app)'/>
         <button class='svp-btn icon' id='svp-kpass-go' type='button'>Open</button>
       </div>
       <p class='svp-err' id='svp-live-err' hidden='hidden'></p>
+      <details class='svp-offline' id='svp-live-raw' hidden='hidden'>
+        <summary>What the vault server actually said</summary>
+        <p class='svp-muted' id='svp-live-raw-text' style='font-size:11px'></p>
+      </details>
       <div class='svp-split' id='svp-live-actions' hidden='hidden'>
         <button class='svp-btn ghost' id='svp-live-retry' type='button'>Try again</button>
         <button class='svp-btn danger' id='svp-live-signout' type='button'>Sign out</button>
       </div>
     </div>
-    <p class='svp-div'>Offline &#183; sealed backup file</p>
-    <p class='svp-muted' id='svp-src'>No snapshot embedded. Open an encrypted backup or connect Google Drive.</p>
-    <label class='svp-label' for='svp-pass'>Backup password</label>
-    <div class='svp-passrow'>
-      <input id='svp-pass' type='password' autocomplete='current-password' placeholder='Password chosen when exporting'/>
-      <button class='svp-btn icon' id='svp-reveal-pass' type='button'>Show</button>
-    </div>
-    <button class='svp-btn primary wide' id='svp-unlock' type='button'>Unlock vault</button>
-    <p class='svp-muted' style='margin-top:8px;font-size:11px'>Offline path: use the password entered in Backup when exporting this file or theme. It matches your mobile master password only if you chose the same one. Google sign-in here grants Drive access for attachments; this viewer still needs the export password to decrypt a sealed file.</p>
-    <p class='svp-err' id='svp-err' hidden='hidden'></p>
-    <div class='svp-split'>
-      <button class='svp-btn ghost' id='svp-pick' type='button'>Open encrypted backup</button>
-      <input id='svp-file' type='file' accept='.enc,.json,application/json' hidden='hidden'/>
-    </div>
-    <p class='svp-muted' style='margin-top:14px;font-size:11px'>Decryption runs locally with WebCrypto (PBKDF2-SHA256, 600,000 iterations, AES-256-GCM). Nothing is sent to a server.</p>
+    <p class='svp-div'>Not signed in yet?</p>
+    <p class='svp-muted' style='font-size:12px'>The vault opens with the Google button above and the vault passphrase you set in the app. Nothing else unlocks it, and no password is stored on this page.</p>
+    <details class='svp-offline'>
+      <summary>Offline: open a sealed backup file</summary>
+      <p class='svp-muted' id='svp-src'>No snapshot embedded. Open an encrypted backup file this app exported.</p>
+      <label class='svp-label' for='svp-pass'>That file&#39;s export password</label>
+      <div class='svp-passrow'>
+        <input id='svp-pass' type='password' autocomplete='off' placeholder='Password typed when that file was exported'/>
+        <button class='svp-btn icon' id='svp-reveal-pass' type='button'>Show</button>
+      </div>
+      <button class='svp-btn primary wide' id='svp-unlock' type='button'>Open this file</button>
+      <p class='svp-muted' style='margin-top:8px;font-size:11px'>This is a separate tool, not a second way into the live vault: it reads one file you pick, and needs the password that was typed for that file in Backup. It is not your Google password and not your master password unless you chose the same words. A backup the app wrote to Drive on its own is different: it opens with your vault key once you are signed in above, and this page never asks you for a password for it.</p>
+      <p class='svp-err' id='svp-err' hidden='hidden'></p>
+      <div class='svp-split'>
+        <button class='svp-btn ghost' id='svp-pick' type='button'>Choose a backup file</button>
+        <input id='svp-file' type='file' accept='.enc,.json,application/json' hidden='hidden'/>
+      </div>
+      <p class='svp-muted' style='margin-top:14px;font-size:11px'>Decryption runs locally with WebCrypto (PBKDF2-SHA256, 600,000 iterations, AES-256-GCM). Nothing is sent to a server.</p>
+    </details>
   </section>
 
   <section id='svp-app' hidden='hidden'>
@@ -282,7 +298,7 @@ textarea{min-height:88px;resize:vertical}
       <h2>Google Drive</h2>
       <button class='svp-btn ghost' id='svp-drive-close' type='button'>Close</button>
     </div>
-    <p class='svp-muted' style='margin-top:8px;font-size:12px'>Use the same Google account as the app. Automatic mobile backups use a different cloud key and cannot be opened by this viewer. Password-protected exports open with the password chosen during export.</p>
+    <p class='svp-muted' style='margin-top:8px;font-size:12px'>Use the same Google account as the app. A backup the app wrote on its own opens with the vault key this page already holds after you sign in and enter the vault passphrase &#183; it never needs a backup password typed here. A backup you sealed with your own password in Backup still opens with that password.</p>
     <div class='svp-passrow' style='margin-top:10px'>
       <button class='svp-btn primary' id='svp-drive-signin' type='button'>Sign in with Google</button>
       <button class='svp-btn ghost' id='svp-client-edit' type='button'>Google setup</button>
@@ -294,7 +310,7 @@ textarea{min-height:88px;resize:vertical}
         <button class='svp-btn icon' id='svp-client-save' type='button'>Save</button>
       </div>
       <p class='svp-muted' style='margin-top:6px;font-size:11px'>The app project's Web Client ID is included by default. In that Google Cloud project, enable Drive API and add this blog's exact origin under the Web client's Authorised JavaScript origins. Client IDs are public; never enter a client secret.</p>
-      <label class='svp-label' for='svp-api-key'>Firebase web API key (only if this theme was built without one)</label>
+      <label class='svp-label' for='svp-api-key'>Firebase web API key (the one this page uses now)</label>
       <div class='svp-passrow'>
         <input id='svp-api-key' type='text' spellcheck='false' autocomplete='off' autocapitalize='off' placeholder='AIza…'/>
         <button class='svp-btn icon' id='svp-api-save' type='button'>Save</button>
@@ -311,7 +327,7 @@ textarea{min-height:88px;resize:vertical}
       <h2>Pair with the app</h2>
       <button class='svp-btn ghost' id='svp-pair-clear' type='button' hidden='hidden'>Unpair</button>
     </div>
-    <p class='svp-muted' style='margin-top:8px;font-size:12px'>Scan the code below with Secure Wallet Pro: Settings &#8594; Pair browser mirror &#8594; Scan pairing code. The app can also pair the other way round &#8212; open its QR and type the six characters under the input below. The code only marks this browser as yours &#183; it is not a key and unlocks nothing without the export password.</p>
+    <p class='svp-muted' style='margin-top:8px;font-size:12px'>Scan the code below with Secure Wallet Pro: Settings &#8594; Pair browser mirror &#8594; Scan pairing code. The app can also pair the other way round &#8212; open its QR and type the six characters under the input below. The code only marks this browser as yours &#183; it is not a key and unlocks nothing by itself.</p>
     <div class='svp-pairqr' id='svp-pair-qr'>
       <div class='svp-qr-frame' id='svp-qr-frame' aria-label='Pairing QR code'></div>
       <div class='svp-qr-side'>
@@ -364,6 +380,8 @@ textarea{min-height:88px;resize:vertical}
     tab: 'entries',
     filter: '',
     envelope: null,
+    fileName: '',
+    sealedBy: '',
     xmlSource: false,
     dirty: false,
     editing: null,
@@ -374,7 +392,10 @@ textarea{min-height:88px;resize:vertical}
   };
 
   /* Realtime session state. RT.key is a non-extractable CryptoKey: the 32-byte
-     VaultKey never leaves the crypto object and is never written anywhere. */
+     VaultKey never leaves the crypto object and is never written anywhere.
+     RT.sealKey is a second non-extractable handle over the same key - the text form
+     the app stretches when it seals a Drive backup - so a phone copy opens here with
+     no extra password. Both live in memory only and are dropped together. */
   var RT = {
     ns: null,
     loading: null,
@@ -384,6 +405,7 @@ textarea{min-height:88px;resize:vertical}
     email: '',
     root: 'svp1/users',
     key: null,
+    sealKey: null,
     maps: {},
     meta: {},
     dead: {},
@@ -404,6 +426,7 @@ textarea{min-height:88px;resize:vertical}
     malformed: 0,
     busy: false,
     paused: false,
+    popupFailed: false,
     signedInAt: 0
   };
   (function seedRt() {
@@ -596,12 +619,19 @@ textarea{min-height:88px;resize:vertical}
 
   async function decryptEnvelope(envelope, pass) {
     if (!envelope || !envelope.salt || !envelope.data) throw new Error('Missing envelope');
+    if (String(envelope.data).split('.').length !== 2) throw new Error('Unsupported envelope');
+    var key = await deriveKey(pass, b64ToBytes(envelope.salt), ITERATIONS);
+    return openEnvelopeWith(envelope, key);
+  }
+
+  /* Reads a copy's body with a key that is already stretched - from the password typed at
+     export or from the account vault key, whichever the caller holds. The bytes on Drive
+     are the same either way, so this is the single place the two routes meet. */
+  async function openEnvelopeWith(envelope, key) {
     var parts = String(envelope.data).split('.');
     if (parts.length !== 2) throw new Error('Unsupported envelope');
-    var salt = b64ToBytes(envelope.salt);
     var iv = b64ToBytes(parts[0]);
     var ct = b64ToBytes(parts[1]);
-    var key = await deriveKey(pass, salt, ITERATIONS);
     var plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: iv, tagLength: 128 }, key, ct);
     var text = dec.decode(plain).trim();
     if (!text) throw new Error('Empty payload');
@@ -613,13 +643,91 @@ textarea{min-height:88px;resize:vertical}
     return normalizePayload(JSON.parse(text));
   }
 
+  /* The app seals a Drive backup with its own vault key - the same 32 bytes this page
+     unwrapped from the keyring - stretched over the copy's own salt. A copy says which
+     secret sealed it in its `kid` field; before that field existed the mobile sync
+     filenames were the only marker, and they name the same key. */
+  function sealedWithVaultKey(envelope, name) {
+    var kid = String((envelope && envelope.kid) || '').toLowerCase();
+    if (kid === 'vault') return true;
+    if (kid === 'passphrase') return false;
+    return appSyncFile(name);
+  }
+
+  function deriveVaultKeyFor(salt) {
+    return crypto.subtle.deriveKey(
+      { name: 'PBKDF2', salt: salt, iterations: ITERATIONS, hash: 'SHA-256' },
+      RT.sealKey,
+      { name: 'AES-GCM', length: 256 },
+      false,
+      ['encrypt', 'decrypt']
+    );
+  }
+
+  function decryptEnvelopeWithVaultKey(envelope) {
+    if (!envelope || !envelope.salt || !envelope.data) return Promise.reject(new Error('Missing envelope'));
+    if (String(envelope.data).split('.').length !== 2) return Promise.reject(new Error('Unsupported envelope'));
+    return deriveVaultKeyFor(b64ToBytes(envelope.salt)).then(function (key) {
+      return openEnvelopeWith(envelope, key);
+    });
+  }
+
   async function buildEnvelope() {
     var salt = crypto.getRandomValues(new Uint8Array(16));
     var iv = crypto.getRandomValues(new Uint8Array(12));
-    var key = await deriveKey(S.pass, salt, ITERATIONS);
+    var key = S.pass ? await deriveKey(S.pass, salt, ITERATIONS) : (RT.sealKey ? await deriveVaultKeyFor(salt) : null);
+    if (!key) throw new Error('Nothing to seal with - unlock the vault first.');
     var plain = enc.encode(JSON.stringify(S.payload));
     var ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv, tagLength: 128 }, key, plain);
     return { v: 3, salt: bytesToB64(salt), data: bytesToB64(iv) + '.' + bytesToB64(new Uint8Array(ct)) };
+  }
+
+  /* Reveals the vault once a copy has opened, whichever secret opened it. */
+  function showUnlockedCopy() {
+    S.dirty = false;
+    if ($('svp-pass')) $('svp-pass').value = '';
+    $('svp-lock').hidden = true;
+    $('svp-app').hidden = false;
+    $('svp-lock-btn').hidden = false;
+    $('svp-drive-save').hidden = !S.token;
+    renderAll();
+    if (S.xmlSource) {
+      var banner = $('svp-dirty');
+      banner.textContent = 'Opened the XML mirror snapshot. Saving writes a fresh JSON envelope v3.';
+      banner.className = 'svp-muted svp-dirty';
+    }
+  }
+
+  /* Unlocking is one route now: the key this page already holds is tried before any
+     password is asked for. `tell` is where the copy was loaded from - the Drive panel or
+     the offline file picker - so the message lands next to the button that pressed it. */
+  async function openCopyWithVaultKey(envelope, name, tell) {
+    if (!RT.sealKey) {
+      showKeyStep(RT.uid
+        ? (name || 'That backup') + ' is a mobile backup from the app. Enter the vault passphrase you set in the app, then open the file again.'
+        : 'Sign in with Google at the top of the page first - ' + (name || 'that backup') + ' opens with your vault key, not with a typed password.');
+      tell('Mobile backups from the app are sealed with your account\u0027s own vault key. Sign in with Google, enter the passphrase you set in the app, then open the file again - no backup password is asked for here.');
+      return false;
+    }
+    tell('Unlocking ' + (name || 'this backup') + ' with your vault key\u2026');
+    try {
+      var payload = await decryptEnvelopeWithVaultKey(envelope);
+      S.pass = '';
+      S.sealedBy = 'vault';
+      S.payload = payload;
+      showUnlockedCopy();
+      var note = $('svp-dirty');
+      note.className = 'svp-muted';
+      note.textContent = 'Opened with your vault key. Saving re-seals it the way the app seals its own copies.';
+      logSync({ evt: 'backup-open', uid: RT.uid, name: name || '', by: 'vault-key' });
+      driveMessage('Opened ' + (name || 'the backup') + ' with your vault key. No password was needed.');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return true;
+    } catch (e) {
+      S.sealedBy = '';
+      tell('This account\u0027s vault key does not open ' + (name || 'that backup') + '. It was sealed by another Google account or by an older app build, or the copy is damaged - nothing on Drive was changed.');
+      return false;
+    }
   }
 
   function error(message) {
@@ -644,27 +752,37 @@ textarea{min-height:88px;resize:vertical}
   }
 
   async function unlock() {
-    var pass = $('svp-pass').value;
-    if (!pass) { error('Enter the password chosen when exporting this backup.'); return; }
     if (!S.envelope) { error('Sign in with Google or open an encrypted backup first.'); return; }
+    var name = S.fileName || 'this backup';
+    if (sealedWithVaultKey(S.envelope, S.fileName)) {
+      await openCopyWithVaultKey(S.envelope, name, error);
+      return;
+    }
+    var pass = $('svp-pass').value;
+    if (!pass) {
+      /* Nothing typed yet: the vault key this page already holds is still tried first, because a
+         copy written before the key marker names none. Only one that genuinely will not open that
+         way falls back to the password its owner chose when exporting it. */
+      if (RT.sealKey) {
+        setBusy(true);
+        var opened = false;
+        try { opened = await openCopyWithVaultKey(S.envelope, name, function () {}); }
+        finally { setBusy(false); }
+        if (opened) return;
+        error('That copy is not sealed with your vault key. Enter the password chosen when exporting it.');
+        return;
+      }
+      error('Enter the password chosen when exporting this backup.');
+      return;
+    }
     error('');
     setBusy(true);
     try {
       var payload = await decryptEnvelope(S.envelope, pass);
       S.pass = pass;
+      S.sealedBy = 'passphrase';
       S.payload = payload;
-      S.dirty = false;
-      $('svp-pass').value = '';
-      $('svp-lock').hidden = true;
-      $('svp-app').hidden = false;
-      $('svp-lock-btn').hidden = false;
-      $('svp-drive-save').hidden = !S.token;
-      renderAll();
-      if (S.xmlSource) {
-        var banner = $('svp-dirty');
-        banner.textContent = 'Opened the XML mirror snapshot. Saving writes a fresh JSON envelope v3.';
-        banner.className = 'svp-muted svp-dirty';
-      }
+      showUnlockedCopy();
     } catch (e) {
       error('Could not decrypt. Use the password chosen when exporting this snapshot, not your Google password.');
     } finally {
@@ -678,6 +796,7 @@ textarea{min-height:88px;resize:vertical}
       return;
     }
     S.pass = '';
+    S.sealedBy = '';
     S.payload = null;
     S.dirty = false;
     totpTargets = [];
@@ -686,7 +805,11 @@ textarea{min-height:88px;resize:vertical}
     $('svp-lock-btn').hidden = true;
     $('svp-drive-save').hidden = true;
     $('svp-list').textContent = '';
-    sourceLabel(S.envelope ? 'Sealed snapshot is loaded. Enter its export password to unlock.' : 'No snapshot embedded. Sign in with Google or open an encrypted backup.');
+    sourceLabel(S.envelope
+      ? (sealedWithVaultKey(S.envelope, S.fileName)
+        ? 'Mobile backup is loaded. It opens with your vault key after Google sign-in.'
+        : 'Sealed snapshot is loaded. Enter its export password to unlock.')
+      : 'No snapshot embedded. Sign in with Google or open an encrypted backup.');
   }
 
   function tabLabel(tab) {
@@ -1212,7 +1335,7 @@ textarea{min-height:88px;resize:vertical}
   }
 
   async function sealAndDownload() {
-    if (!S.payload || !S.pass) return;
+    if (!S.payload || (!S.pass && !RT.sealKey)) return;
     var buttonNode = $('svp-save');
     buttonNode.disabled = true;
     buttonNode.textContent = 'Sealing…';
@@ -1330,42 +1453,35 @@ textarea{min-height:88px;resize:vertical}
         driveMessage('No encrypted backups found in this app folder. Check the Google account and Cloud project, or use Open encrypted backup for a local export.');
         return;
       }
-      var openable = [];
+      var fromApp = 0;
       files.forEach(function (file) {
-        var appOnly = appSyncFile(file.name);
-        if (!appOnly) openable.push(file);
+        var mobileBackup = appSyncFile(file.name);
+        if (mobileBackup) fromApp += 1;
         var row = document.createElement('div');
-        row.className = 'svp-drive-row' + (appOnly ? ' app-only' : '');
+        row.className = 'svp-drive-row';
         var column = document.createElement('div');
         var name = document.createElement('b');
         name.textContent = file.name;
         var meta = document.createElement('span');
         var date = file.modifiedTime ? new Date(file.modifiedTime).toLocaleString() : '';
-        meta.textContent = [formatSize(file.size), date, appOnly ? 'mobile cloud backup — restore in the app' : 'requires the export password']
+        meta.textContent = [formatSize(file.size), date, mobileBackup ? 'mobile backup from the app · opens with your vault key' : 'sealed export · opens with the password typed at export']
           .filter(Boolean).join(' · ');
         column.appendChild(name);
         column.appendChild(meta);
         row.appendChild(column);
-        if (appOnly) {
-          var tag = document.createElement('b');
-          tag.textContent = 'App only';
-          row.appendChild(tag);
-        } else {
-          row.appendChild(button('Open', 'ghost', function () { openDriveFile(file); }));
-        }
+        row.appendChild(button('Open', mobileBackup ? 'primary' : 'ghost', function () { openDriveFile(file); }));
         host.appendChild(row);
       });
-      if (openable.length) {
-        driveMessage('Pick a file to load it here. Only sealed envelopes ever leave Drive.');
-      } else {
-        driveMessage('These mobile sync backups use a different cloud key. Export a password-protected backup in the app, then select Open encrypted backup here.');
-      }
+      driveMessage(fromApp === files.length
+        ? 'Pick a file to load it here. The app\u0027s own backups open with the vault key this page holds once you have signed in with Google.'
+        : 'Pick a file to load it here. Only sealed envelopes ever leave Drive.');
     } catch (e) {
       driveMessage('Drive listing failed: ' + (e && e.message ? e.message : 'unknown error'));
     }
   }
 
   async function openDriveFile(file) {
+    if (S.mode === 'live') { driveMessage('The live vault is showing - press Pause live first, this page opens one vault at a time.'); return; }
     driveMessage('Downloading ' + file.name + '…');
     try {
       var response = await fetch('https://www.googleapis.com/drive/v3/files/' + encodeURIComponent(file.id) + '?alt=media', {
@@ -1378,14 +1494,28 @@ textarea{min-height:88px;resize:vertical}
         throw new Error('not a v3 envelope');
       }
       S.envelope = envelope;
+      S.fileName = file.name || '';
       S.payload = null;
       S.pass = '';
+      S.sealedBy = '';
       S.dirty = false;
+      /* A copy the app wrote is sealed with this account's vault key, so the key this page
+         already unwrapped opens it - straight away when it is held, and with a nudge to the
+         Google button and the vault passphrase when it is not. No backup password is asked. */
+      if (sealedWithVaultKey(envelope, file.name)) {
+        $('svp-app').hidden = true;
+        $('svp-lock').hidden = false;
+        $('svp-lock-btn').hidden = true;
+        $('svp-drive-save').hidden = true;
+        sourceLabel('Drive · ' + file.name + ' · mobile backup from the app.');
+        await openCopyWithVaultKey(envelope, file.name, driveMessage);
+        return;
+      }
       $('svp-app').hidden = true;
       $('svp-lock').hidden = false;
       $('svp-lock-btn').hidden = true;
       $('svp-drive-save').hidden = true;
-      sourceLabel('Drive · ' + file.name + '. Enter its export password to unlock.');
+      sourceLabel('Drive · ' + file.name + '. Enter the password chosen when exporting it.');
       driveMessage('Downloaded ' + file.name + '. Unlock it on the left.');
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (e) {
@@ -1394,7 +1524,7 @@ textarea{min-height:88px;resize:vertical}
   }
 
   async function saveToDrive() {
-    if (!S.payload || !S.pass) return;
+    if (!S.payload || (!S.pass && !RT.sealKey)) return;
     if (!S.token) { driveMessage('Connect Google Drive first.'); return; }
     var node = $('svp-drive-save');
     node.disabled = true;
@@ -1481,7 +1611,7 @@ textarea{min-height:88px;resize:vertical}
     try {
       return window.Function('u', 'return import(u);')(url);
     } catch (e) {
-      return Promise.reject(new Error('This browser cannot load the realtime client (no ES module support). The sealed backup path below still works.'));
+      return Promise.reject(new Error('This browser is too old to load the live vault. Use a current Chrome, Edge or Safari.'));
     }
   }
 
@@ -1505,7 +1635,7 @@ textarea{min-height:88px;resize:vertical}
       authDomain: authDomain,
       projectId: projectId,
       databaseURL: databaseURL,
-      webClientId: FB_CFG.webClientId || S.clientId || DEFAULT_CLIENT_ID
+      webClientId: storeGet('svp.webClientId') || S.clientId || FB_CFG.webClientId || DEFAULT_CLIENT_ID
     };
   }
 
@@ -1513,7 +1643,7 @@ textarea{min-height:88px;resize:vertical}
     var cfg = fbConfig();
     if (!window.isSecureContext) return 'This page is not on a trusted https origin, so Google sign-in and WebCrypto are refused. Open the blog at its https:// address.';
     if (!cfg.projectId || !cfg.databaseURL) return 'No Firebase project is configured in this theme.';
-    if (!cfg.apiKey) return 'No Firebase web API key in this theme. Regenerate it with generate.js (it reads the key from google-services.json), or type it into Google setup.';
+    if (!cfg.apiKey) return 'This theme file was built without the vault\u0027s web key, so the live vault is switched off. Get the current theme file from the app\u0027s Backup screen, or type the key into Google setup.';
     return '';
   }
 
@@ -1574,6 +1704,29 @@ textarea{min-height:88px;resize:vertical}
     } else {
       node.textContent = '';
       node.hidden = true;
+      liveErrRaw('');
+    }
+  }
+
+  // A sign-in that Google will refuse because one console field is empty is not a fault on this
+  // page, so it is never shown as one: the button that works is put in its place instead.
+  function hideGisButton(hide) {
+    var host = $('svp-gis-btn');
+    if (host) host.hidden = !!hide;
+  }
+
+  // The server's own wording is kept, but folded away: the reader gets one short instruction in
+  // plain language, and the raw text stays available for whoever opens the consoles.
+  function liveErrRaw(message) {
+    var box = $('svp-live-raw');
+    var node = $('svp-live-raw-text');
+    if (!box || !node) return;
+    if (message) {
+      node.textContent = message;
+      box.hidden = false;
+    } else {
+      node.textContent = '';
+      box.hidden = true;
     }
   }
 
@@ -1605,7 +1758,7 @@ textarea{min-height:88px;resize:vertical}
     if (busy) {
       RT.busyTimer = setTimeout(function () {
         if (RT.busy) {
-          liveErr('Still ' + (label || 'working') + ' after 45s. The network or Google may be unreachable. Press Try again, Sign out, or use the sealed backup below.');
+          liveErr('Still ' + (label || 'working') + ' after 45s. Google or the database is not answering from this browser - check the connection, then press Try again.');
           showLiveActions(true);
         }
       }, 45000);
@@ -1613,6 +1766,21 @@ textarea{min-height:88px;resize:vertical}
       clearTimeout(RT.busyTimer);
       RT.busyTimer = 0;
     }
+  }
+
+  function finishAuth(result) {
+    var user = (result && result.user) || (RT.ns.auth.currentUser);
+    if (!user || !user.uid) throw new Error('Firebase accepted the credential but returned no user.');
+    RT.uid = user.uid;
+    RT.email = user.email || '';
+    RT.authed = true;
+    RT.signedInAt = Date.now();
+    storeSet('svp.liveUid', user.uid);
+    storeSet('svp.lastRefusal', '');
+    RT.popupFailed = false;
+    setAuthChip('signed in', 'on');
+    logSync({ evt: 'auth', uid: user.uid, email: RT.email });
+    showKeyStep('Signed in as ' + (RT.email || user.uid) + '. Enter the vault passphrase you set in the app.');
   }
 
   function onGoogleCredential(credential) {
@@ -1624,29 +1792,89 @@ textarea{min-height:88px;resize:vertical}
         ns.authNs.signInWithCredential(ns.auth, ns.authNs.GoogleAuthProvider.credential(credential)),
         25000, 'Firebase sign-in'
       );
-    }).then(function (result) {
-      var user = (result && result.user) || (RT.ns.auth.currentUser);
-      if (!user || !user.uid) throw new Error('Firebase accepted the credential but returned no user.');
-      RT.uid = user.uid;
-      RT.email = user.email || '';
-      RT.authed = true;
-      RT.signedInAt = Date.now();
-      storeSet('svp.liveUid', user.uid);
-      setAuthChip('signed in', 'on');
-      logSync({ evt: 'auth', uid: user.uid, email: RT.email });
-      showKeyStep('Signed in as ' + (RT.email || user.uid) + '. Enter the vault passphrase you set in the app.');
-    }, function (err) {
+    }).then(finishAuth, function (err) {
       liveFail(err, 'Sign-in did not complete.');
     }).then(function () {
       setLiveBusy(false);
     });
   }
 
+  // The branded button asks Google for a token aimed at one named client, which only reaches the
+  // vault once that client is allow-listed there. This window uses whichever client the vault
+  // project already serves, so the same account gets in with only the page address on the list.
+  function popupSignIn() {
+    setLiveBusy(true, 'Signing in');
+    liveErr('');
+    ensureFirebase().then(function (ns) {
+      return withTimeout(
+        ns.authNs.signInWithPopup(ns.auth, new ns.authNs.GoogleAuthProvider()),
+        120000, 'Google sign-in'
+      );
+    }).then(finishAuth, function (err) {
+      // Remembered so a second refusal is read as 'no route works from this address yet' rather
+      // than sending the reader back to the same button.
+      RT.popupFailed = true;
+      liveFail(err, 'Google sign-in did not complete.');
+    }).then(function () {
+      setLiveBusy(false);
+    });
+  }
+
+  // Google keeps two separate lists for a vault: which browser addresses may sign in at all, and
+  // which sign-in buttons may hand it a token. Either one missing produces an opaque refusal, and
+  // neither is a fault on this page - so each is only recognised here, and answered by swapping in
+  // the one route that does not depend on it. The server's own wording stays folded away below.
+  function isIdpRefusal(message) {
+    return /invalid-credential|Invalid Idp Response|not authorized to be used in the project/i.test(message);
+  }
+
+  function isDomainRefusal(message) {
+    return /unauthorized-domain|not authorized for OAuth|ORIGIN_NOT_AUTHENTICATED|this origin is not/i.test(message);
+  }
+
   function liveFail(err, prefix) {
     var message = err && err.message ? err.message : String(err);
-    liveErr((prefix ? prefix + ' ' : '') + message);
+    var idp = isIdpRefusal(message);
+    var lead = idp || isDomainRefusal(message);
     showLiveActions(true);
-    setAuthChip('error', 'warn');
+    // Remembered so the next load stops steering the reader back to a button this vault has
+    // already refused, and forgets itself the moment a sign-in succeeds.
+    storeSet('svp.lastRefusal', idp ? 'idp' : (lead ? 'domain' : ''));
+    if (!lead) {
+      liveErr((prefix ? prefix + ' ' : '') + message);
+      liveErrRaw('');
+      showPopupOffer(false);
+      setAuthChip('error', 'warn');
+      return;
+    }
+    // Both of these are Google's own lists deciding, not this page, so neither is painted as a
+    // fault: one calm line, and the button that does not need the second list in its place.
+    liveErr('');
+    liveErrRaw(message);
+    if (idp) hideGisButton(true);
+    if (RT.popupFailed) {
+      // The vault window has now been refused too, so no sign-in button is left to press here.
+      hideGisButton(true);
+      showPopupOffer(false);
+      setAuthChip('not connected', '');
+      liveHint('Google has not approved this page address for this vault, so the live vault cannot ' +
+        'open in a browser yet. Press Connect Drive at the top, or open a backup file under Offline ' +
+        'below - or add ' + window.location.hostname + ' to the vault project\u0027s Authorized domains ' +
+        'and press Try again.');
+      return;
+    }
+    showPopupOffer(true);
+    setAuthChip('not connected', '');
+    liveHint(idp
+      ? 'Google has not approved that button for this vault. Use the Sign in with Google button above ' +
+        'instead. If that is refused too, press Connect Drive at the top or open a backup file below.'
+      : 'Google has not approved this page address for this vault yet. Press Sign in with Google above; ' +
+        'if that is refused too, press Connect Drive at the top or open a backup file below.');
+  }
+
+  function showPopupOffer(show) {
+    var node = $('svp-popup-row');
+    if (node) node.hidden = !show;
   }
 
   function showKeyStep(message) {
@@ -1654,6 +1882,7 @@ textarea{min-height:88px;resize:vertical}
     if (row) row.hidden = false;
     liveHint(message);
     showLiveActions(true);
+    showPopupOffer(false);
     var input = $('svp-kpass');
     if (input) setTimeout(function () { input.focus(); }, 60);
   }
@@ -1761,10 +1990,23 @@ textarea{min-height:88px;resize:vertical}
         if (bytes.length !== 32) throw new Error('Unwrapped key is ' + bytes.length + ' bytes, expected 32.');
         return crypto.subtle.importKey('raw', bytes, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt'])
           .then(function (key) {
+            /* The app stretches the text form of these same 32 bytes into the key of every
+               backup it writes to Drive. A handle over that text - non-extractable, held in
+               memory beside the vault key itself, wiped as soon as WebCrypto has taken it,
+               never printed and never stored - is what opens a phone backup here, so no
+               extra password is ever asked for one. */
+            var sealText = enc.encode(bytesToB64(bytes));
             bytes.fill(0);
-            RT.key = key;
-            logSync({ evt: 'keyring', uid: RT.uid, alg: 'AES-256-GCM', iters: iterations, root: RT.root });
-            return key;
+            return crypto.subtle.importKey('raw', sealText, 'PBKDF2', false, ['deriveKey']).then(
+              function (sealKey) {
+                sealText.fill(0);
+                RT.key = key;
+                RT.sealKey = sealKey;
+                logSync({ evt: 'keyring', uid: RT.uid, alg: 'AES-256-GCM', iters: iterations, root: RT.root });
+                return key;
+              },
+              function (err) { sealText.fill(0); throw err; }
+            );
           });
       });
   }
@@ -1785,8 +2027,9 @@ textarea{min-height:88px;resize:vertical}
       return enterLive();
     }, function (err) {
       RT.key = null;
+      RT.sealKey = null;
       var message = err && err.message ? err.message : String(err);
-      if (/wrong passphrase/i.test(message)) liveErr('Wrong passphrase for this vault. Press Try again, Sign out, or use the sealed backup below.');
+      if (/wrong passphrase/i.test(message)) liveErr('That is not this vault\u0027s passphrase. It is the one you set inside the app, not your Google password. Press Try again, or Sign out and use the account that owns the vault.');
       else { liveErr(message); showLiveActions(true); }
     }).then(function () {
       setLiveBusy(false);
@@ -1896,6 +2139,7 @@ textarea{min-height:88px;resize:vertical}
       RT.dead[LIVE_MODULES[i]] = {};
     }
     RT.key = null;
+    RT.sealKey = null;
     RT.uid = '';
     RT.decodeErrors = 0;
     RT.malformed = 0;
@@ -2343,7 +2587,7 @@ textarea{min-height:88px;resize:vertical}
     RT.uid = '';
     RT.email = '';
     try { window.localStorage.removeItem('svp.liveUid'); } catch (e) { /* private mode */ }
-    exitLive('Signed out of the live vault. The sealed backup path below still works.');
+    exitLive('Signed out of the live vault. Press the Google button to come back in.');
   }
 
   function showGoogleButton() {
@@ -2353,7 +2597,7 @@ textarea{min-height:88px;resize:vertical}
     var cfg = fbConfig();
     if (blocked) {
       host.textContent = '';
-      liveHint(blocked + ' The sealed backup path below still works.');
+      liveHint(blocked);
       return;
     }
     if (!window.google || !window.google.accounts || !window.google.accounts.id) {
@@ -2369,22 +2613,41 @@ textarea{min-height:88px;resize:vertical}
         callback: function (response) { onGoogleCredential(response && response.credential ? response.credential : null); }
       });
       host.textContent = '';
+      hideGisButton(false);
       window.google.accounts.id.renderButton(host, { theme: 'outline', size: 'large', text: 'signin_with', shape: 'pill', width: 300 });
-      liveHint('Project ' + cfg.projectId + ' · Realtime Database in asia-southeast1. Same Google account as the app means the same vault.');
+      // One way in at a time. The vault-window button appears only after Google has refused this
+      // one, so the card never shows two sign-in choices side by side.
+      showPopupOffer(false);
+      if (storeGet('svp.lastRefusal') === 'idp') {
+        hideGisButton(true);
+        showPopupOffer(true);
+        liveHint('Google has not approved that button for this vault, so this page offers the other ' +
+          'Google sign-in. Same account, same vault.');
+      } else {
+        liveHint('Project ' + cfg.projectId + ' · Realtime Database in asia-southeast1. Same Google account as the app means the same vault.');
+      }
     } catch (e) {
-      liveHint('Google sign-in button failed: ' + (e && e.message ? e.message : 'unknown error') + '. Add the origin in Google setup, or use the sealed backup below.');
+      showPopupOffer(true);
+      liveHint('Google would not draw its button in this browser, so use the Sign in with Google ' +
+        'button above. If that is refused too, press Connect Drive at the top or open a backup file below.');
     }
   }
 
   function retryLive() {
     liveErr('');
     showLiveActions(false);
+    showPopupOffer(false);
     RT.ready = null;
     RT.loading = null;
+    // A saved Authorized-domains entry must be able to work on the very next try, so neither
+    // refusal is held against the page.
+    RT.popupFailed = false;
     setLiveBusy(true, 'Reconnecting');
     ensureFirebase().then(function () {
       setLiveBusy(false);
       if (RT.key) return enterLive();
+      // A deliberate retry gets the original button back, refusal memory and all.
+      storeSet('svp.lastRefusal', '');
       showGoogleButton();
       liveHint('Ready again. Press the Google button.');
     }, function (err) {
@@ -2396,7 +2659,8 @@ textarea{min-height:88px;resize:vertical}
   function initLiveMode() {
     var blocked = fbBlocked();
     if (blocked) {
-      liveHint(blocked + ' The sealed backup path below still works.');
+      liveHint(blocked);
+      showLiveActions(true);
       return;
     }
     liveHint('Realtime client: preparing (' + fbConfig().projectId + ')…');
@@ -2406,7 +2670,7 @@ textarea{min-height:88px;resize:vertical}
         var remembered = storeGet('svp.liveUid');
         if (remembered) liveHint('Google session restored for ' + (RT.email || remembered) + '. Enter the vault passphrase.');
       }, function (err) {
-        liveHint('Realtime client unavailable here: ' + (err && err.message ? err.message : 'unknown error') + '. The sealed backup path below still works.');
+        liveHint('The live vault could not start in this browser: ' + (err && err.message ? err.message : 'unknown error') + '.');
         liveErr('');
         showLiveActions(true);
       });
@@ -2573,7 +2837,7 @@ textarea{min-height:88px;resize:vertical}
 
   function renderCardItem(item) {
     var title = item.nickname || item.bankName || 'Card';
-    var shell = itemShell(item, title, [item.holderName, item.type, item.bankName].filter(Boolean).join(' · '), 'linear-gradient(135deg,#8b7bff,#38e8ff)');
+    var shell = itemShell(item, title, [item.holderName, item.type, item.bankName].filter(Boolean).join(' · '), 'linear-gradient(135deg,#2563eb,#38bdf8)');
     addTag(shell.tags, item.type || 'Card');
     if (item.expiryMonth || item.expiryYear) {
       addTag(shell.tags, 'Exp ' + String(item.expiryMonth || '--') + '/' + String(item.expiryYear || '--'));
@@ -2614,7 +2878,7 @@ textarea{min-height:88px;resize:vertical}
   }
 
   function renderNoteItem(item) {
-    var shell = itemShell(item, item.title || 'Note', item.isPinned ? 'Pinned' : '', 'linear-gradient(135deg,#ffc85c,#ff6b8a)');
+    var shell = itemShell(item, item.title || 'Note', item.isPinned ? 'Pinned' : '', 'linear-gradient(135deg,#ffc85c,#ff4136)');
     if (item.isPinned) addTag(shell.tags, 'Pinned', 'fav');
     parseJsonArray(item.tagsJson).forEach(function (tag) { addTag(shell.tags, tagText(tag)); });
     addNote(shell.card, item.content);
@@ -2627,7 +2891,7 @@ textarea{min-height:88px;resize:vertical}
   }
 
   function renderContactItem(item) {
-    var shell = itemShell(item, item.name || 'Contact', [item.phone, item.email].filter(Boolean).join(' · '), 'linear-gradient(135deg,#8b7bff,#ff6b8a)');
+    var shell = itemShell(item, item.name || 'Contact', [item.phone, item.email].filter(Boolean).join(' · '), 'linear-gradient(135deg,#38bdf8,#ff4136)');
     addTag(shell.tags, item.category || 'Contact');
     addNote(shell.card, [item.address, item.notes].filter(Boolean).join('\n'));
     addActions(shell.card, [
@@ -2648,10 +2912,19 @@ textarea{min-height:88px;resize:vertical}
     value.className = 'svp-totp';
     value.textContent = money(item.totalUsd, tokens);
     shell.card.appendChild(value);
-    for (var t = 0; t < tokens.length && t < 6; t += 1) {
+    // Every funded row the phone scanned is listed, not a token or two: a wallet can hold dozens of
+    // sub-tokens now, and the web face has to read the same portfolio the phone shows. The chain name
+    // travels with each row because one wallet spans several chains at once.
+    var shown = 0;
+    for (var t = 0; t < tokens.length && shown < 24; t += 1) {
+      var token = tokens[t];
+      if (!(Number(token.amount) > 0)) continue;
+      shown += 1;
       var line = document.createElement('div');
       line.className = 'svp-item-sub';
-      line.textContent = tokens[t].symbol + ' · ' + trimAmount(tokens[t].amount) + (tokens[t].available === false ? ' · offline' : '');
+      line.textContent = token.symbol + ' · ' + trimAmount(token.amount) +
+        ' · ' + (token.networkName || token.networkId || '') +
+        (token.available === false ? ' · offline' : '');
       shell.card.appendChild(line);
     }
     var addresses = parseJsonArray(item.addressesJson);
@@ -2685,7 +2958,7 @@ textarea{min-height:88px;resize:vertical}
       bits.join(' · '),
       mark
         ? 'linear-gradient(135deg,' + mark[0] + ',' + mark[1] + ')'
-        : 'linear-gradient(135deg,#38e8ff,#8b7bff)'
+        : 'linear-gradient(135deg,#38e8ff,#38bdf8)'
     );
     addTag(shell.tags, item.driveId ? 'In Drive' : 'No Drive copy');
     if (chat) {
@@ -2832,8 +3105,16 @@ textarea{min-height:88px;resize:vertical}
             throw new Error('unsupported envelope');
           }
           S.envelope = envelope;
+          S.fileName = file.name || '';
+          S.sealedBy = '';
           sourceLabel(file.name + ' · ' + Math.round(file.size / 1024) + ' KB · envelope v3');
           error('');
+          if (sealedWithVaultKey(envelope, file.name)) {
+            setBusy(true);
+            openCopyWithVaultKey(envelope, file.name, error).then(function () { setBusy(false); },
+              function () { setBusy(false); });
+            return;
+          }
           $('svp-pass').focus();
         } catch (e) {
           error('That file is not a Secure Wallet v3 envelope.');
@@ -2885,6 +3166,7 @@ textarea{min-height:88px;resize:vertical}
       if (event.key === 'Enter') unlockLive();
     });
     $('svp-live-retry').addEventListener('click', retryLive);
+    $('svp-live-popup').addEventListener('click', popupSignIn);
     $('svp-live-signout').addEventListener('click', signOutLive);
     $('svp-signout').addEventListener('click', signOutLive);
     $('svp-reconcile').addEventListener('click', function () {
@@ -3336,6 +3618,7 @@ textarea{min-height:88px;resize:vertical}
       sourceLabel('No snapshot built in. Sign in with Google or open an encrypted backup.');
     }
     $('svp-client-id').value = S.clientId;
+    $('svp-api-key').value = fbConfig().apiKey;
     $('svp-origin').textContent = 'Authorised JavaScript origin for this page: ' + window.location.origin;
     var linked = pairCodeFromLink();
     if (linked) { storeSet('svp.pairCode', linked); storeSet('svp.pairTime', String(Date.now())); }
@@ -3353,7 +3636,9 @@ textarea{min-height:88px;resize:vertical}
     }
     // Load Google Identity Services up front so the sign-in click stays a real user gesture.
     if (S.clientId) loadGis(function () {});
-    $('svp-pass').focus();
+    // The Google box is the door: the export-password field is only focused when a copy that
+    // names one is actually loaded, never as the page's default ask.
+    if (S.envelope && !sealedWithVaultKey(S.envelope, S.fileName)) $('svp-pass').focus();
     var logNode = $('svp-log');
     if (logNode) logNode.hidden = true;
     initLiveMode();

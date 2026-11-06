@@ -1,7 +1,6 @@
 package com.securevault.pro.presentation.screens.stego
 
 import com.securevault.pro.crypto.stego.CanonicalLattice
-import com.securevault.pro.crypto.stego.HaarLl
 import com.securevault.pro.crypto.stego.LatticeSide
 import com.securevault.pro.crypto.stego.LlBand
 import com.securevault.pro.crypto.stego.LumaPlane
@@ -12,6 +11,7 @@ import com.securevault.pro.crypto.stego.ReedSolomon
 import com.securevault.pro.crypto.stego.RefusalReason
 import com.securevault.pro.crypto.stego.SecretKind
 import com.securevault.pro.crypto.stego.StegoBits
+import com.securevault.pro.crypto.stego.StegoCapacityException
 import com.securevault.pro.crypto.stego.StegoDecodeRequest
 import com.securevault.pro.crypto.stego.StegoEncodeRequest
 import com.securevault.pro.crypto.stego.StegoEncodeResult
@@ -21,6 +21,7 @@ import com.securevault.pro.crypto.stego.StegoInputException
 import com.securevault.pro.crypto.stego.StegoKeyDeriver
 import com.securevault.pro.crypto.stego.StegoKeySchedule
 import com.securevault.pro.crypto.stego.StegoLimits
+import com.securevault.pro.crypto.stego.StegoProfile
 import com.securevault.pro.crypto.stego.StegoRead
 
 /**
@@ -64,7 +65,19 @@ class StegoCodec(
         val frameBytes: Int,
         val peakGreyLevel: Float,
         val fingerprint: ByteArray,
-        val secretBytes: Int
+        val secretBytes: Int,
+        /**
+         * True only when this build actually re-read the photo after a chat app's redraw — resized,
+         * recompressed and blurred — and got the same frame back. It is a measurement, not a promise,
+         * and the screen says "not measured" rather than guessing when it is false.
+         */
+        val measuredSurvival: Boolean = false,
+        /**
+         * True when the redraw itself ran on this phone, whether or not the frame came back. Without
+         * it a picture that *failed* the send test would be reported the same way as one the phone
+         * never managed to test, and the owner would be told the wrong thing.
+         */
+        val sendTested: Boolean = false
     ) {
         val lattice: LatticeSide get() = plan.lattice
         val chipRate: Int get() = plan.chipRate
@@ -108,10 +121,16 @@ class StegoCodec(
                 is StegoRead.Locked ->
                     "Carrier found. None of the passphrases you offered opens it."
                 is StegoRead.Damaged ->
-                    "Carrier found on a ${outcome.lattice.name.lowercase()} lattice, but ${outcome.chipRate}x " +
-                        "chips could not be repaired — fill the frame and hold still."
-                is StegoRead.Refused -> outcome.reason.explanation
-                StegoRead.NoCarrier -> "Nothing is hidden in this image."
+                    "Part of the picture was found, but too many marks had changed to rebuild the " +
+                        "message. $REDRAW_CAUSE $REDRAW_FIX"
+                is StegoRead.Refused ->
+                    outcome.reason.explanation +
+                        if (outcome.reason == RefusalReason.GEOMETRY_MOVED ||
+                            outcome.reason == RefusalReason.CARRIER_EDITED
+                        ) " $REDRAW_CAUSE $REDRAW_FIX" else ""
+                StegoRead.NoCarrier ->
+                    "Nothing is hidden in this image. If this is a copy of one, the copy may be why: " +
+                        "$REDRAW_CAUSE $REDRAW_FIX"
             }
     }
 
@@ -123,11 +142,22 @@ class StegoCodec(
     /**
      * Hides one or two envelopes in `request.carrier` and returns the marked plane.
      *
+     * With no [attack] this writes exactly one grid, the one asked for, and is byte-for-byte the seal
+     * that shipped before. Give it an [attack] — the redraw a messaging app performs on the photo —
+     * and it becomes a search: each grid in [StegoProfile.preferred] is sealed, marked, attacked and
+     * re-read, and the first grid whose frame comes back intact is the one returned. Nothing is ever
+     * promised here that was not measured on this photo, which is why the search is worth the seconds
+     * it costs at seal time and none at all when the receiver scans.
+     *
      * Throws [com.securevault.pro.crypto.stego.StegoCapacityException] when the secret will not fit —
      * before any key derivation is paid for — and [StegoInputException] when the photo is too small
      * or too flat to carry a mark. Both are the screen's own sentences, not a stack trace.
      */
-    fun seal(request: StegoEncodeRequest): Sealed {
+    fun seal(
+        request: StegoEncodeRequest,
+        profile: StegoProfile = StegoProfile.CLASSIC,
+        attack: ((LumaPlane) -> LumaPlane?)? = null
+    ): Sealed {
         val carrier = StegoPlanes.sanitised(request.carrier)
         if (!StegoCapacity.isWorkable(carrier)) {
             throw StegoInputException(
@@ -135,7 +165,60 @@ class StegoCodec(
                     "least ${StegoLimits.MIN_WORKING_LONGEST} samples."
             )
         }
-        val band = bandOf(carrier)
+        val sizes = request.envelopes.map { it.secret.size }
+        val candidates = if (attack == null) listOf(profile) else StegoProfile.preferred
+        val limit = candidates.maxOfOrNull {
+            StegoCapacity.maxSecretBytes(carrier, request.envelopes.size, it)
+        } ?: 0
+        if (sizes.any { it > StegoLimits.MAX_SECRET_BYTES }) {
+            throw StegoCapacityReporting.refused(limit, sizes.max() ?: 0)
+        }
+        val shape = StegoFrameShape(sizes)
+        val salt = request.salt
+        // Derivation cost is paid once for the whole search, never once per grid.
+        val keys = request.envelopes.map { keyFor(it.passphrase, salt) }
+        val slots = StegoKeySchedule.assignSlots(keys, salt, deriver)
+        var refusal: StegoCapacityException? = null
+        var unwritten: Sealed? = null
+        var redrawn = false
+        for (candidate in candidates) {
+            val sealed = try {
+                sealOn(carrier, request, shape, salt, keys, slots, candidate, limit)
+            } catch (capacity: StegoCapacityException) {
+                refusal = capacity
+                continue
+            }
+            if (attack == null) return sealed
+            // A null answer means the redraw could not be performed on this phone. That is not a
+            // failure of the mark and must never be reported as one — it is simply unmeasured, so the
+            // carrier is handed back without the survival claim.
+            val attacked = attack(sealed.marked)
+            if (attacked != null) {
+                redrawn = true
+                if (frameSurvives(attacked, salt)) {
+                    return sealed.copy(measuredSurvival = true, sendTested = true)
+                }
+            }
+            if (unwritten == null) unwritten = sealed
+        }
+        // No grid came back through the redraw. The owner still gets a carrier — the quietest grid,
+        // which is the one that survives a print — but `measuredSurvival` stays false and the screen
+        // says what was tested instead of claiming a send it never proved.
+        val fallback = unwritten ?: throw refusal ?: StegoCapacityReporting.refused(limit, sizes.max() ?: 0)
+        return if (redrawn) fallback.copy(sendTested = true) else fallback
+    }
+
+    private fun sealOn(
+        carrier: LumaPlane,
+        request: StegoEncodeRequest,
+        shape: StegoFrameShape,
+        salt: ByteArray,
+        keys: List<ByteArray>,
+        slots: IntArray,
+        profile: StegoProfile,
+        limit: Int
+    ): Sealed {
+        val band = bandOf(carrier, profile)
         val statistics = StegoTamper.statisticsOf(band)
         if (!statistics.carriesDetail) {
             throw StegoInputException(
@@ -143,19 +226,11 @@ class StegoCodec(
                     "nothing to hide a mark under."
             )
         }
-        val sizes = request.envelopes.map { it.secret.size }
-        val limit = StegoCapacity.maxSecretBytes(carrier, request.envelopes.size)
-        if (sizes.any { it > StegoLimits.MAX_SECRET_BYTES }) {
-            throw StegoCapacityReporting.refused(limit, sizes.max() ?: 0)
-        }
-        val shape = StegoFrameShape(sizes)
-        val salt = request.salt
         val paddedBytes = shape.paddedBytes
-        val keys = request.envelopes.map { keyFor(it.passphrase, salt) }
-        val slots = StegoKeySchedule.assignSlots(keys, salt, deriver)
+        val sizes = request.envelopes.map { it.secret.size }
         val fingerprint = StegoTamper.fingerprintOf(band)
 
-        var plan = StegoCapacity.requireFits(carrier, shape)
+        var plan = StegoCapacity.requireFits(carrier, shape, profile)
         var payload = ByteArray(0)
         var blocks: List<ByteArray> = emptyList()
         var meta = StegoFrame.Meta(
@@ -181,7 +256,7 @@ class StegoCodec(
             payload = StegoFrame.buildPayload(meta, blocks)
             val measuredBits = coder.encodedBitCount(payload.size)
             if (measuredBits == plan.frameBits) break
-            val replanned = StegoCapacity.planFor(measuredBits, band.cellsWide, band.cellsHigh)
+            val replanned = StegoCapacity.planFor(measuredBits, band.cellsWide, band.cellsHigh, profile)
                 ?: throw StegoCapacityReporting.refused(limit, sizes.max() ?: 0)
             if (guard >= 2 || replanned.lattice == plan.lattice && replanned.chipRate == plan.chipRate) {
                 plan = replanned
@@ -216,9 +291,9 @@ class StegoCodec(
             directoryBits = directoryBits,
             payloadBits = payloadBits,
             chipRate = plan.chipRate,
-            step = StegoLimits.QIM_STEP
+            step = profile.step
         )
-        val marked = HaarLl.synthesize(carrier, delta)
+        val marked = profile.synthesize(carrier, delta)
         return Sealed(
             result = StegoEncodeResult(
                 marked = marked,
@@ -240,6 +315,23 @@ class StegoCodec(
             secretBytes = sizes.sum()
         )
     }
+
+    /**
+     * True when the frame written into `marked` can still be pulled out of the photo this app would
+     * have handed to a chat app — before any passphrase is typed.
+     *
+     * It stops short of opening an envelope on purpose. The envelope is what the passphrase protects,
+     * and proving that the *error-corrected frame* came back byte-identical (header version, CRC-16
+     * and this carrier's own salt) proves the bitstream survived, which is the only thing the channel
+     * can be blamed for. Proving it without a key also keeps a 600 000-round derivation out of a loop
+     * that may run twice.
+     */
+    private fun frameSurvives(attacked: LumaPlane, salt: ByteArray): Boolean = runCatching {
+        val acquisition = acquire(attacked) ?: return false
+        val payload = readPayload(acquisition) ?: return false
+        StegoFrame.parsePayload(payload)?.meta?.salt?.contentEquals(salt) == true
+    }.getOrDefault(false)
+
 
     private fun sealBlocks(
         request: StegoEncodeRequest,
@@ -290,7 +382,9 @@ class StegoCodec(
         shareTotal: Int = 1,
         shareIndex: Int = 0,
         oneRead: Boolean = false,
-        salt: ByteArray = StegoKeySchedule.salt()
+        salt: ByteArray = StegoKeySchedule.salt(),
+        profile: StegoProfile = StegoProfile.CLASSIC,
+        attack: ((LumaPlane) -> LumaPlane?)? = null
     ): Sealed {
         val envelopes = ArrayList<StegoEnvelopeRequest>(2)
         envelopes += StegoEnvelopeRequest(
@@ -313,7 +407,9 @@ class StegoCodec(
                 shareIndex = shareIndex,
                 oneRead = oneRead,
                 salt = salt
-            )
+            ),
+            profile = profile,
+            attack = attack
         )
     }
 
@@ -340,7 +436,7 @@ class StegoCodec(
             lattice = acquisition.lattice,
             bitCount = directory.frameBits,
             chipRate = directory.chipRate,
-            step = StegoLimits.QIM_STEP,
+            step = acquisition.profile.step,
             directory = false
         )
         val bits = IntArray(votes.size) { if (votes[it] >= 0f) 1 else 0 }
@@ -439,8 +535,13 @@ class StegoCodec(
         return Probe(acquisition.directory.lattice, acquisition.directory, acquisition.orientation)
     }
 
-    /** True when the band is too flat for any mark, which the screens say before decoding. */
-    fun looksEmpty(plane: LumaPlane): Boolean = !StegoTamper.statisticsOf(bandOf(plane)).carriesDetail
+    /**
+     * True when neither grid finds enough photo detail to hide a mark under, which the screens say
+     * before decoding. Both grids are asked because a photo that is too smooth for the fine one can
+     * still carry the coarse mark — and the reverse is what an over-sharpened copy looks like.
+     */
+    fun looksEmpty(plane: LumaPlane): Boolean =
+        StegoProfile.searched.none { StegoTamper.statisticsOf(bandOf(plane, it)).carriesDetail }
 
     // ---- internals ---------------------------------------------------------------------------
 
@@ -449,40 +550,71 @@ class StegoCodec(
         val band: LlBand,
         val lattice: CanonicalLattice,
         val directory: StegoFrame.Directory,
-        val orientation: Int
+        val orientation: Int,
+        val profile: StegoProfile
     )
 
     /**
-     * Finds the ring directory over the orientations and lattice candidates.
+     * Finds the ring directory over the grids, orientations and lattice candidates.
      *
      * The ring mapping is rate-independent — directory bit *i* always sits on ring slot *i* — so the
      * probe needs one vote per bit and no tap table, which is what makes it affordable on a live
-     * camera frame. [StegoLimits.MAX_ACQUISITION_TRIES] caps the work, and the CRC-8 over the
-     * directory is what answers "this really is one of our carriers" instead of "a lucky photograph".
+     * camera frame. The grid is not labelled anywhere on the image: a coarse-grid read of a fine-grid
+     * carrier produces noise, not a directory, so the probe simply measures both grids upright first
+     * and lets the directory's own magic and checksum ([StegoFrame.unpackDirectory]) answer "this
+     * really is one of our carriers" instead of "a lucky photograph".
+     * [StegoLimits.MAX_ACQUISITION_TRIES] caps the work.
      */
     private fun acquire(plane: LumaPlane): Acquisition? {
+        // Two geometries, in the cheap order. A carrier that arrived at the size this app seals at
+        // answers the first try and pays nothing extra; one that a chat app rescaled answers the
+        // second, after the plane is brought back to the grid the mark was written on. The order is
+        // also what keeps older carriers — sealed before the grid was fixed — reading exactly as they
+        // did, because their own size is tried first and wins.
+        val direct = acquireOn(plane)
+        if (direct != null) return direct
+        // The rescue is for a copy that came back from a chat app, and only that. A live viewfinder
+        // frame is a small, cropped, off-square image whose cells disagree with the writer's for
+        // reasons no rescale can undo, and paying a second full acquisition for it on every frame is
+        // the difference between a scanner that keeps up and one that stutters.
+        if (StegoPlanes.longestSide(plane) < StegoPlanes.RESCUE_MIN_LONGEST) return null
+        val canonical = StegoPlanes.canonicalised(plane)
+        return if (canonical === plane) null else acquireOn(canonical)
+    }
+
+    private fun acquireOn(plane: LumaPlane): Acquisition? {
         var tries = 0
         for (orientation in StegoPlanes.orientations) {
             val rotated = if (orientation == 0) plane else StegoPlanes.rotated(plane, orientation)
-            val band = bandOf(rotated)
-            if (!StegoTamper.statisticsOf(band).carriesDetail) break
-            for (side in LatticeSide.ordered) {
-                if (side.side > 2 * minOf(band.cellsWide, band.cellsHigh)) continue
-                val lattice = runCatching {
-                    CanonicalLattice(side.side, band.cellsWide, band.cellsHigh)
-                }.getOrNull() ?: continue
-                tries += 1
-                val directory = probeDirectory(band, lattice)
-                if (directory != null && directory.lattice == side) {
-                    return Acquisition(rotated, band, lattice, directory, orientation)
+            for (profile in StegoProfile.searched) {
+                val band = bandOf(rotated, profile)
+                // Skip this grid, not the whole orientation. The coarse band is an average of four
+                // fine-band averages, so a flat coarse band says nothing about the fine one; only the
+                // reverse implication holds, and it is the reason a smooth photo still has to be
+                // probed on the quiet grid.
+                if (!StegoTamper.statisticsOf(band).carriesDetail) continue
+                for (side in LatticeSide.ordered) {
+                    if (side.side > 2 * minOf(band.cellsWide, band.cellsHigh)) continue
+                    val lattice = runCatching {
+                        CanonicalLattice(side.side, band.cellsWide, band.cellsHigh)
+                    }.getOrNull() ?: continue
+                    tries += 1
+                    val directory = probeDirectory(band, lattice, profile)
+                    if (directory != null && directory.lattice == side) {
+                        return Acquisition(rotated, band, lattice, directory, orientation, profile)
+                    }
+                    if (tries >= StegoLimits.MAX_ACQUISITION_TRIES) return null
                 }
-                if (tries >= StegoLimits.MAX_ACQUISITION_TRIES) return null
             }
         }
         return null
     }
 
-    private fun probeDirectory(band: LlBand, lattice: CanonicalLattice): StegoFrame.Directory? {
+    private fun probeDirectory(
+        band: LlBand,
+        lattice: CanonicalLattice,
+        profile: StegoProfile = StegoProfile.CLASSIC
+    ): StegoFrame.Directory? {
         val bitCount = StegoLimits.DIRECTORY_BITS
         val ring = lattice.ringSlots
         if (ring.size < bitCount) return null
@@ -498,7 +630,7 @@ class StegoCodec(
             var slot = bit
             while (slot < ring.size) {
                 val measured = lattice.measure(band.values, ring[slot])
-                confidence += Qim.demod((measured - mean) / spread, StegoLimits.QIM_STEP)
+                confidence += Qim.demod((measured - mean) / spread, profile.step)
                 slot += bitCount
             }
             if (confidence >= 0f) {
@@ -514,7 +646,7 @@ class StegoCodec(
             lattice = acquisition.lattice,
             bitCount = acquisition.directory.frameBits,
             chipRate = acquisition.directory.chipRate,
-            step = StegoLimits.QIM_STEP,
+            step = acquisition.profile.step,
             directory = false
         )
         val bits = IntArray(votes.size) { if (votes[it] >= 0f) 1 else 0 }
@@ -522,11 +654,11 @@ class StegoCodec(
         return coder.decodeChunks(codeword)
     }
 
-    private fun bandOf(plane: LumaPlane): LlBand {
+    private fun bandOf(plane: LumaPlane, profile: StegoProfile = StegoProfile.CLASSIC): LlBand {
         if (plane.width <= 0 || plane.height <= 0 || plane.samples.isEmpty()) {
             throw StegoInputException("There is no image to read here.")
         }
-        return HaarLl.of(plane)
+        return profile.bandOf(plane)
     }
 
     /**
@@ -596,3 +728,21 @@ object StegoCapacityReporting {
             requestedSecretBytes
         )
 }
+
+/**
+ * The cause a failed read almost always has.
+ *
+ * Every refusal below stays exactly as strict as it was — this is a message, not a gate. But "nothing
+ * is hidden here" sent the owner back to the lens with a fresh copy of the same redrawn file, and the
+ * redraw is what destroys a carrier made by an older build: a resize, an auto-enhance, or a picture
+ * hidden before the current, tougher mark existed. Naming it is the difference between a bug report
+ * and a read secret.
+ */
+private const val REDRAW_CAUSE =
+    "A picture that was resized, edited, or hidden by an older version of this app can lose the " +
+        "hidden text when a chat app redraws it on the way to you."
+
+/** The remedy that goes with [REDRAW_CAUSE]: hide it again, then send the new picture as a photo. */
+private const val REDRAW_FIX =
+    "Hide the text again in this app and send that new picture as an ordinary photo — it is built to " +
+        "survive the send."

@@ -106,6 +106,108 @@ object ChainRegistry {
         addressExplorer = "https://polygonscan.com/address/"
     )
 
+    // The four chains below share Ethereum's address and its 18-decimal native unit; only their
+    // chain id, hosts and explorer differ, so each is one descriptor and nothing else.
+    val ARBITRUM = ChainDescriptor(
+        network = CryptoNetwork.ARBITRUM,
+        chainId = 42161L,
+        family = AddressFamily.EVM,
+        nativeSymbol = "ETH",
+        nativeName = "Ether",
+        decimals = 18,
+        tokenStandard = "Arbitrum One",
+        displayName = "Arbitrum One",
+        shortName = "Arbitrum",
+        rpcEndpoints = listOf(
+            "https://arbitrum-rpc.publicnode.com",
+            "https://arb1.arbitrum.io/rpc",
+            "https://arbitrum.drpc.org",
+            "https://1rpc.io/arb"
+        ),
+        txExplorer = "https://arbiscan.io/tx/",
+        addressExplorer = "https://arbiscan.io/address/"
+    )
+
+    val BASE = ChainDescriptor(
+        network = CryptoNetwork.BASE,
+        chainId = 8453L,
+        family = AddressFamily.EVM,
+        nativeSymbol = "ETH",
+        nativeName = "Ether",
+        decimals = 18,
+        tokenStandard = "Base",
+        displayName = "Base",
+        shortName = "Base",
+        rpcEndpoints = listOf(
+            "https://base-rpc.publicnode.com",
+            "https://mainnet.base.org",
+            "https://base.drpc.org",
+            "https://1rpc.io/base"
+        ),
+        txExplorer = "https://basescan.org/tx/",
+        addressExplorer = "https://basescan.org/address/"
+    )
+
+    val OPTIMISM = ChainDescriptor(
+        network = CryptoNetwork.OPTIMISM,
+        chainId = 10L,
+        family = AddressFamily.EVM,
+        nativeSymbol = "ETH",
+        nativeName = "Ether",
+        decimals = 18,
+        tokenStandard = "OP Mainnet",
+        displayName = "Optimism",
+        shortName = "OP",
+        rpcEndpoints = listOf(
+            "https://optimism-rpc.publicnode.com",
+            "https://mainnet.optimism.io",
+            "https://optimism.drpc.org",
+            "https://1rpc.io/op"
+        ),
+        txExplorer = "https://optimistic.etherscan.io/tx/",
+        addressExplorer = "https://optimistic.etherscan.io/address/"
+    )
+
+    val AVALANCHE = ChainDescriptor(
+        network = CryptoNetwork.AVALANCHE,
+        chainId = 43114L,
+        family = AddressFamily.EVM,
+        nativeSymbol = "AVAX",
+        nativeName = "Avalanche",
+        decimals = 18,
+        tokenStandard = "C-Chain",
+        displayName = "Avalanche C-Chain",
+        shortName = "AVAX",
+        rpcEndpoints = listOf(
+            "https://avalanche-c-chain-rpc.publicnode.com",
+            "https://api.avax.network/ext/bc/C/rpc",
+            "https://avalanche.drpc.org"
+        ),
+        txExplorer = "https://snowtrace.io/tx/",
+        addressExplorer = "https://snowtrace.io/address/"
+    )
+
+    // Fantom's own host and the publicnode instance both answer with nothing, so the two that do are
+    // the list; a chain with no live node reports itself as offline rather than as empty.
+    val FANTOM = ChainDescriptor(
+        network = CryptoNetwork.FANTOM,
+        chainId = 250L,
+        family = AddressFamily.EVM,
+        nativeSymbol = "FTM",
+        nativeName = "Fantom",
+        decimals = 18,
+        tokenStandard = "Opera",
+        displayName = "Fantom",
+        shortName = "FTM",
+        rpcEndpoints = listOf(
+            "https://fantom.drpc.org",
+            "https://rpcapi.fantom.network",
+            "https://1rpc.io/ftm"
+        ),
+        txExplorer = "https://ftmscan.com/tx/",
+        addressExplorer = "https://ftmscan.com/address/"
+    )
+
     val BITCOIN = ChainDescriptor(
         network = CryptoNetwork.BITCOIN,
         chainId = null,
@@ -137,7 +239,16 @@ object ChainRegistry {
         addressExplorer = "https://tronscan.org/#/address/"
     )
 
-    val ALL: List<ChainDescriptor> = listOf(BSC, ETHEREUM, POLYGON, BITCOIN, TRON)
+    /**
+     * The whole lineup, in the order the portfolio shows it: the EVM chains a wallet can hold tokens
+     * on first, then the chains with their own address format. Everything else in the app — the
+     * scanner, Settings' network list, the send sheet, the transfer gate — reads this one list, so a
+     * chain added here is derived, scanned, priced, validated and switchable in Settings with no
+     * further edit anywhere.
+     */
+    val ALL: List<ChainDescriptor> = listOf(
+        BSC, ETHEREUM, POLYGON, ARBITRUM, BASE, OPTIMISM, AVALANCHE, FANTOM, BITCOIN, TRON
+    )
 
     private val byNetwork: Map<CryptoNetwork, ChainDescriptor> = ALL.associateBy { it.network }
 

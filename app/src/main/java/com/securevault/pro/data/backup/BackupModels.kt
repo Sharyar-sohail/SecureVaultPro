@@ -125,6 +125,11 @@ data class BackupCryptoWalletDto(
     val label: String? = null,
     val kind: String? = null,
     val secret: String? = null,
+    /**
+     * The wallet's spending key, sealed with this account's own vault key. Present only when this
+     * device could seal it; a document never carries a key that has not been sealed.
+     */
+    val keyBackup: String? = null,
     val balancesJson: String? = null,
     val totalUsd: Double? = null,
     val lastSyncedAt: Long? = null,

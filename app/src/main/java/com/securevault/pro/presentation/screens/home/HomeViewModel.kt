@@ -1,11 +1,13 @@
 package com.securevault.pro.presentation.screens.home
 
+import android.os.SystemClock
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.securevault.pro.data.backup.BackupCounts
 import com.securevault.pro.data.remote.google.AutoSyncManager
 import com.securevault.pro.data.remote.google.SyncLogEntry
 import com.securevault.pro.data.repository.VaultRepository
+import com.securevault.pro.diagnostics.CrashLogger
 import com.securevault.pro.domain.model.CategoryCounts
 import com.securevault.pro.domain.model.SearchHit
 import com.securevault.pro.domain.model.SecurityReport
@@ -31,6 +33,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 
 data class HomeUiState(
@@ -81,31 +84,76 @@ class HomeViewModel @Inject constructor(
     private val report = MutableStateFlow(SecurityReport())
     private val hits = MutableStateFlow<List<SearchHit>>(emptyList())
 
-    private val vaultSlice = combine(
+    /**
+     * Time the board was first stood up, and the moment the first real counts landed.
+     *
+     * Nothing on this path measured anything before: "Home feels slow" and "Home is instant" were
+     * both unfalsifiable. [CrashLogger]'s written trail is the one artifact the owner can actually
+     * read without a cable, so the number goes there, once per launch, from the thread the store
+     * query already runs on — never from the composable, and never as extra disk or crypto work.
+     */
+    private val bootedAt = SystemClock.elapsedRealtime()
+    private val countsLogged = AtomicBoolean(false)
+
+    /** The cheap half of the board: five indexed COUNT queries plus the session mode. */
+    private val boardSlice = combine(
         repository.observeCounts(),
         repository.observeFavorites(4),
         repository.observeCategoryCounts(),
         sessionManager.mode
     ) { counts, favorites, categoryCounts, mode ->
+        if (countsLogged.compareAndSet(false, true)) {
+            CrashLogger.noteProbe("home/counts ${SystemClock.elapsedRealtime() - bootedAt}ms")
+        }
         VaultSlice(
             counts = counts,
             favorites = favorites,
             categoryCounts = categoryCounts,
             decoy = mode == SessionMode.DECOY
         )
-    }.combine(repository.observeEntries()) { slice, entries ->
-        val now = System.currentTimeMillis()
-        val horizon = now + 60L * 24L * 60L * 60L * 1000L
-        val expiring = entries
-            .filter { entry ->
-                val expires = entry.expiresAt ?: return@filter false
-                expires in now..horizon
-            }
-            .sortedBy { it.expiresAt }
-            .take(6)
-        slice.copy(expiringSoon = expiring)
-    }
+    }.catch { emit(VaultSlice(CategoryCounts(), emptyList(), emptyMap(), false)) }
+        .stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5_000),
+            VaultSlice(CategoryCounts(), emptyList(), emptyMap(), false)
+        )
 
+    /**
+     * The expensive half: the whole active-entry table, decoded and filtered for expiry.
+     *
+     * It used to be welded underneath [boardSlice], and `combine` only speaks once every input has
+     * spoken — so the dashboard's counts, badges and pie waited behind a full-table read and a
+     * per-entity decode of the entire vault before drawing a single number. Seeding it as a
+     * [StateFlow] keeps the same query and the same data, and lets the board paint first with an
+     * empty expiry list that fills in on its own frame.
+     */
+    private val expirySlice = repository.observeEntries()
+        .map { entries ->
+            val now = System.currentTimeMillis()
+            val horizon = now + 60L * 24L * 60L * 60L * 1000L
+            entries
+                .filter { entry ->
+                    val expires = entry.expiresAt ?: return@filter false
+                    expires in now..horizon
+                }
+                .sortedBy { it.expiresAt }
+                .take(6)
+        }
+        .catch { emit(emptyList()) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    private val vaultSlice = combine(boardSlice, expirySlice) { board, expiring ->
+        board.copy(expiringSoon = expiring)
+    }.stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5_000),
+        VaultSlice(CategoryCounts(), emptyList(), emptyMap(), false)
+    )
+
+    /**
+     * The four stored preferences the header reads. Seeded for the same reason as [expirySlice]:
+     * a cold DataStore read must not be what stands between the unlock and a drawn board.
+     */
     private val preferenceSlice = combine(
         report,
         appLockManager.lastBackupAt,
@@ -113,7 +161,12 @@ class HomeViewModel @Inject constructor(
         appLockManager.travelMode
     ) { security, backup, email, travel ->
         PreferenceSlice(security, backup, email, travel)
-    }
+    }.catch { emit(PreferenceSlice(SecurityReport(), 0L, "", false)) }
+        .stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5_000),
+            PreferenceSlice(SecurityReport(), 0L, "", false)
+        )
 
     val state: StateFlow<HomeUiState> = combine(
         vaultSlice,

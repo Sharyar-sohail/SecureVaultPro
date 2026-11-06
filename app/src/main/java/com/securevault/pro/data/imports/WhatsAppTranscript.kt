@@ -204,7 +204,13 @@ object WhatsAppTranscript {
     fun stampedMessage(line: String, index: Int): ChatMessage? {
         val value = line.trim()
         if (value.isEmpty()) return null
-        val stamp = STAMP.find(value) ?: return null
+        // A handset set to Arabic or Hindi writes its timestamps in its own digits
+        // (`١٥/٠٨/٢٠٢٤، ١٠:٢٣`), and those digits matched nothing, so the whole conversation parsed
+        // to zero bubbles. The stamp is looked for through [asciiDigits], which is one character for
+        // one character: the offsets below still cut the original line, and the sender's words are
+        // stored exactly as WhatsApp wrote them.
+        val probe = stampProbe(value)
+        val stamp = STAMP.find(probe) ?: return null
         val stamped = stampText(stamp.value)
         var day = stamped
         var clock = ""
@@ -246,7 +252,7 @@ object WhatsAppTranscript {
     fun bodyWithoutAttachments(text: String, files: List<String>): String = displayBody(text, files)
 
     private val CLOCK_TAIL =
-        Regex("^(.*?)[\\s,]+(\\d{1,2}:\\d{2}(?::\\d{2})?\\s*(?:[APap][Mm])?)$")
+        Regex("^(.*?)[\\s,،]+(\\d{1,2}:\\d{2}(?::\\d{2})?\\s*(?:[APap][Mm])?)$")
 
     /** WhatsApp's notice lines describe the chat; they are centred, not bubbled. */
     private fun isNotice(afterSender: String, deleted: Boolean = isDeletedMessage(afterSender)): Boolean {
@@ -307,6 +313,10 @@ object WhatsAppTranscript {
      * the date alone (`15/08/2024 - Ali: Salaam`), and a bubble is still a bubble when the hour
      * was never exported. Only a line that opens with one of these is a message; everything else
      * is a wrapped line or a footer.
+     *
+     * Arabic-locale exports separate the date from the clock with `،` and Chinese/Japanese ones with
+     * the fullwidth `，`, none of which is the ASCII comma; all are matched here so those chats are
+     * read as a conversation instead of collapsing into one wrapped message.
      */
     private val STAMP = Regex(
         "^\\s*\\[?(" +
@@ -315,9 +325,36 @@ object WhatsAppTranscript {
             "|\\d{4}[/\\-.]\\d{1,2}[/\\-.]\\d{1,2}" +            // 2024-08-15
             "|\\d{1,2}[/\\-.]\\d{1,2}[/\\-.]\\d{2,4}" +          // 15/08/2024
             ")" +
-            "(?:\\s*(?:,|\\s+at\\s+)\\s*\\d{1,2}:\\d{2}(?::\\d{2})?(?:\\s*[APap][Mm])?)?" +
+            "(?:\\s*(?:[,，،]\\s*|\\s+at\\s+)\\s*\\d{1,2}:\\d{2}(?::\\d{2})?(?:\\s*[APap][Mm])?)?" +
             "\\]?\\s*[-–—:]?\\s*"
     )
+
+    /**
+     * Arabic-Indic (`٠`–`٩`) and Persian (`۰`–`۹`) digits as the ASCII digits the stamp rules read.
+     *
+     * A handset set to Arabic writes `١٥/٠٨/٢٠٢٤، ١٠:٢٣ - على: السلام`, and every one of those
+     * timestamps failed the digit-only patterns: the whole chat parsed to zero bubbles, which the
+     * owner saw as "the import lost my messages". The swap is one character for one character, so
+     * the offsets the probe reports still line up with the *original* line — only the stamp is read
+     * through it, never the words. Nobody's message text is rewritten by this.
+     */
+    fun asciiDigits(value: String): String {
+        var changed = false
+        val buffer = CharArray(value.length)
+        value.forEachIndexed { index, char ->
+            val shifted = when (char.code) {
+                in 0x0660..0x0669 -> '0' + (char.code - 0x0660)
+                in 0x06F0..0x06F9 -> '0' + (char.code - 0x06F0)
+                else -> char
+            }
+            if (shifted != char) changed = true
+            buffer[index] = shifted
+        }
+        return if (changed) String(buffer) else value
+    }
+
+    /** The line with its timestamp digits readable, for stamp matching and for the day/c clock text. */
+    private fun stampProbe(line: String): String = asciiDigits(line)
 
     private val WA_SEQUENCED = Regex(
         "(?i)\\b(IMG|VID|PTT|AUD|STK|TX|DOC|TPS|BLC)-\\d{8}-WA\\d{4}\\.\\w{2,5}"
@@ -344,11 +381,25 @@ object WhatsAppTranscript {
      * `[attached: 0000000003-IMG_2078.jpeg]`, and some builds prefix it with the media-attachment
      * token (`[MMMMediaAttachment: …]`, `[MedDiaAttachment: …]`). The name inside is the name the
      * phone wrote the file with, so it is the one that has to reach the archive index.
+     *
+     * iOS also writes the same marker inside angle brackets (`<attached: 0000000107.jpeg>`), which
+     * is the spelling the mature archivers read; only square brackets were recognised here, so every
+     * photo of an iPhone export arrived in the vault and still drew "media not included" in its
+     * bubble. Both bracket kinds are accepted — the `attached`/`MediaAttachment` label is required,
+     * so an ordinary `<note: …>` in somebody's text is not mistaken for a file.
      */
-    private val ATTACHED_BRACKET = Regex("(?i)\\[\\s*(?:(?:M{2,4}[A-Za-z]*MediaAttachment)|attached)\\s*:\\s*([^\\]\\r\\n]+)\\]")
+    private val ATTACHED_BRACKET =
+        Regex("(?i)[\\[<]\\s*(?:(?:M{2,4}[A-Za-z]*MediaAttachment)|attached)\\s*:\\s*([^\\]\\>\\r\\n]+)[\\]>]")
 
     /** `(attached: Invoice.pdf)` — the same marker with round brackets, seen on older iOS exports. */
     private val ATTACHED_BRACKET_PAREN = Regex("(?i)\\(\\s*attached\\s*:\\s*([^)\\r\\n]+)\\)")
+
+    /**
+     * `(media attached: /storage/emulated/0/WhatsApp/Media/WhatsApp Images/IMG-20240815-WA0001.jpg)`
+     * — the long Android dialect older builds and older re-shares still write, sometimes with the
+     * caption tacked on after a comma. The name is read off the end of the path.
+     */
+    private val ATTACHED_MEDIA_PAREN = Regex("(?i)\\(\\s*media attached\\s*:?\\s*([^)\\r\\n]+)\\)")
 
     /** `<Media omitted>`, `<Média ignorada>`, `<Archivo multimedia omitido>` … */
     private val OMITTED = Regex("(?i)<[^>]{0,60}(?:omitt?ed|ignorad|omit|не отправлено|не було надіслано)[^>]{0,60}>")
@@ -371,7 +422,7 @@ object WhatsAppTranscript {
         lines.forEachIndexed { index, rawLine ->
             val line = rawLine.trim()
             if (line.isEmpty()) return@forEachIndexed
-            val stampMatch = STAMP.find(line)
+            val stampMatch = STAMP.find(stampProbe(line))
             if (stampMatch == null) return@forEachIndexed
             val stamp = stampText(stampMatch.value)
             if (firstStamp.isBlank()) firstStamp = stamp
@@ -437,13 +488,18 @@ object WhatsAppTranscript {
 
     private fun attachmentsOf(body: String, index: Int): List<Reference> {
         val marked = ATTACHED_PAREN.containsMatchIn(body) || ATTACHED_SUFFIX.containsMatchIn(body) ||
-            ATTACHED_BRACKET.containsMatchIn(body) || ATTACHED_BRACKET_PAREN.containsMatchIn(body)
+            ATTACHED_BRACKET.containsMatchIn(body) || ATTACHED_BRACKET_PAREN.containsMatchIn(body) ||
+            ATTACHED_MEDIA_PAREN.containsMatchIn(body)
         val found = LinkedHashSet<Reference>()
         for (marker in listOf(ATTACHED_PAREN, ATTACHED_BRACKET, ATTACHED_BRACKET_PAREN)) {
             marker.findAll(body).forEach { match ->
                 val name = match.groupValues[1].trim().substringAfterLast('/').substringAfterLast('\\')
                 if (name.isNotBlank()) found.add(Reference(name, kindOf(name), index, true))
             }
+        }
+        ATTACHED_MEDIA_PAREN.findAll(body).forEach { match ->
+            val name = mediaAttachedName(match.groupValues[1])
+            if (name.isNotBlank()) found.add(Reference(name, kindOf(name), index, true))
         }
         var cursor = 0
         ATTACHED_SUFFIX.findAll(body).forEach { match ->
@@ -466,6 +522,14 @@ object WhatsAppTranscript {
         }
         return keepLongest(found.toList())
     }
+
+    /**
+     * The file an `(media attached: …)` marker points at. Android writes the whole storage path
+     * inside the marker and iOS the bare name, so the last path element is the file either way;
+     * a trailing size that some builds glue onto the name ("IMG-0001.jpg (2.1 MB") is dropped.
+     */
+    private fun mediaAttachedName(raw: String): String =
+        raw.trim().substringAfterLast('/').substringAfterLast('\\').substringBefore(" (").trim()
 
     /**
      * A filename walked backwards from its extension. Stops at prose ("the", "please"), at a

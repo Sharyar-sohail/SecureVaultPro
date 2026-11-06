@@ -63,4 +63,51 @@ object Routes {
         if (chatId.isNullOrBlank()) "files/chats" else "files/chats?chatId=$chatId"
 
     val topLevelRoutes = setOf(HOME, VAULT, AUTH, CRYPTO, WALLET)
+
+    /**
+     * Where the owner is standing, in the words a crash report should use.
+     *
+     * `CrashLogger.noteStage` can only carry the navigation *state*, so every screen inside the vault
+     * reports the same place and a report cannot say where the fault happened. The route is the one
+     * value that does know, and it is already read here for the bottom bar, so the screens need no
+     * wiring of their own. Names are for the owner who photographs the report, not for the log.
+     */
+    fun screenNameFor(route: String?): String {
+        if (route.isNullOrBlank()) return "the app was still opening"
+        return when (route.substringBefore('?').trimEnd('/')) {
+            HOME -> "the home dashboard"
+            VAULT -> "the saved passwords list"
+            ENTRY_DETAIL -> "a saved password"
+            ENTRY_EDITOR -> "the new-password form"
+            ENTRY_SCANNER -> "the card and document scanner"
+            AUTH -> "the authenticator codes"
+            TOTP_EDITOR -> "the authenticator setup form"
+            SCANNER -> "the code scanner"
+            SCAN_HUB -> "the scanner hub"
+            OCR_SCANNER -> "the text scanner"
+            DOC_SCANNER -> "the document camera"
+            FILE_SCANNER -> "the file scanner"
+            SECURITY_TOOLS -> "security tools"
+            SYNC_CENTER -> "the sync centre"
+            WALLET -> "the card wallet"
+            CARD_EDITOR -> "the card editor"
+            CRYPTO -> "the crypto wallet"
+            VIEWER -> "the file viewer"
+            NOTES -> "the notes list"
+            NOTE_EDITOR -> "the note editor"
+            CONTACTS -> "the contacts"
+            CONTACT_EDITOR -> "the contact editor"
+            FILES -> "the file vault"
+            VOICE_MEMOS -> "the voice memos"
+            WHATSAPP_CHATS -> "the WhatsApp chats"
+            BACKUP -> "backup and export"
+            HEALTH -> "the security health report"
+            SETTINGS -> "settings"
+            PAIR_SCANNER -> "the device pairing scanner"
+            EMAIL -> "the email inbox"
+            STEGO -> "the hidden-message tool"
+            PASSKEY -> "the passkeys"
+            else -> "the screen called $route"
+        }
+    }
 }

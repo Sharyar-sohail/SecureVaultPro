@@ -5,6 +5,7 @@ import android.net.Uri
 import android.provider.OpenableColumns
 import com.securevault.pro.data.file.FileVaultRepository
 import com.securevault.pro.data.repository.VaultRepository
+import com.securevault.pro.diagnostics.CrashLogger
 import com.securevault.pro.domain.model.NoteAttachment
 import com.securevault.pro.domain.model.SecureNote
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -192,6 +193,7 @@ class WhatsAppImporter @Inject constructor(
             throw IllegalArgumentException(BACKUP_FILE_HINT)
         }
         onProgress("Opening WhatsApp export", 4)
+        CrashLogger.noteEvent("WhatsApp import of ${displayName.take(40)} started")
         // The declared size is only a promise: a provider can answer zero or a lie. Counting the
         // bytes actually read is what makes the 250 MB cap real, and it bounds every path — a zip
         // whose entries unpack larger than their archive (a zip bomb) is stopped here too.

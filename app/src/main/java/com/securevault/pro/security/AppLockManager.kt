@@ -89,9 +89,9 @@ class AppLockManager @Inject constructor(
         val PANIC_SHAKE = booleanPreferencesKey("panic_shake")
         val AUTO_SYNC = booleanPreferencesKey("auto_sync")
         val INACTIVITY_LOCK_SECONDS = intPreferencesKey("inactivity_lock_seconds")
-        val DEAD_MAN_ARMED = booleanPreferencesKey("dead_man_armed")
-        val DEAD_MAN_INTERVAL_DAYS = intPreferencesKey("dead_man_interval_days")
-        val DEAD_MAN_LAST_CHECK_IN = longPreferencesKey("dead_man_last_check_in")
+        val SECURE_KEYBOARD = booleanPreferencesKey("secure_keyboard")
+        val SECURE_BOARD_HEIGHT = intPreferencesKey("secure_board_height")
+        val SECURE_KEYBOARD_HAPTICS = booleanPreferencesKey("secure_keyboard_haptics")
         val HIBP_API_KEY = stringPreferencesKey("hibp_api_key")
     }
 
@@ -142,9 +142,15 @@ class AppLockManager @Inject constructor(
     val panicShakeEnabled: Flow<Boolean> = data.map { it[Keys.PANIC_SHAKE] ?: false }
     val autoSyncEnabled: Flow<Boolean> = data.map { it[Keys.AUTO_SYNC] ?: true }
     val inactivityLockSeconds: Flow<Int> = data.map { it[Keys.INACTIVITY_LOCK_SECONDS] ?: 120 }
-    val deadManArmed: Flow<Boolean> = data.map { it[Keys.DEAD_MAN_ARMED] ?: false }
-    val deadManIntervalDays: Flow<Int> = data.map { it[Keys.DEAD_MAN_INTERVAL_DAYS] ?: 7 }
-    val deadManLastCheckIn: Flow<Long> = data.map { it[Keys.DEAD_MAN_LAST_CHECK_IN] ?: 0L }
+    /**
+     * Whether text is typed on the app's own board. On by default: an installed keyboard is a
+     * third-party app that sees every character, and the owner asked for that to stop.
+     */
+    val secureKeyboardEnabled: Flow<Boolean> = data.map { it[Keys.SECURE_KEYBOARD] ?: true }
+    /** The app board's keycap size: 0 normal (today's size), 1 large, 2 extra large. */
+    val secureBoardHeight: Flow<Int> = data.map { it[Keys.SECURE_BOARD_HEIGHT] ?: 0 }
+    /** Whether a key on the app board gives a small buzz when tapped. */
+    val secureKeyboardHaptics: Flow<Boolean> = data.map { it[Keys.SECURE_KEYBOARD_HAPTICS] ?: true }
     val hibpApiKey: Flow<String> = data.map { it[Keys.HIBP_API_KEY] ?: "" }
 
     suspend fun isSetupComplete(): Boolean = data.first()[Keys.SETUP_COMPLETE] ?: false
@@ -397,35 +403,13 @@ class AppLockManager @Inject constructor(
 
     suspend fun setPanicShakeEnabled(enabled: Boolean) = store.edit { it[Keys.PANIC_SHAKE] = enabled }
     suspend fun setAutoSyncEnabled(enabled: Boolean) = store.edit { it[Keys.AUTO_SYNC] = enabled }
-
-    suspend fun armDeadManSwitch(intervalDays: Int) = store.edit {
-        it[Keys.DEAD_MAN_ARMED] = true
-        it[Keys.DEAD_MAN_INTERVAL_DAYS] = intervalDays.coerceIn(1, 90)
-        it[Keys.DEAD_MAN_LAST_CHECK_IN] = System.currentTimeMillis()
-    }
-
-    suspend fun disarmDeadManSwitch() = store.edit {
-        it[Keys.DEAD_MAN_ARMED] = false
-        it.remove(Keys.DEAD_MAN_LAST_CHECK_IN)
-    }
-
-    suspend fun recordDeadManCheckIn() = store.edit {
-        if (it[Keys.DEAD_MAN_ARMED] == true) {
-            it[Keys.DEAD_MAN_LAST_CHECK_IN] = System.currentTimeMillis()
-        }
-    }
+    suspend fun setSecureKeyboardEnabled(enabled: Boolean) = store.edit { it[Keys.SECURE_KEYBOARD] = enabled }
+    suspend fun setSecureBoardHeight(height: Int) =
+        store.edit { it[Keys.SECURE_BOARD_HEIGHT] = height.coerceIn(0, 2) }
+    suspend fun setSecureKeyboardHaptics(enabled: Boolean) = store.edit { it[Keys.SECURE_KEYBOARD_HAPTICS] = enabled }
 
     suspend fun setHibpApiKey(key: String) = store.edit {
         it[Keys.HIBP_API_KEY] = key.trim()
-    }
-
-    suspend fun deadManSnapshot(): Triple<Boolean, Int, Long> {
-        val prefs = data.first()
-        return Triple(
-            prefs[Keys.DEAD_MAN_ARMED] ?: false,
-            prefs[Keys.DEAD_MAN_INTERVAL_DAYS] ?: 7,
-            prefs[Keys.DEAD_MAN_LAST_CHECK_IN] ?: 0L
-        )
     }
 
     suspend fun wipeSecurityPrefs() {

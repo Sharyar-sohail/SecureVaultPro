@@ -8,6 +8,7 @@ import com.securevault.pro.data.remote.google.CloudSyncManager
 import com.securevault.pro.data.remote.google.DriveFaults
 import com.securevault.pro.data.remote.google.GoogleDriveException
 import com.securevault.pro.data.remote.google.GoogleDriveService
+import com.securevault.pro.security.backup.EnvelopeDiagnostics
 import com.securevault.pro.presentation.components.BiometricUtils
 import com.securevault.pro.security.AppLockManager
 import com.securevault.pro.security.PasswordAnalyzer
@@ -45,6 +46,8 @@ data class SetupUiState(
     val lastRestoredFrom: String = "",
     val restoreComplete: Boolean = false,
     val readyForSetup: Boolean = false,
+    /** A Drive copy is waiting on this device's own unlock; setting it triggers the restore. */
+    val driveRestoreQueued: Boolean = false,
     /** The last attempt failed on a key this device does not hold; a master password can supply it. */
     val restoreNeedsSecret: Boolean = false,
     val restoreSecret: String = "",
@@ -100,11 +103,20 @@ class SetupViewModel @Inject constructor(
      */
     private var forcePicker = false
 
+    /**
+     * The Drive account whose copies this device could not open, kept so creating the vault can run
+     * the restore once more. Copies written by 3.3.4 and later are sealed with the random key held in
+     * the account keyring, and that key only comes back by unwrapping the keyring with a password —
+     * which the owner types a few seconds later in this same flow. Retrying there needs no prompt.
+     */
+    private var pendingDriveEmail: String? = null
+
     fun onWelcomeOpened() {
         // Only a genuinely running restore may hold the welcome state open; a stale
         // busy or active-cloud flag must never freeze the three options.
         if (flowJob?.isActive == true && cloudSyncManager.state.value.active) return
         forcePicker = false
+        pendingDriveEmail = null
         if (cloudSyncManager.state.value.active) cloudSyncManager.abandonOperation("Previous attempt was interrupted.")
         val email = runCatching { driveService.lastSignedInAccount()?.email.orEmpty() }.getOrDefault("")
         _state.update {
@@ -124,6 +136,7 @@ class SetupViewModel @Inject constructor(
                 lastRestoredFrom = "",
                 restoreComplete = false,
                 readyForSetup = false,
+                driveRestoreQueued = false,
                 restoreNeedsSecret = false,
                 restoreSecret = "",
                 restoreDiagnostic = null
@@ -290,12 +303,14 @@ class SetupViewModel @Inject constructor(
         flowJob?.cancel()
         flowJob = null
         cloudSyncManager.abandonOperation("Restoring was stopped.")
+        pendingDriveEmail = null
         _state.update {
             it.copy(
                 busy = false,
                 restoreMode = SetupRestoreMode.NONE,
                 notice = "Restoring stopped. Anything already downloaded stays in the vault and nothing was erased - finish setting up here or try again.",
-                noticeIsError = false
+                noticeIsError = false,
+                driveRestoreQueued = false
             )
         }
     }
@@ -307,12 +322,13 @@ class SetupViewModel @Inject constructor(
      * [CloudSyncManager.restoreAnyCloudBackup] opens each copy with the exact writers — this
      * account's vault key and the key 3.1.9 sealed Drive copies with — so a Google login restores an
      * old vault with no prompt, exactly as 3.1.9 did. A build from 3.3.4 on seals Drive copies with
-     * this account's own random vault key, which is not derivable from any literal: it is only
-     * recoverable by unwrapping the cloud keyring with the master password. That is why [secret]
-     * exists — when the keyless walk fails, the owner types the password they set on the phone that
-     * wrote the copies.
+     * the account's random vault key, which is not derivable from any literal: it only comes back by
+     * unwrapping the cloud keyring with a password. Nothing is asked for here — the owner sets that
+     * password seconds later in this same flow, and [createVault] runs the walk once more with it.
+     * [secret] is that second pass; the keyless first pass is what a bare Google tap runs.
      */
     private suspend fun restoreFromDrive(email: String, secret: String? = null) {
+        pendingDriveEmail = null
         _state.update {
             it.copy(busy = true, error = null, restoreNeedsSecret = false, restoreDiagnostic = null)
         }
@@ -364,7 +380,8 @@ class SetupViewModel @Inject constructor(
                     noticeIsError = false,
                     lastRestoredFrom = email,
                     restoreComplete = false,
-                    readyForSetup = true
+                    readyForSetup = true,
+                    driveRestoreQueued = false
                 )
             }
             return
@@ -393,6 +410,7 @@ class SetupViewModel @Inject constructor(
                         masterPassword = if (usable && keepSecret.isNotBlank()) keepSecret else it.masterPassword,
                         confirmPassword = if (usable && keepSecret.isNotBlank()) keepSecret else it.confirmPassword,
                         restoreNeedsSecret = false,
+                        driveRestoreQueued = false,
                         restoreSecret = if (usable) "" else it.restoreSecret,
                         restoreDiagnostic = null
                     )
@@ -413,27 +431,31 @@ class SetupViewModel @Inject constructor(
                         )
                     }
                 } else {
-                    val needsSecret = looksLikeKeyMismatch(message)
-                    val vaultKeyProblem = message.substringAfter("Vault key:", "")
-                        .trim()
-                        .takeIf { it.isNotBlank() }
-                    val keyringBlocked = vaultKeyProblem != null && listOf(
-                        "authorisation", "sign in", "timed out", "could not be fetched", "unavailable"
-                    ).any { vaultKeyProblem.contains(it, ignoreCase = true) }
+                    // A Google sign-in opens the Drive copies this device can unlock, with nothing
+                    // typed first. A copy sealed with the account's vault key is not a failure the
+                    // owner reads about: that key arrives the moment this phone gets its own unlock,
+                    // so the account is remembered, the flow walks on by itself, and the restore runs
+                    // again automatically. Red is reserved for a retry that genuinely failed.
+                    val keyRejected = looksLikeKeyMismatch(message)
+                    val awaitsOwnUnlock = keyRejected && secret.isNullOrBlank()
+                    if (awaitsOwnUnlock) pendingDriveEmail = email
                     _state.update {
                         it.copy(
                             busy = false,
                             notice = when {
-                                !needsSecret -> message.ifBlank { "The cloud restore could not complete." }
-                                keyringBlocked -> vaultKeyProblem
-                                secret.isNullOrBlank() -> DRIVE_SECRET_PROMPT
-                                else -> "That master password did not unwrap this account's cloud vault key. " +
-                                    "If this account never published one, these copies open only on the phone " +
-                                    "that wrote them, or from a passphrase export."
+                                awaitsOwnUnlock ->
+                                    "Signed in as $email. Your backups are safe in Google Drive and " +
+                                        "load on their own once this phone has its unlock."
+                                keyRejected ->
+                                    "Signed in as $email. ${EnvelopeDiagnostics.KEY_NOT_ON_THIS_DEVICE}"
+                                else -> message.ifBlank { "The cloud restore could not complete." }
                             },
-                            noticeIsError = true,
-                            restoreNeedsSecret = needsSecret && !keyringBlocked,
-                            restoreDiagnostic = if (needsSecret) message else null
+                            noticeIsError = keyRejected && !awaitsOwnUnlock,
+                            // The welcome screen never stops on a key it is still waiting for.
+                            readyForSetup = keyRejected,
+                            driveRestoreQueued = awaitsOwnUnlock,
+                            restoreNeedsSecret = false,
+                            restoreDiagnostic = null
                         )
                     }
                 }
@@ -474,15 +496,14 @@ class SetupViewModel @Inject constructor(
             } else {
                 restoreFromDrive(snapshot.signedInEmail, secret)
             }
-        }
-    }
+        }    }
 
     /** True when a failure is a key mismatch rather than a network, consent or file-shape fault. */
     private fun looksLikeKeyMismatch(message: String): Boolean =
-        message.contains("could be opened", ignoreCase = true) ||
-            message.contains("Invalid Legacy Key", ignoreCase = true) ||
+        message.contains(EnvelopeDiagnostics.KEY_NOT_ON_THIS_DEVICE, ignoreCase = true) ||
+            message.contains("locked with a key", ignoreCase = true) ||
             message.contains("does not hold", ignoreCase = true) ||
-            message.contains("rejected by the GCM tag", ignoreCase = true) ||
+            message.contains("doesnt have", ignoreCase = true) ||
             message.contains("could not be opened", ignoreCase = true)
 
     fun importLocalFile(bytes: ByteArray, fileName: String, passphrase: String? = null) {
@@ -551,6 +572,7 @@ class SetupViewModel @Inject constructor(
         _state.update { it.copy(busy = true, error = null) }
         viewModelScope.launch {
             try {
+                val pendingEmail = pendingDriveEmail
                 cloudSyncManager.ensureVaultPopulated().getOrThrow()
                 // Credentials, the biometric choice and the setup flag land in one edit,
                 // then the session opens. Any await between the flag and the unlock lets
@@ -569,8 +591,17 @@ class SetupViewModel @Inject constructor(
                         confirmPassword = "",
                         pin = "",
                         confirmPin = "",
-                        error = null
+                        error = null,
+                        driveRestoreQueued = false
                     )
+                }
+                // A Drive copy that needed this account's vault key is fetched after the vault is
+                // already open, never before. Nothing on the setup screen waits on a network call:
+                // the restore lands in the banner when it finishes, and the realtime sync starts the
+                // moment the session unlocks either way.
+                if (pendingEmail != null) {
+                    pendingDriveEmail = null
+                    restoreInBackground(pendingEmail, snapshot.masterPassword)
                 }
             } catch (e: Throwable) {
                 sessionManager.lock()
@@ -584,9 +615,49 @@ class SetupViewModel @Inject constructor(
         }
     }
 
+    /**
+     * The keyring retry, run off the setup screen.
+     *
+     * Signing in with Google and choosing a master password is enough to bring the account's vault
+     * key down and open the copies that need it. That takes a network round trip, so it happens
+     * after the dashboard is up rather than in front of it — the owner never sits on the setup
+     * screen watching a cloud call, and the result arrives as a normal banner.
+     */
+    private fun restoreInBackground(email: String, masterPassword: String) {
+        viewModelScope.launch {
+            val outcome = runCatching {
+                withTimeoutOrNull(DRIVE_RETRY_TIMEOUT_MS) {
+                    cloudSyncManager.restoreAnyCloudBackup(email, passphrase = masterPassword)
+                }
+            }.getOrNull()
+            outcome?.fold(
+                onSuccess = { result ->
+                    _state.update {
+                        it.copy(
+                            notice = "Your vault was restored from Google Drive. ${result.message}",
+                            noticeIsError = result.failureReason != null,
+                            warnings = result.warnings,
+                            restoreDiagnostic = null
+                        )
+                    }
+                },
+                onFailure = { error ->
+                    _state.update {
+                        it.copy(
+                            notice = "This device's vault is ready and your Drive backups are safe, untouched. " +
+                                "Tap Continue with Google once you know the password this account uses. ${(error.message ?: "").take(140)}".trim(),
+                            noticeIsError = true,
+                            restoreDiagnostic = error.message?.take(600)
+                        )
+                    }
+                }
+            )
+        }
+    }
+
+
     private fun validate(state: SetupUiState): String? =
         validateMaster(state) ?: validatePin(state)
-
     private fun validateMaster(state: SetupUiState): String? = when {
         state.masterPassword.length < 8 -> "Use at least 8 characters for your master password."
         state.masterPassword != state.confirmPassword -> "The master passwords do not match."
@@ -603,10 +674,11 @@ class SetupViewModel @Inject constructor(
         /** Long enough for a slow mobile handshake; the Drive call itself gives up at 45 s. */
         const val LIST_TIMEOUT_MS = 60_000L
 
-        const val DRIVE_SECRET_PROMPT =
-            "These Drive copies are sealed with this account's own vault key, not the old universal " +
-                "key. Enter the master password you set on the phone that wrote them — it unwraps " +
-                "the account key and the restore reopens every copy. Nothing is erased either way."
+        /**
+         * One keyring fetch (45 s) plus one download (60 s) is the shortest honest retry; the walk is
+         * cut off there rather than running every copy, because finishing setup outranks the restore.
+         */
+        const val DRIVE_RETRY_TIMEOUT_MS = 105_000L
 
         const val FILE_SECRET_PROMPT =
             "This export is sealed with a passphrase, so it cannot open with the device keys alone. " +

@@ -19,6 +19,7 @@ import com.securevault.pro.data.backup.RestoreWalkOrder
 import com.securevault.pro.data.remote.companion.CompanionSyncClient
 import com.securevault.pro.data.remote.firebase.Keyring
 import com.securevault.pro.data.repository.VaultRepository
+import com.securevault.pro.diagnostics.CrashLogger
 import com.securevault.pro.security.AppLockManager
 import com.securevault.pro.security.CryptoManager
 import com.securevault.pro.security.KeyDerivation
@@ -153,15 +154,6 @@ class CloudSyncManager @Inject constructor(
          */
         private const val MAX_WALK_FILES = 6
 
-        /**
-         * How long one copy may spend in the original reader's key list when its exact key fails.
-         *
-         * That list is the one 3.1.9 shipped — every candidate at each of its four counts — so this
-         * only bounds a file sealed with a key neither this device nor the account holds. A copy
-         * written by a current build opens on the first derivation and never reaches this budget.
-         */
-        private const val LEGACY_SWEEP_BUDGET_MS = 60_000L
-
         /** How long a passphrase is allowed to fetch the account's vault key before the restore moves on. */
         private const val KEYRING_ATTACH_TIMEOUT_MS = 45_000L
     }
@@ -184,14 +176,14 @@ class CloudSyncManager @Inject constructor(
     suspend fun backupToDrive(email: String = ""): Result<BackupOutcome> = guarded {
         onOperation(CloudOperation.BACKUP, "Creating encrypted backup", "Collecting vault records", 6)
         val counts = requireVaultRecords()
-        update("Encrypting vault records", "PBKDF2-SHA256 · 600,000 iterations", 32)
+        update("Encrypting your vault...", "Preparing your records", 32)
         val payload = withContext(Dispatchers.IO) { backupEngine.buildPayload() }
         val json = gson.toJson(payload)
         val secret = sealingSecret()
         val envelopeBytes = createEnvelope(json, secret, 3)
-        update("Writing offline safety copy", "vault_backup.enc", 48)
+        update("Saving a copy on this device", "Ready for Google Drive", 48)
         val offlineSaved = writeOfflineCopy(envelopeBytes)
-        update("Uploading to Google Drive", "App-data folder · hidden from normal Drive", 62)
+        update("Uploading to Google Drive", "Your private app folder", 62)
         var driveError: String? = null
         var uploaded = false
         var preservedName: String? = null
@@ -209,7 +201,7 @@ class CloudSyncManager @Inject constructor(
             driveError = driveMessage(e)
         }
         if (uploaded) {
-            update("Mirroring XML vault", "Second sealed copy · vault_backup.xml.enc", 76)
+            update("Updating the second copy", "Same records, XML format", 76)
             runCatching {
                 val xmlBytes = createEnvelope(
                     BackupXmlSerializer.serialize(payload),
@@ -317,8 +309,8 @@ class CloudSyncManager @Inject constructor(
         )
         val counts = requireVaultRecords()
         val payload = withContext(Dispatchers.IO) { backupEngine.buildPayload() }
-        update("Sealing XML archive", "AES-256-GCM · PBKDF2 600,000", 52)
-        val bytes = createEnvelope(BackupXmlSerializer.serialize(payload), trimmed, 3)
+        update("Building your XML export", "Protected with your passphrase", 52)
+        val bytes = createEnvelope(BackupXmlSerializer.serialize(payload), trimmed, 3, LegacyKeyPlan.KEY_ID_PASSPHRASE)
         val fileName = "SecureWallet_${
             SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
         }_vault.xml.enc"
@@ -382,14 +374,23 @@ class CloudSyncManager @Inject constructor(
             8
         )
         try {
-            update("Fetching your vault key", "Account keyring and this device's key", 18)
-            val keyringNote = attachKeyringFromCloud(passphrase)
+            // A Drive copy is opened with the keys the file itself was written with, the way the
+            // 28 October 2026 build did. The account keyring is only fetched when the owner has
+            // already typed a passphrase for it, so a plain Google restore never waits on one.
+            val typedPassphrase = passphrase?.trim()?.takeIf { it.isNotBlank() }
+            val keyringNote = if (typedPassphrase != null) {
+                update("Fetching your vault key", "One moment while we unlock your data", 18)
+                attachKeyringFromCloud(typedPassphrase)
+            } else {
+                update("Downloading data from Google Drive...", file.name, 22)
+                null
+            }
             update("Downloading data from Google Drive...", file.name, 30)
             val bytes = withTimeout(RESTORE_TIMEOUT_MS) { driveService.download(file.id) }
             if (bytes.size > MAX_BACKUP_BYTES) {
                 throw CloudSyncException("Backup is larger than the supported 120 MB limit")
             }
-            update("Decrypting vault...", "The exact key this copy was written with", 45)
+            update("Decrypting vault...", "Restoring your secure data...", 45)
             val decoded = try {
                 decryptBackup(bytes, accountEmail, passphrase, epoch)
             } catch (e: CancellationException) {
@@ -481,8 +482,8 @@ class CloudSyncManager @Inject constructor(
         }
         return Result.failure(
             CloudSyncException(
-                "None of the ${candidates.size} backups in Drive could be opened with the exact " +
-                    "key each was written with. ${lastReason ?: ""}".trim()
+                "None of the backups in Drive could be opened with the key this device holds. " +
+                    (lastReason ?: "").trim()
             )
         )
     }
@@ -529,7 +530,7 @@ class CloudSyncManager @Inject constructor(
         try {
             if (bytes.isEmpty()) throw CloudSyncException("The selected backup is empty")
             if (bytes.size > MAX_BACKUP_BYTES) throw CloudSyncException("Backup exceeds the 120 MB limit")
-            update("Decrypting vault...", "The exact key this export was written with", 35)
+            update("Decrypting vault...", "Restoring your secure data...", 35)
             val decoded = decryptBackup(
                 bytes,
                 accountEmail,
@@ -538,7 +539,7 @@ class CloudSyncManager @Inject constructor(
             )
             update(
                 if (replace) "Replacing vault from file" else "Importing data into app...",
-                if (replace) "The current records are cleared first" else "Resilient v3 parser",
+                if (replace) "The current records are cleared first" else "Reading your file",
                 55
             )
             mergeDecoded(decoded, replace)
@@ -556,10 +557,10 @@ class CloudSyncManager @Inject constructor(
         }
         onOperation(CloudOperation.EXPORT, "Exporting encrypted backup", "Collecting vault records", 8)
         val counts = requireVaultRecords()
-        update("Encrypting with your passphrase", "AES-256-GCM · PBKDF2 600,000", 40)
+        update("Encrypting with your passphrase", "Protecting your export", 40)
         val payload = withContext(Dispatchers.IO) { backupEngine.buildPayload() }
         val json = gson.toJson(payload)
-        val bytes = createEnvelope(json, trimmed, 3)
+        val bytes = createEnvelope(json, trimmed, 3, LegacyKeyPlan.KEY_ID_PASSPHRASE)
         val fileName = "SecureWallet_Backup_${
             SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
         }.enc"
@@ -660,10 +661,10 @@ class CloudSyncManager @Inject constructor(
         if (sessionManager.isDecoy()) slayDecoy()
         onOperation(CloudOperation.BACKUP, "Syncing to companion", "Encrypting vault for the portal", 12)
         val counts = requireVaultRecords()
-        update("Building encrypted envelope", "AES-256-GCM · this user's vault key", 40)
+        update("Preparing your vault for the web", "Encrypted on this device", 40)
         val payload = withContext(Dispatchers.IO) { backupEngine.buildPayload() }
         val envelope = createEnvelope(gson.toJson(payload), sealingSecret(), 3)
-        update("Pushing to companion portal", "End-to-end encrypted payload", 68)
+        update("Publishing to the web companion", "Your vault is live", 68)
         val url = appLockManager.companionUrl.first()
         val sent = companionSyncClient.push(url, envelope)
         val message = "Companion sync complete · ${summary(counts)}"
@@ -676,9 +677,9 @@ class CloudSyncManager @Inject constructor(
         onOperation(CloudOperation.RESTORE, "Pulling from companion", "Connecting to portal", 15)
         try {
             val url = appLockManager.companionUrl.first()
-            update("Downloading encrypted envelope", "Companion vault", 30)
+            update("Downloading your vault", "Companion vault", 30)
             val bytes = companionSyncClient.pull(url)
-            update("Decrypting companion vault", "Vault key, then legacy keys", 45)
+            update("Decrypting vault...", "Restoring your secure data...", 45)
             val decoded = decryptBackup(bytes, resolveEmail(""))
             mergeDecoded(decoded)
         } catch (e: CancellationException) {
@@ -768,10 +769,10 @@ class CloudSyncManager @Inject constructor(
             val payload = withContext(Dispatchers.IO) { backupEngine.buildPayload() }
             val secret = sealingSecret()
             val jsonEnvelope = withContext(Dispatchers.Default) {
-                sealPayload(gson.toJson(payload), secret, 3).bytes
+                sealPayload(gson.toJson(payload), secret, 3, LegacyKeyPlan.KEY_ID_VAULT).bytes
             }
             val xmlEnvelope = withContext(Dispatchers.Default) {
-                sealPayload(BackupXmlSerializer.serialize(payload), secret, 3).bytes
+                sealPayload(BackupXmlSerializer.serialize(payload), secret, 3, LegacyKeyPlan.KEY_ID_VAULT).bytes
             }
             val now = System.currentTimeMillis()
             val stamp = SimpleDateFormat("yyyyMMdd-HHmmss", Locale.US).format(Date(now))
@@ -789,7 +790,7 @@ class CloudSyncManager @Inject constructor(
                     addProperty("cards", counts.cards)
                     addProperty("files", counts.files)
                     addProperty("cryptoWallets", counts.wallets)
-                    addProperty("encryption", "AES-256-GCM · PBKDF2-SHA256 600000 · per-user vault key")
+                    addProperty("encryption", "End-to-end encrypted with this account's vault key")
                 }
             )
             val zip = buildZip(
@@ -835,7 +836,7 @@ class CloudSyncManager @Inject constructor(
         ==========================================
 
         Archive: $archiveName
-        Sealed with: universal cloud key v3 (AES-256-GCM, PBKDF2-SHA256, 600,000 iterations)
+        Sealed with: this account's own vault key, generated for your Google account.
 
         Contents
         - vault_backup.enc      Encrypted JSON envelope of every vault record.
@@ -845,7 +846,8 @@ class CloudSyncManager @Inject constructor(
         How to restore
         1. Open Secure Wallet Pro and choose "Import Backup File" on the welcome screen.
         2. Unzip this archive and select vault_backup.enc (or vault_backup.xml.enc).
-        3. Nothing needs typing: the app opens the file with the keys it has always used.
+        3. Nothing needs typing: the app unlocks this file with the vault key it fetches
+           from your account when you sign in.
 
         This archive is never deleted by "Wipe All Data". Delete it manually in
         Google Drive → .SecureVaultPro-Archives when you no longer need it.
@@ -982,8 +984,9 @@ class CloudSyncManager @Inject constructor(
     private suspend fun createEnvelope(
         json: String,
         passphrase: String,
-        version: Int
-    ): ByteArray = sealPayload(json, passphrase, version).bytes
+        version: Int,
+        keyId: String = LegacyKeyPlan.KEY_ID_VAULT
+    ): ByteArray = sealPayload(json, passphrase, version, keyId).bytes
 
     /**
      * The secret every new cloud envelope is sealed with: this user's own vault key, straight from
@@ -1000,7 +1003,8 @@ class CloudSyncManager @Inject constructor(
     private suspend fun sealPayload(
         plaintext: String,
         passphrase: String,
-        version: Int
+        version: Int,
+        keyId: String? = null
     ): SealedEnvelope = withContext(Dispatchers.Default) {
         val salt = keyDerivation.generateSalt()
         val key = keyDerivation.deriveKey(passphrase.toCharArray(), salt, PBKDF2_ITERATIONS)
@@ -1011,6 +1015,9 @@ class CloudSyncManager @Inject constructor(
                 addProperty("v", version)
                 addProperty("salt", saltB64)
                 addProperty("data", encrypted)
+                // Which key sealed this copy, stated by the file itself, so a restore derives that
+                // one key instead of working through a list of what the key might have been.
+                keyId?.takeIf { it.isNotBlank() }?.let { addProperty("kid", it) }
             }
             val parts = encrypted.split('.')
             SealedEnvelope(
@@ -1027,11 +1034,11 @@ class CloudSyncManager @Inject constructor(
     /**
      * Opens a stored backup without changing a byte of it.
      *
-     * The envelope format has never changed, but what sealed it has — this device's vault key, the
-     * owner's own passphrase, the retired universal strings, and in the earliest builds the account
-     * address — so a file is only unreadable once every one of those has been tried. That sweep, and
-     * the iteration counts each build used, live in [LegacyEnvelopeOpener] where a test can reach
-     * them; this function only decides what the answer means for the restore.
+     * The file says which key sealed it. A v3 envelope written by this product carries that in its
+     * `kid` field; a copy predating the field is opened with this account's own vault key when the
+     * device has been given one, and with the single string every Drive copy carried before that.
+     * Either way the restore runs one PBKDF2 at 600,000 against the file's own salt — never a list
+     * of candidate keys. A copy that refuses that key is reported plainly and left untouched.
      */
     private suspend fun decryptBackup(
         bytes: ByteArray,
@@ -1044,109 +1051,62 @@ class CloudSyncManager @Inject constructor(
         if (text.isBlank()) throw CloudSyncException("The backup file is empty")
         val envelope = BackupEnvelopeFormat.parse(bytes)
         if (envelope != null && envelope.recognised && envelope.salt.size >= 8) {
-            val salts = LegacySaltPlan.variants(envelope.salt)
-            // A file that states no version predates the field, so it is treated as older than v3
-            // rather than being read as current: that is what makes its retired keys and extra
-            // derivation counts available.
-            val version = envelope.version.takeIf { envelope.statedVersion }
-            val attempt = if (version == null || version < 3) {
-                // Only a pre-v3 envelope needs the original reader's wider list; its own version
-                // says so in the file, so this is history, not guessing.
-                openSecrets(
-                    salts = salts,
-                    data = envelope.data,
-                    secrets = buildSecrets(email, passphrase, version = version),
-                    epoch = epoch,
-                    detail = "Opening an older backup the way its reader did"
-                )
-            } else {
-                val first = openPrimary(
-                    salts = salts,
-                    data = envelope.data,
-                    passphrase = passphrase,
-                    preferPassphrase = preferPassphrase,
-                    epoch = epoch
-                )
-                // The exact key first; if it fails, exactly what the 3.1.9 reader did next — its own
-                // candidate list at every count it iterated (600k/100k/10k/1k). A v3 copy sealed by
-                // an older build is still the owner's vault, and ending at the primary chain is what
-                // made such a file report "Invalid Legacy Key" on an install that used to open it.
-                if (first.opened != null) {
-                    first
-                } else {
-                    val sweep = openSecrets(
-                        salts = salts,
-                        data = envelope.data,
-                        secrets = buildSecrets(email, passphrase, version = version),
-                        epoch = epoch,
-                        detail = "Checking every key the original app used",
-                        budgetMs = LEGACY_SWEEP_BUDGET_MS
-                    )
-                    // A stop signal is reported by the epoch check below, not as a timeout.
-                    if (sweep.opened == null && sweep.budgetExhausted &&
-                        operationEpoch.get() == epoch
-                    ) {
-                        throw CloudSyncException(
-                            "This backup could not be opened within " +
-                                "${LEGACY_SWEEP_BUDGET_MS / 1000} s while checking every key the " +
-                                "original app used. If it was sealed with this account's own vault " +
-                                "key, enter the master password to unwrap it."
-                        )
-                    }
-                    sweep
-                }
+            val secret = LegacyKeyPlan.exactSecret(
+                keyId = envelope.keyId,
+                passphrase = if (preferPassphrase || envelope.keyId == LegacyKeyPlan.KEY_ID_PASSPHRASE) passphrase else null,
+                vaultSecret = storedVaultSecret()
+            ) ?: throw CloudSyncException(EnvelopeDiagnostics.describe(envelope))
+            update("Decrypting vault...", "Restoring your secure data...", 48)
+            val opened = openExact(LegacySaltPlan.variants(envelope.salt), envelope.data, secret) {
+                operationEpoch.get() != epoch
             }
             if (operationEpoch.get() != epoch) {
                 throw CancellationException("Restore stopped by the owner")
             }
-            val opened = attempt.opened ?: throw CloudSyncException(
-                EnvelopeDiagnostics.describe(envelope, attempt.candidatesTried)
-            )
-            val paddedSaltNote = if (opened.saltBytes != envelope.salt.size) {
-                listOf(
-                    "Opened with a ${envelope.salt.size}-byte salt padded to ${opened.saltBytes} bytes, " +
-                        "the way the original reader derived it."
-                )
-            } else {
-                emptyList()
-            }
+            if (opened == null) throw CloudSyncException(EnvelopeDiagnostics.describe(envelope))
             return@withContext DecodedBackup(
                 json = opened.json,
                 encrypted = true,
-                warnings = warningsFor(opened.kind, opened.iterations) + paddedSaltNote
+                warnings = warningsFor(opened.kind, opened.iterations)
             )
         }
 
         // No usable envelope salt. The earliest Drive backup was a bare `iv.ciphertext` blob whose
         // salt lived in the separate `key.salt` file in the same folder, so that shape is opened
-        // the way its own reader did rather than being read as plain JSON and called corrupted.
+        // with its writer's key rather than being read as plain JSON and called corrupted.
         val bare = envelope?.data?.takeIf { looksLikeCiphertext(it) }
             ?: text.takeIf { looksLikeCiphertext(it) }
         if (bare != null) {
-            val legacySalt = driveLegacySalt()
-            val attempt = openSecrets(
-                salts = LegacySaltPlan.fallback(legacySalt, addressCandidates(email)),
-                data = bare,
-                secrets = buildSecrets(email, passphrase, version = null),
-                epoch = epoch,
-                detail = "Opening a salt-less backup the way its reader did"
+            val driveSalt = driveLegacySalt()?.takeIf { it.size >= 8 }
+            val address = resolveEmail(email)
+            val secret = LegacyKeyPlan.bareBlobSecret(
+                passphrase = passphrase,
+                email = address,
+                accountId = runCatching { signedInAccountId() }.getOrDefault("")
             )
+            // The salt this shape's writer used: the `key.salt` file it left beside the backup, or
+            // the account identifier padded the way that writer padded it when the file was gone.
+            val salt = driveSalt ?: secret?.value?.let { LegacySaltPlan.padAddress(it) }
+            val opened = if (salt != null && secret != null) {
+                update("Decrypting vault...", "Restoring your secure data...", 48)
+                openExact(listOf(salt), bare, secret) { operationEpoch.get() != epoch }
+            } else {
+                null
+            }
             if (operationEpoch.get() != epoch) {
                 throw CancellationException("Restore stopped by the owner")
             }
-            val opened = attempt.opened ?: throw CloudSyncException(
+            if (opened == null) throw CloudSyncException(
                 EnvelopeDiagnostics.describeBareBlob(
                     data = bare,
-                    saltSource = legacySalt?.let { "key.salt on Drive (${it.size} bytes)" }
-                        ?: "no key.salt on Drive",
-                    secretsTried = attempt.candidatesTried
+                    saltSource = driveSalt?.let { "key.salt on Drive (${it.size} bytes)" }
+                        ?: "no key.salt on Drive"
                 )
             )
             return@withContext DecodedBackup(
                 json = opened.json,
                 encrypted = true,
-                warnings = warningsFor(opened.kind, opened.iterations) +
-                    "Opened a salt-less backup the way its original reader did."
+                warnings = warningsFor(opened.kind, opened.iterations)
             )
         }
 
@@ -1158,86 +1118,28 @@ class CloudSyncManager @Inject constructor(
     }
 
     /**
-     * The exact writers a v3 envelope could have come from: this account's vault key and the key
-     * 3.1.9 sealed every Drive copy with, at the one count both used.
+     * One derivation, one open, no candidate list.
      *
-     * This is the v3.1.9 behaviour the owner asked back: a Google login opens the Drive copies with
-     * no prompt. Dropping [LegacyKeyPlan.PRIMARY_CLOUD_KEY] once keyring sealing arrived is what
-     * made an old backup fail on a newer install, and a device with no vault key still needs it to
-     * open anything at all. The chain is closed and bounded — one derivation on the common path.
-     * When it fails, the caller still runs the original reader's full candidate list at its four
-     * counts, because a v3 file may have been sealed by a build older than this one.
+     * [secret] is the key the file itself names — the account's vault key, or the string every
+     * Drive copy carried before the keyring. It is stretched at the count every writer this product
+     * has shipped uses, over the salt as the file wrote it, and either authenticates or the caller
+     * reports the copy as needing a key this device does not hold. The stop signal is checked before
+     * the stretch so an abandoned restore never queues a second one.
      */
-    private fun openPrimary(
+    private fun openExact(
         salts: List<ByteArray>,
         data: String,
-        passphrase: String?,
-        preferPassphrase: Boolean,
-        epoch: Long
-    ): LegacyEnvelopeOpener.OpenAttempt {
-        val chain = LegacyKeyPlan.restoreChain(
-            passphrase = passphrase,
-            vaultSecret = storedVaultSecret(),
-            preferPassphrase = preferPassphrase
-        )
-        val detail = when (chain.firstOrNull()?.kind) {
-            OpeningSecretKind.VAULT_KEY -> "Opening with your account's vault key"
-            OpeningSecretKind.PASSPHRASE -> "Opening with your passphrase"
-            else -> "Opening with the original key"
-        }
-        update("Decrypting vault...", detail, 48)
+        secret: OpeningSecret,
+        shouldStop: () -> Boolean
+    ): LegacyEnvelopeOpener.Opened? {
+        if (shouldStop()) throw CancellationException("Restore stopped by the owner")
         return legacyOpener.openWithSalts(
             salts = salts,
             data = data,
-            secrets = chain,
-            shouldStop = { operationEpoch.get() != epoch }
-        )
+            secrets = listOf(secret),
+            shouldStop = shouldStop
+        ).opened
     }
-
-    /**
-     * The original reader's candidate list, used where the one-key chain cannot be the whole answer:
-     * a pre-v3 envelope, the salt-less blob, and a v3 copy whose exact key failed — the case the
-     * 3.1.9 reader covered and the one that otherwise reports "Invalid Legacy Key". Progress moves
-     * but never prints a count: the owner asked to stop watching key numbers, and a count is not
-     * information they can act on.
-     */
-    private fun openSecrets(
-        salts: List<ByteArray>,
-        data: String,
-        secrets: List<OpeningSecret>,
-        epoch: Long,
-        detail: String,
-        budgetMs: Long = Long.MAX_VALUE
-    ): LegacyEnvelopeOpener.OpenAttempt {
-        val perSalt = secrets.sumOf { it.iterationProfiles?.size?.takeIf { size -> size > 0 } ?: 1 }
-        val total = (perSalt * salts.size).coerceAtLeast(1)
-        return legacyOpener.openWithSalts(
-            salts = salts,
-            data = data,
-            secrets = secrets,
-            budgetMs = budgetMs,
-            shouldStop = { operationEpoch.get() != epoch },
-            onAttempt = { tried ->
-                update(
-                    "Decrypting vault...",
-                    detail,
-                    45 + (tried * 9 / total)
-                )
-            }
-        )
-    }
-
-    /** The salt sources the original reader used for a file that carried none. */
-    private suspend fun addressCandidates(email: String): List<String> =
-        buildList {
-            add(email)
-            add(runCatching { appLockManager.cloudEmail.first() }.getOrDefault(""))
-            add(runCatching { signedInEmail() }.getOrDefault(""))
-            add(signedInDisplayName().orEmpty())
-            addAll(LegacyKeyPlan.HISTORICAL_OWNER_ADDRESSES)
-            // The original also seeded a salt from the account address alone when its `key.salt`
-            // was missing; the last-resort fallbacks do the same.
-        }.map { it.trim() }.filter { it.isNotBlank() }.distinct()
 
     /** The separate salt file the original writer kept beside the backup. */
     private suspend fun driveLegacySalt(): ByteArray? = runCatching {
@@ -1258,7 +1160,7 @@ class CloudSyncManager @Inject constructor(
 
     private fun warningsFor(kind: OpeningSecretKind, iterations: Int): List<String> {
         val byProfile = if (iterations != PBKDF2_ITERATIONS) {
-            listOf("Decrypted using a legacy key derivation profile.")
+            listOf("This backup used an older key format.")
         } else {
             emptyList()
         }
@@ -1268,17 +1170,18 @@ class CloudSyncManager @Inject constructor(
             // what tells the caller this copy still has to be re-sealed once.
             OpeningSecretKind.VAULT_KEY -> emptyList()
             OpeningSecretKind.RETIRED_UNIVERSAL_KEY -> listOf(
-                "Opened with the retired universal cloud key. It will be re-sealed under your own vault key."
+                "This backup came from an older build and opened with its shared key. " +
+                    "Your next save locks it with this device's own key."
             )
             OpeningSecretKind.PASSPHRASE ->
-                listOf("Opened with the passphrase you typed, not this device's vault key.")
+                listOf("This opened with the passphrase you typed, not this device's key.")
             OpeningSecretKind.ACCOUNT_EMAIL ->
-                listOf("Opened with the account address older builds sealed backups with.")
+                listOf("This backup came from an older build that locked it with your account address.")
             OpeningSecretKind.ACCOUNT_ID ->
-                listOf("Opened with your Google account ID, which the original app sealed backups with.")
+                listOf("This backup came from the original app, which locked it with your Google account ID.")
             OpeningSecretKind.SHARED_LEGACY_KEY ->
-                listOf("Opened with a retired shared key from an early build.")
-            OpeningSecretKind.OTHER -> listOf("Decrypted with a legacy vault key.")
+                listOf("This backup opened with a shared key from an early build.")
+            OpeningSecretKind.OTHER -> listOf("This backup opened with an older key.")
         }
         return (bySecret + byProfile).distinct()
     }
@@ -1298,38 +1201,6 @@ class CloudSyncManager @Inject constructor(
             }
         }
         throw CloudSyncException("This is not a Secure Wallet Pro backup file")
-    }
-
-    /**
-     * The secrets a stored envelope is offered, in the order the writers used them.
-     *
-     * The order and the exact derivation counts live in [LegacyKeyPlan] so they can be unit-tested
-     * without Android. The envelope's own version decides the key list; the counts are the ones the
-     * old code used for that version, not a sweep.
-     *
-     * A vault key is offered only if the keyring already has one: [Keyring] *creates* a fresh key
-     * when asked for a sealing secret, and a generated key can never open the owner's file — it only
-     * spends a derivation ahead of the key that can.
-     */
-    private suspend fun buildSecrets(
-        email: String,
-        passphrase: String?,
-        version: Int?,
-        vaultSecret: String? = storedVaultSecret()
-    ): List<OpeningSecret> {
-        val emails = buildList {
-            add(email)
-            add(runCatching { appLockManager.cloudEmail.first() }.getOrDefault(""))
-            add(runCatching { signedInEmail() }.getOrDefault(""))
-        }
-        return LegacyKeyPlan.ordered(
-            emails = emails,
-            passphrase = passphrase,
-            vaultSecret = vaultSecret,
-            accountIds = listOf(runCatching { signedInAccountId() }.getOrDefault("")),
-            displayName = runCatching { signedInDisplayName() }.getOrNull(),
-            version = version
-        )
     }
 
     private fun storedVaultSecret(): String? = runCatching {
@@ -1422,6 +1293,7 @@ class CloudSyncManager @Inject constructor(
 
     private fun onOperation(op: CloudOperation, title: String, detail: String, percent: Int) {
         if (sessionManager.isDecoy() && op != CloudOperation.SEED) slayDecoy()
+        CrashLogger.noteEvent("cloud ${op.name} begin")
         _state.value = CloudSyncState(
             operation = op,
             active = true,
@@ -1444,6 +1316,7 @@ class CloudSyncManager @Inject constructor(
     }
 
     private fun completeOperation(message: String) {
+        CrashLogger.noteEvent("cloud ${_state.value.operation ?: "operation"} finished")
         _state.update {
             it.copy(
                 active = false,
@@ -1457,6 +1330,7 @@ class CloudSyncManager @Inject constructor(
     }
 
     private fun failOperation(message: String) {
+        CrashLogger.noteEvent("cloud ${_state.value.operation ?: "operation"} failed: ${message.take(80)}")
         _state.update {
             it.copy(
                 active = false,

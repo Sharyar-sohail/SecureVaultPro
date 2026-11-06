@@ -253,9 +253,12 @@ class ThemeLayoutVarietyTest {
             }
         }
 
-        // Honest weaker claim: FLAT_PLATE zeroes four of the five fields, so only the
-        // indicator geometry is left to separate the layouts. It must still separate 14 of
-        // the 15; CLASSIC and GALLERY are the one admissible merge (both 0.16 / 3 dp).
+        // The worst case for the grammar: FLAT_PLATE fuses the bar to the bottom edge and
+        // `navCorner = 0` refuses every item plate, so the float, the gaps and the plate count
+        // are all gone. What is left is still the theme's own cut — corner, seat, fill, the way
+        // the destinations share the width and where the marker sits — so the concession this
+        // test used to make (one merge, CLASSIC/GALLERY, both 0.16 over 3 dp) no longer holds:
+        // GALLERY seats its marker in the item, CLASSIC drops it under the label. Zero merges.
         val flat = layouts.associateWith {
             dockSpec(it, DockStyle.FLAT_PLATE, navFloating = false, navCorner = 0.dp)
         }
@@ -268,13 +271,14 @@ class ThemeLayoutVarietyTest {
             }
         }
         assertTrue(
-            "under FLAT_PLATE at most one dock pair may merge, merged: $merged",
-            merged.size <= 1
+            "under FLAT_PLATE no dock pair may merge, merged: $merged",
+            merged.isEmpty()
         )
-        assertTrue(
-            "dock geometry must distinguish at least 13 of 15 layouts, only " +
-                "${flat.values.distinct().size} survive FLAT_PLATE",
-            flat.values.distinct().size >= 13
+        assertEquals(
+            "FLAT_PLATE must still leave fifteen different docks, only " +
+                "${flat.values.distinct().size} survive",
+            15,
+            flat.values.distinct().size
         )
     }
 
@@ -306,5 +310,141 @@ class ThemeLayoutVarietyTest {
                 )
             }
         }
+    }
+
+    // ---------------------------------------------------------------------------------
+    // (f) the spec is not advice: the bar the app draws is the plan resolved from it
+    // ---------------------------------------------------------------------------------
+    @Test
+    fun `the fifteen shipped palettes draw fifteen different bars`() {
+        // The defect this closes: `dockSpec` was computed and thrown away, so the rendered dock
+        // read only DockStyle + NavIndicator and fifteen themes collapsed into four clusters.
+        // `dockPlan` is now the single source the bar draws from, so the signature below is the
+        // silhouette on the device — not a second, unused description of one.
+        val plans = VaultPalettes.all.associate { palette ->
+            palette.id to dockPlan(palette, TAB_COUNT)
+        }
+        for (palette in VaultPalettes.all) {
+            for (other in VaultPalettes.all) {
+                if (palette.id >= other.id) continue
+                assertNotEquals(
+                    "palettes ${palette.id} and ${other.id} render the same bar " +
+                        "(${plans.getValue(palette.id).dockSignature()} vs " +
+                        "${plans.getValue(other.id).dockSignature()})",
+                    plans.getValue(palette.id).dockSignature(),
+                    plans.getValue(other.id).dockSignature()
+                )
+            }
+        }
+        assertEquals(
+            "fifteen themes must produce fifteen rendered docks",
+            15,
+            plans.values.map { it.dockSignature() }.distinct().size
+        )
+
+        // The five descriptors are what carries the difference. A field every theme sets the same
+        // way is a field the bar might as well not read, so the lineup has to reach every answer
+        // each of them offers — fifteen themes, seven silhouettes, seven seats, five fills, six
+        // arrangements, five marker anchors.
+        val descriptors: List<Triple<String, List<Any?>, List<Any?>>> = listOf(
+            Triple("bar silhouette", plans.values.map { it.corner }, DockCorner.values().toList()),
+            Triple("item seat", plans.values.map { it.seat }, DockSeat.values().toList()),
+            Triple("bar fill", plans.values.map { it.fill }, DockFill.values().toList()),
+            Triple("width arrangement", plans.values.map { it.arrangement }, DockArrangement.values().toList()),
+            Triple("marker anchor", plans.values.map { it.marker }, MarkerAnchor.values().toList())
+        )
+        descriptors.forEach { (name, used, every) ->
+            assertEquals(
+                "$name is not a per-theme choice: ${used.distinct()} covers only " +
+                    "${used.distinct().size} of ${every.size} answers",
+                every.size,
+                used.distinct().size
+            )
+        }
+    }
+
+    @Test
+    fun `the rendered dock honours the palette's own dock tokens`() {
+        for (palette in VaultPalettes.all) {
+            val plan = dockPlan(palette, TAB_COUNT)
+            // navHeight and navFrostAlpha are the palette's; the bar may raise the height to the
+            // touch floor but may never trade the frost away, and the marker may not stretch past
+            // the bar it sits in.
+            assertTrue(
+                "${palette.id} shrank its bar below navHeight=${palette.navHeight}",
+                plan.barHeight >= palette.navHeight
+            )
+            assertEquals("${palette.id} lost its own frost alpha", palette.navFrostAlpha, plan.frostTop, 0f)
+            assertTrue("${palette.id} froze past opaque", plan.frostBottom <= 1f)
+            assertEquals("${palette.id} lost its own glyph size", palette.navIconSize, plan.iconSize)
+            assertEquals("${palette.id} lost its own label size", palette.navLabelSize, plan.labelSize)
+            assertEquals("${palette.id} lost its own indicator", palette.navIndicator, plan.indicator)
+            assertTrue("${palette.id} has ${plan.itemWeights.size} shares for $TAB_COUNT tabs",
+                plan.itemWeights.size == TAB_COUNT)
+            assertTrue("${palette.id} gives a tab no width", plan.itemWeights.all { it > 0f })
+            assertTrue("${palette.id} floats on a bar fused to the edge",
+                plan.floats == (palette.dock == DockStyle.PILL_FROSTED ||
+                    palette.dock == DockStyle.COMFORT_PANEL ||
+                    (palette.dock == DockStyle.SOFT_FLOATING && palette.navFloating)))
+        }
+    }
+
+    @Test
+    fun `no dock item loses its label or its touch target`() {
+        for (palette in VaultPalettes.all) {
+            val plan = dockPlan(palette, TAB_COUNT)
+            // Height: the plate inset is what gives way, never the 44 dp target and never the
+            // label the user reads.
+            assertTrue(
+                "${palette.id} cuts an item to ${plan.itemHeight} — under the 44 dp touch floor",
+                plan.itemHeight >= 44.dp
+            )
+            assertTrue(
+                "${palette.id} needs ${plan.contentHeight} inside ${plan.itemHeight}: the caption " +
+                    "would ellipsis or clip",
+                plan.contentHeight <= plan.itemHeight
+            )
+            assertEquals("${palette.id} hid its captions", palette.navLabels, plan.showLabels)
+            // Width: every share must stay past the floor on the narrowest phone supported, which
+            // is what the weight floor exists for.
+            val paneWidth = 360.dp
+            val barWidth = paneWidth - plan.sideInset * 2
+            val rowWidth = barWidth - plan.innerInset * 2
+            val gapTotal = plan.itemGap * (TAB_COUNT - 1)
+            val usable = (rowWidth - gapTotal).value
+            assertTrue("${palette.id} leaves no width for its items ($usable dp)", usable > 0f)
+            val shareSum = plan.itemWeights.sum()
+            val narrowest = usable * plan.itemWeights.min() / shareSum
+            assertTrue(
+                "${palette.id}'s narrowest tab is ${narrowest}dp wide — under the 44 dp touch floor",
+                narrowest >= 44f
+            )
+        }
+    }
+
+    /**
+     * What the renderer actually draws, as a string: silhouette, seat, fill, arrangement, marker,
+     * insets, and every share of the bar. Two bars that agree here are the same bar on the phone,
+     * which is the only claim that matters for "fifteen themes, fifteen docks".
+     */
+    private fun DockPlan.dockSignature(): String = buildString {
+        append(corner).append('/')
+        append(seat).append('/')
+        append(fill).append('/')
+        append(arrangement).append('/')
+        append(marker).append('(').append(indicator).append(if (markerInFlow) "flow" else "edge").append(") ")
+        append("insets=").append(sideInset.value).append('/').append(bottomInset.value)
+        append('/').append(innerInset.value).append('/').append(plateInset.value)
+        append(" gap=").append(itemGap.value)
+        append(" h=").append(barHeight.value).append('/').append(itemHeight.value)
+        append(" marker=").append(markerWidthFraction).append('x').append(markerThickness.value)
+        append(" shares=").append(itemWeights.joinToString(","))
+        append(" frost=").append(frostTop).append('/').append(frostBottom)
+        append(" edge=").append(edgeRule)
+    }
+
+    private companion object {
+        /** The live bar's destination count: Home, Vault, Auth, Crypto, Cards. */
+        const val TAB_COUNT = 5
     }
 }

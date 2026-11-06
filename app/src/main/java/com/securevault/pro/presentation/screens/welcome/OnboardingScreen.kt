@@ -188,9 +188,9 @@ fun OnboardingScreen(
             Spacer(Modifier.height(34.dp))
             Text(
                 text = "Your vault,\nthree ways in.",
-                style = MaterialTheme.typography.displaySmall,
+                style = MaterialTheme.typography.headlineMedium,
                 color = VaultColor.textStrong,
-                lineHeight = MaterialTheme.typography.displaySmall.lineHeight
+                lineHeight = 28.sp
             )
             Spacer(Modifier.height(10.dp))
             Text(
@@ -207,7 +207,7 @@ fun OnboardingScreen(
                 badge = "RESTORE",
                 title = "Continue with Google",
                 description = if (state.signedInEmail.isBlank()) {
-                    "Restore the encrypted vault stored in your Drive app-data folder"
+                    "Restore the encrypted vault stored on your Google Drive"
                 } else {
                     "${state.signedInEmail} · restores every Drive copy"
                 },
@@ -234,7 +234,7 @@ fun OnboardingScreen(
                 icon = Glyph.lock,
                 accent = VaultColor.credit,
                 badge = "NEW",
-                title = "Master password / Setup vault",
+                title = "Set up this device",
                 description = "Create a fresh vault protected only on this device",
                 enabled = !state.busy && !cloudState.active,
                 onClick = { onFinished() }
@@ -251,7 +251,7 @@ fun OnboardingScreen(
                 ) {
                     Row(verticalAlignment = Alignment.Top) {
                         ThemedIcon(
-                            glyph = Glyph.errorOutline,
+                            glyph = if (state.error != null || state.noticeIsError) Glyph.errorOutline else Glyph.checkCircle,
                             contentDescription = null,
                             tint = accent,
                             modifier = Modifier
@@ -291,6 +291,8 @@ fun OnboardingScreen(
                 }
             }
 
+            // Only a passphrase-sealed export ever raises this. A Drive copy is never unlocked by a
+            // typed secret at the gate: this device's own key opens it, or setting up the phone does.
             if (state.restoreNeedsSecret) {
                 Spacer(Modifier.height(12.dp))
                 GlassCard(
@@ -300,23 +302,14 @@ fun OnboardingScreen(
                 ) {
                     Column {
                         Text(
-                            text = if (state.restoreMode == SetupRestoreMode.FILE) {
-                                "Unlock this export"
-                            } else {
-                                "Unlock your Drive backups"
-                            },
+                            text = "Unlock this export",
                             style = MaterialTheme.typography.titleSmall,
                             color = VaultColor.textStrong,
                             fontWeight = FontWeight.SemiBold
                         )
                         Spacer(Modifier.height(5.dp))
                         Text(
-                            text = if (state.restoreMode == SetupRestoreMode.FILE) {
-                                "The file is sealed with the passphrase you chose when exporting it."
-                            } else {
-                                "Current backups are sealed with this account's own vault key. Your master " +
-                                    "password unwraps that key from Google's realtime store — it is never sent anywhere."
-                            },
+                            text = "The file is sealed with the passphrase you chose when exporting it.",
                             style = MaterialTheme.typography.bodySmall,
                             color = VaultColor.textBody,
                             lineHeight = 17.sp
@@ -325,11 +318,7 @@ fun OnboardingScreen(
                         VaultTextField(
                             value = state.restoreSecret,
                             onValueChange = viewModel::onRestoreSecretChange,
-                            label = if (state.restoreMode == SetupRestoreMode.FILE) {
-                                "Export passphrase"
-                            } else {
-                                "Master password"
-                            },
+                            label = "Export passphrase",
                             leadingIcon = Glyph.lock,
                             isPassword = true,
                             enabled = !state.busy,
@@ -380,9 +369,8 @@ fun OnboardingScreen(
             title = { Text("Import encrypted backup") },
             text = {
                 Text(
-                    text = "Choose a Secure Wallet Pro .enc or .xml.enc export. Copies sealed with your " +
-                        "vault key open on their own; an export you locked with a passphrase asks for " +
-                        "it before importing.",
+                    text = "Choose a Secure Wallet Pro .enc or .xml.enc export. Your own backups open " +
+                        "automatically; a file you locked with a passphrase asks for it first.",
                     style = MaterialTheme.typography.bodySmall,
                     color = VaultColor.textBody,
                     lineHeight = 18.sp

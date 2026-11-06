@@ -8,7 +8,7 @@
     android:viewportHeight="256">
         <path
             android:pathData="M60,0H196A60,60 0 0 1 256,60V196A60,60 0 0 1 196,256H60A60,60 0 0 1 0,196V60A60,60 0 0 1 60,0Z"
-            android:fillColor="#FF582EC6"
+            android:fillColor="#FF1E4FD8"
         />
         <group
             android:pivotX="128" android:pivotY="128"

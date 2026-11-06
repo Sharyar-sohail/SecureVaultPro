@@ -20,6 +20,536 @@ Blogger XML artifact, and the backup/checkpoint snapshots, which hold vault and 
 data. One stale 3.3.4 theme export under `release-site/` is left on disk but untracked because
 it embedded a Firebase `apiKey`; themes we ship carry a blank `var SEED` and no cloud config.
 
+## [3.7.0] — 2026-11-06 (versionCode 383)
+
+One professional-audit wave: each functionality — email, crypto balances and sends, the document
+scanner, files, notes, the vault list, cards, contacts, the secure board, biometrics, passkeys, TOTP,
+the password analyst, steganography, theming, splash and the crash reporter — was re-read against
+current practice and rebuilt where it fell short. 40 source files, ~7,000 added lines. The two
+frozen systems are untouched (see *What the wave did not reach*).
+
+### Email: the protocol answers the servers actually give
+
+`ImapEngine` used to act as though every IMAP server were Dovecot. It now reads the capability list
+and changes its behaviour per server:
+
+- **A delete only ever removes what the owner selected.** `UID EXPUNGE` with a set argument (RFC 4315)
+  is used when the server advertises `UIDPLUS`; the bare `UID EXPUNGE` the client sent before is not a
+  valid command, so every server refused it and the screen said "deleted" over messages that were
+  still on the server. Without the capability the client stops at flagging and says so, because the
+  only alternative — plain `EXPUNGE` — would remove every message already marked deleted in that
+  folder, including ones another app left there.
+- **Flags are subtracted, never rewritten.** Un-starring now sends `UID STORE n -FLAGS (\Flagged)`
+  instead of regenerating the whole flag list, so a mark another client put on the message cannot be
+  dropped by guessing.
+- **The tagged answer is parsed.** `SELECT`/`EXAMINE` now reads `UIDVALIDITY` and `UIDNEXT` off the
+  tagged `OK`, so a folder the server renumbered is noticed instead of silently addressed by the old
+  numbers ([`ImapEngine.kt`](app/src/main/java/com/securevault/pro/data/email/ImapEngine.kt),
+  [`ImapResponseParser.kt`](app/src/main/java/com/securevault/pro/data/email/ImapResponseParser.kt)).
+
+### Crypto: the wallet stops showing only the gas coin
+
+The balance scan walks every chain the owner has, asks Blockscout for the full token list an address
+holds (which catches contracts no public list publishes), and reads anything it cannot find from a
+contract named in Settings first. The send path now reserves gas from what the nodes actually report
+about the inputs being spent instead of a flat number, with the old flat reserve kept as the
+no-answer fallback ([`CryptoBalanceService.kt:68`](app/src/main/java/com/securevault/pro/data/wallet/CryptoBalanceService.kt#L68),
+[`CryptoTransferService.kt`](app/src/main/java/com/securevault/pro/data/wallet/CryptoTransferService.kt)).
+
+### Unlocking can no longer strand the owner outside the vault
+
+`BiometricManager.canAuthenticate` is a binder call into a service OEMs leave in odd states, and it
+used to run unguarded from view-model init — a `DeadObjectException` there killed the lock screen
+before it painted. It is wrapped now, and a refused probe reads as "no biometrics" so the PIN and
+master-password form still appear. Every `BiometricPrompt` error code that means "the platform
+refused" — lockout, timeout, no hardware, sensor unavailable, security update required — opens the
+manual form in the same breath and names itself; ColourOS reports several of them with an empty
+`errString`, so a message that only said "try again later" used to be a dead end
+([`BiometricUtils.kt`](app/src/main/java/com/securevault/pro/presentation/components/BiometricUtils.kt)).
+
+Passkey refusals were rewritten for a person instead of a log line: no "transport", no "relying
+party" — each sentence says what happened, whether anything was saved, and what to do next
+([`PasskeyAvailability.kt:267`](app/src/main/java/com/securevault/pro/security/passkey/PasskeyAvailability.kt#L267)).
+
+### Authenticator codes
+
+Base32 setup keys are accepted the way Aegis and Google Authenticator accept them: case-folded, with
+every kind of space (including non-breaking and zero-width), hyphens, underscores and `=` padding
+removed, and the two look-alike digits corrected (`0`→`O`, `1`→`I`). Those digits are not in the
+RFC 4648 alphabet, so they can only be typing mistakes — a key that previously decoded to a string of
+dashes now decodes correctly, and any secret that already validated decodes to exactly the same
+bytes. SHA-256 and SHA-512 issuers are honoured. The code is computed once per time step rather than
+once per second, and the 1 Hz ticker is cold: it stops a few seconds after the screen leaves
+composition instead of regenerating every account's code behind another screen forever
+([`TotpGenerator.kt`](app/src/main/java/com/securevault/pro/security/TotpGenerator.kt),
+[`AuthViewModel.kt`](app/src/main/java/com/securevault/pro/presentation/screens/auth/AuthViewModel.kt)).
+
+### Reports that name the place, not the state
+
+A navigation-host stage can only say "unlocked" or "locked", so every death during ordinary use was
+blamed on the same place. The wave added the missing half — `CrashLogger.noteScreen`, a per-screen
+name that outranks the stage token, `placeWords` to put the stage into owner words ("inside the
+vault", "the unlock screen, face or fingerprint prompt", "the app was still opening"), the dead run's
+closing steps inside a trace-less report, and `summaryOf` so the recovery banner shows one sentence
+rather than a build line — and then left `noteScreen` with no caller at all, which meant the report
+still said "unlocked". The navigation host now publishes it from the current route, so every one of
+the 28 screens names itself without any screen being touched individually
+([`CrashLogger.kt:388`](app/src/main/java/com/securevault/pro/diagnostics/CrashLogger.kt#L388),
+[`Routes.kt`](app/src/main/java/com/securevault/pro/presentation/navigation/Routes.kt),
+[`VaultApp.kt:306`](app/src/main/java/com/securevault/pro/presentation/navigation/VaultApp.kt#L306)).
+
+### Everyday surfaces
+
+- **Files:** streaming seal with a real fraction (the sealed container is polled, so 0.99 means
+  "still moving" and only a written index row means 100%), and the same sealing pass a plain save
+  uses — `CryptoManager` is untouched.
+- **Notes:** the markdown renderer was rebuilt (emphasis only where a marker actually opens a run,
+  nested lists by depth, task checkboxes), and a pasted WhatsApp transcript is parsed off the UI
+  thread behind a 250 ms debounce, so typing a long note does not re-tokenise on every keystroke.
+- **Vault list / health:** hygiene scoring is scoped to credentials — an identity document or a
+  vehicle record is no longer graded as a weak password — and the analyst reads l33t substitutions
+  and date tails before it guesses.
+- **Viewer:** a file it can decrypt but not draw (TIFF, RAW, archive) says which type it is instead
+  of "unsupported".
+- **Document camera:** live outline detection with a smoother, a deadband so the overlay stops
+  shimmering, and guidance that names the real failure ("too dark", "fill the frame with one page").
+- **Secure board:** the keystroke pulse is Android's own `KEYBOARD_TAP` through `performHapticFeedback`
+  — the virtual-key tick the platform defines — and fires after the character is committed; the board
+  trims its own height on short viewports so the bottom row stays reachable in landscape.
+
+### What the wave did not reach
+
+Phase 2 held, and it is proven by the files themselves rather than by intent. Every source modified
+after the 3.6.9 artifact was published is listed, and none of them is in the encryption or sync
+path: `RealtimeEngine.kt`, `AutoSyncManager.kt` and `VaultRepository.kt` were last written 2026-11-03,
+`security/backup/*` on 2026-11-02, `security/CryptoManager` and the wallet key vault on 2026-11-05
+before the wave opened. `CloudSyncManager.kt` carries only the 3.6.9 instrumentation. The v3.1.9
+envelope format, its key plan, the legacy openers and the realtime wire contract are byte-for-byte
+what 3.6.9 shipped.
+
+### Verification
+
+Full suite: **753 tests, 0 failures** on the release variant (`:app:testReleaseUnitTest`).
+
+The wave's own work was repaired, not reverted: 12 files it left uncompilable — an invented
+`HapticFeedbackType.VirtualKeyboard`, a `remember { @Composable … }` slot pattern Compose rejects, a
+`BiometricPrompt.ERROR_BUSY` that does not exist in `androidx.biometric` 1.1.0, five crypto constants
+and one `WhatsAppTranscript` helper called but never written, a nested `/**` inside an open KDoc
+(Kotlin block comments nest, so the comment ran to end of file), and a camera sheet rewritten against
+a live-detection API nobody had written. Copies of all twelve, exactly as the wave left them, are in
+`wave_backup/`.
+
+Two contract tests were updated to describe the shipped behaviour honestly rather than the old shape:
+`AutoSyncTriggerCoverageTest` now accepts a file write that delegates to a function that signals
+(`saveStream` → `saveStreamWithProgress`, which still emits the mutation), and
+`PasskeyAvailabilityTest` checks that the transport refusal *names Android 14 and says nothing was
+lost* instead of pinning one legacy sentence verbatim. The Phase-3 guarantee itself is unchanged and
+still asserted end to end: every repository write path emits a mutation, `AutoSyncManager` debounces
+500 ms into `syncNowSilently`, the realtime fast path keeps its own copy of the same signal, and no
+data-entry screen offers a manual "Save & Sync".
+
+One thing the wave added and never connected was found and finished here. `CrashLogger.noteScreen`
+had zero call sites, so the new screen-name feature was dead code and reports would still have said
+"unlocked": it is now published by the navigation host from the current route, with
+`UncleanRunReportTest`'s new case guarding both halves — that the call exists, and that every route
+constant in `Routes` has an owner-reading name in `screenNameFor`. That test caught a real gap on its
+first run (`SCANNER` shared an arm with `SCAN_HUB` and would have reported a raw route); the two are
+now named separately, because one is the QR code scanner and the other the scan hub.
+
+`git diff --stat` over the wave's files: 40 files, +6,992 / −3,626.
+
+On-device behaviour still cannot be proven from this machine: there is no emulator or debug bridge
+here, so this release is verified by the suite, by a signed release build, and by reading the code.
+The Blogger theme asset is unchanged, so `Blogger-Theme-3.7.0.xml` is byte-identical to
+`Blogger-Theme-3.6.9.xml` and to the copy embedded in the APK.
+
+## [3.6.9] — 2026-11-05 (versionCode 382)
+
+### The report that came back saying nothing
+
+The owner photographed the on-screen fault after a normal session and it read: *"The previous run
+ended without closing cleanly after 'probe/the vault database' after 4904842 ms. No crash report was
+left either."* Three separate defects made that sentence useless, and none of them was the app
+crashing in the vault database.
+
+- **A background step impersonated the screen.** The startup probes called `CrashLogger.noteStage`
+  from an IO coroutine minutes after the UI had settled, so the record of *where the owner was*
+  ended up holding the name of the last background probe to finish — always `probe/the vault
+  database`, because that probe is last. Every trace-less death was therefore blamed on Room.
+  `VaultApplication` now calls the new `CrashLogger.noteProbe`, which writes only to the trail.
+  `noteStage` is left to the screens ([`CrashLogger.kt:259`](app/src/main/java/com/securevault/pro/diagnostics/CrashLogger.kt#L259),
+  [`VaultApplication.kt:92`](app/src/main/java/com/securevault/pro/VaultApplication.kt#L92)).
+- **A no-trace death wrote no artifact.** The trail was quoted only into a *stack* report, so a
+  native or OEM kill — precisely the case the report claims to describe — published nothing to
+  `Downloads`. The unclean-exit report now appends the dead run's own last 14 trail lines plus the
+  absolute path of the full trail, and publishes itself through the same MediaStore route the crash
+  handler uses ([`CrashLogger.kt:194`](app/src/main/java/com/securevault/pro/diagnostics/CrashLogger.kt#L194)).
+- **Milliseconds are not a duration.** `4904842 ms` was quoted raw. `RunLength.spoken` turns a run
+  length into `41 s`, `12 min 7 s` or `1 h 21 min`, because a death four seconds after launch and a
+  death after ninety minutes of use are different faults with different remedies
+  ([`RunLength.kt`](app/src/main/java/com/securevault/pro/diagnostics/RunLength.kt)).
+
+### Work that can outlive the process now says so
+
+The trail is the only witness when nothing catches the death, so the heavy operations that hold
+memory, a socket or the display pipeline each leave a begin/end line: the multi-chain portfolio
+scan (asset count and silent-chain count on the way out), a WhatsApp transcript import (bounded to
+40 characters of the file name), every cloud operation (its `CloudOperation` name, then finished or
+failed with the first 80 characters of the reason), and the document camera, which additionally
+records `camera/document preview` as its *stage* — a CameraX/Skia death has no Java frame at all,
+and the preview is the one surface where that is likely ([`CryptoBalanceService.kt:68`](app/src/main/java/com/securevault/pro/data/wallet/CryptoBalanceService.kt#L68),
+[`WhatsAppImporter.kt:196`](app/src/main/java/com/securevault/pro/data/imports/WhatsAppImporter.kt#L196),
+[`CloudSyncManager.kt:1296`](app/src/main/java/com/securevault/pro/data/remote/google/CloudSyncManager.kt#L1296),
+[`DocumentCameraSheet.kt:219`](app/src/main/java/com/securevault/pro/presentation/screens/scanner/DocumentCameraSheet.kt#L219)).
+
+### Verification
+
+`UncleanRunReportTest` (5 tests) pins the attribution rules so a future refactor cannot quietly put
+a probe back into the screen record: it asserts `VaultApplication` contains no `noteStage`, that
+both probe helpers use `noteProbe`, that the report quotes `previousRunSteps()` and publishes to
+Downloads, that the trail tail is read *before* this launch writes its own first line, and that each
+watched operation names itself. Full suite: **736 tests, 0 failures** on the release variant
+(`:app:testReleaseUnitTest`). No vault, crypto, keyring, sync or Google sign-in code changed, and the
+watchdog thresholds, safe-render rules and recovery-mode arithmetic are untouched.
+
+The Blogger theme asset is unchanged this release, so `Blogger-Theme-3.6.9.xml` is byte-identical to
+`Blogger-Theme-3.6.8.xml` and to the copy embedded in the APK.
+
+On-device behaviour still cannot be proven from this machine: there is no emulator or debug bridge
+here, so the attribution fix is verified by the suite and by reading the code, and the real proof is
+the next report the owner photographs.
+
+## [3.6.8] — 2026-11-05 (versionCode 381)
+
+Four asks in one release: the Keyboard settings that were missing, the crypto wallet's keys inside the
+Google Drive backup, every major EVM chain instead of three, and a seed-phrase field that keeps up with
+typing.
+
+### Added — Settings → Keyboard
+`presentation/screens/settings/SettingsScreen.kt` gained a Keyboard section, backed by three new
+`AppLockManager` keys and surfaced through `LocalSecureKeyboardTyping`, `LocalSecureBoardHeight` and
+`LocalSecureKeyboardHaptics` from the app root:
+
+- **Use the app's own keyboard** — off hands every field back to the installed keyboard; on keeps typing
+  inside the app. One switch for the whole app, not one per screen.
+- **Keyboard size** — Normal / Large / Extra large. Only the keycaps scale; the gaps do not, and the
+  grid is derived from the pad's own scaled caps, so letters, numbers and the PIN pad still resolve to
+  one identical board height and the window never jumps between pages.
+- **Vibrate on key press** — the pulse fires *after* the character commits, so turning it off can never
+  swallow a key.
+
+### Added — the wallet's keys travel in the backup, sealed
+A restored phone used to hand back the wallet's addresses but never its keys, so the owner had to type
+the seed phrase again. Now every wallet row carries a `keyBackup` in the backup document (JSON for
+Drive, `<keyBackup>` in the XML), and restore opens it first:
+
+- `data/wallet/WalletKeyBackup.kt` (new) — the document codec. A private key and a seed phrase are told
+  apart the way a row always told them apart, a key is canonicalised to `0x` + 64 lower-case hexes, and
+  `seal` refuses to write a blob that still shows the secret. Hand-written flat JSON, so no new
+  dependency enters the backup path.
+- `data/wallet/WalletKeyBackupKeySource.kt` (new) — seals through the **existing** device vault key and
+  `CryptoManager.encryptWithDerivedKey` / `decryptWithDerivedKey`. PBKDF2 at 600,000 iterations and
+  AES-256-GCM are untouched; no parameter changed and no second key system was invented. A device with
+  no vault key simply carries no blob rather than guessing one.
+- `WalletRepository.buildBackup()` seals either the key-store key or the row's own phrase;
+  `restore()` derives the addresses from what it opened and **refuses a wallet whose address does not
+  match** the row it arrived on. `keyBackup` is document-only: it is absent from Room's schema and from
+  `RealtimeFieldSchema`, so realtime sync and the web clone still carry no key material.
+- `LocalWipeService` now wipes `WalletKeyStore` too, so an erase leaves no sealed key behind.
+
+### Added — five more chains, and the registry is the only place chains live
+Arbitrum One (42161), Base (8453), Optimism (10), Avalanche C-Chain (43114) and Fantom (250) joined
+Ethereum, BNB Chain and Polygon; Bitcoin and Tron keep their own address families. Eight EVM chains,
+ten chains in all. Everything that used to spell chains out per screen now asks `ChainRegistry`:
+
+- `crypto/ChainRegistry.kt` — five new descriptors, and `ALL` is the lineup the portfolio shows.
+- `crypto/WalletDeriver.kt` — both derivations switched from a per-chain `when` to the address
+  *family*, so a chain added later cannot silently derive a wrong address.
+- `data/wallet/CryptoEndpoints.kt` — the dead `evmRpc` and `explorerTx` tables are gone (the registry
+  is the only source of hosts); CoinGecko platform slugs and token-list sources added for the five.
+- `data/wallet/CryptoBalanceService.kt` — price ids for AVAX / FTM / ARB / OP / WETH, each checked
+  against the live endpoint.
+- `data/wallet/TokenCatalog.kt` — per-chain published lists plus majors read from those lists, not from
+  memory (Arbitrum USDC `0xaf88d0…5831`, Base WETH `0x4200…0006`, OP `0x4200…0042`, WAVAX `0xB31f…66c7`).
+- `CryptoWalletScreen.kt` — the short name, fee symbol, address placeholder and chain accent all come
+  from the registry; a chain's colour is its slot in the theme's own ramp, so nothing new can drift out
+  of the theme. `Manage networks`, `Manage tokens`, the send sheet and the scanner pick the new chains
+  up with no further edit.
+
+Every host shipped was resolved first. `fantom-rpc.publicnode.com`, `1rpc.io/avax`, `rpc.ftm.tools` and
+`api.avax.blockscout.com` did not answer, so Fantom ships the two nodes that do and no chain got a
+history API it could not prove.
+
+### Fixed — typing a recovery phrase is no longer behind a list scan
+One keystroke of a 24-word phrase used to cost up to 24 × 2048 word comparisons, and the character only
+appeared once that finished on a background thread:
+
+- `presentation/screens/secureinput/RecoveryWordList.kt` — the list now also builds a word → position
+  index once.
+- `RecoverySeedLogic.validatePhrase` / `Bip39.validate` — take that lookup; the list overload stays for
+  callers that have only a list. Identical answers, proven by test.
+- `RecoverySeedViewModel` — `setCustomPhrase` / `setTypedPhrase` put the text on screen immediately and
+  run the check behind it; a check that finishes late is discarded instead of overwriting a newer one.
+  Accept and Submit act on the exact text on screen, never on an older draft.
+- `RecoverySeedSection.kt` — the fixed 300 dp board allowance is gone: the host already lays the board
+  out as a sibling that takes its own height, so the form now respects the Keyboard size setting
+  instead of being pushed away from the keys.
+
+### Not taken
+WalletConnect / Web3j SDKs. A dApp-connection browser needs a WalletConnect Cloud project id — an
+external account the owner has not issued — and Web3j would be a second signing stack next to one that
+works. The requirement the brief actually measures (scan one address across every major chain and show
+the whole portfolio) is met by the registry-driven scanner above, keyless.
+
+### Verified
+731 JVM tests, 0 failures (`:app:testReleaseUnitTest`), including two new files:
+`RecoverySeedTypingTest` (index and list answer identically, a keystroke costs at most two lookups per
+word) and `ChainRegistryCoversEveryChainTest` (every enum chain has one descriptor, chain ids unique,
+https-only hosts, one derivation for all EVM chains, registry helpers resolve for every stored id).
+Two `WalletKeyBackupTest` assertions written against the wrong rule were corrected — a spaced value
+reads as a phrase, and a base64 blob is compared by what it opens to, not by how it is escaped.
+Signed release built unshrunk, `apksigner verify` good on the same `CN=SecureVault` certificate as every
+prior release, `aapt2` reports `versionCode='381' versionName='3.6.8'`, and the `blogger_theme.xml`
+inside the APK is byte-identical to `release/Blogger-Theme-3.6.8.xml` (md5 `3b5f5ff8…`, blank `SEED`).
+No emulator or debug bridge on this machine: the board size, the restored wallet and the ten-chain
+portfolio still need a look on the phone.
+
+## [3.6.7] — 2026-11-04 (versionCode 380)
+
+Reported after comparing the app's Crypto Wallet against Trust Wallet: it showed only the native gas
+token, the board lagged and dropped letters of a recovery phrase, and Settings had no way to say which
+chains to read or which token to add.
+
+### Added — a keyless multi-chain sub-token scanner
+An imported wallet now reports every asset it holds on BNB Chain, Ethereum and Polygon, not just BNB /
+ETH / POL. No indexer account, no paid key, no new dependency — public token lists, public nodes and
+CoinGecko's contract endpoint:
+
+- `data/wallet/WalletHttp.kt` (new): one HTTPS entry point for GET, POST and JSON-RPC **batches**
+  (64 `eth_call`s in one round trip measured 211 ms). A host that refuses a batch size is retried at
+  40 → 20 → 10 → 3 → 1 rather than losing the chain. `describeFailure` turns every transport error into
+  the sentence the owner sees. TLS is exactly as strict as before.
+- `data/wallet/TokenCatalog.kt` (new): the curated token lists for chains 1 / 56 / 137
+  (Uniswap list + PancakeSwap-extended) cached in `filesDir/svp_token_catalog.json`, re-fetched every
+  three days, with a built-in seed list so a first run offline still searches.
+- `data/wallet/EvmTokenProbe.kt` (new): `fundedTokens` reads balances for candidate contracts and keeps
+  the non-zero ones; `describe` asks a contract for its own symbol/name/decimals; `verifiedTokens`
+  answers "which contracts in this saved portfolio did the chain itself confirm".
+- `data/wallet/TokenScanPlanner.kt` (new, pure Kotlin so it is JVM-testable): the probe window is the
+  owner's own hand-added contracts first, then what this wallet held last time, then the curated tail,
+  capped at 260 — so a token that was always funded can never age out mid-scan, and chain 56's contracts
+  never enter chain 1's window. Explorer rows only fill what the node did not answer.
+- `data/wallet/CryptoBalanceService.kt` re-sweeps: native + BEP-20/ERC-20 rows per enabled chain, priced
+  by contract through `simple/token_price/{ethereum|binance-smart-chain|polygon-pos}` (a ticker is not a
+  price identity), and reports which chains were actually scanned.
+- `data/wallet/WalletRepository.kt`: a saved balance row now carries `contract` and `decimals`. This is
+  a JSON field inside an existing column — **no Room column changed, so no migration and no upgrade risk**
+  to an existing vault. `merge()` still leaves a chain it did not scan exactly as it was.
+- `data/wallet/CryptoTransferService.kt`: `knownTokens(network, wallet)` is the built-in spec list *plus*
+  the contracts this wallet was verified to hold, so a discovered token is spendable. The lookalike gate
+  is unchanged in strength: a symbol whose contract is not on that chain's exact list is still refused.
+- `domain/model/CryptoModels.kt`: `TransferAsset.key` is now `networkId:contract`, so two contracts on one
+  chain that both print "GOLD" cannot collapse into one picker entry.
+- Tron stays address/TRC-20-balance only: TronGrid exposes no keyless contract metadata (`triggerconstantcontract`
+  is 405), so its rows are named only when the owner added the contract or a built-in spec knows it.
+- `app/src/test/java/com/securevault/pro/data/wallet/TokenScanPlannerTest.kt`: 8 JVM tests — owner
+  contracts read first, a previously-held token never ages out, same contract spelled twice read once,
+  no cross-chain leakage, the budget cuts the curated tail and never the owner's list, explorer rows only
+  add what the node missed, only funded contracts become sendable knowledge, RPC hosts come from the registry.
+
+### Fixed — the secure board is instant and cannot lose a keystroke
+- `security/keyboard/SecureBoardEntry.kt` (new): the board-typed text/caret/layout state, lifted out of
+  the password field so ordinary fields (seed word, wallet name, amount, search) run on the same engine —
+  and the fix for dropped letters. A board-typed field is a loop (key writes → emit → caller's state
+  echoes back one recomposition later). `lastEmitted` makes that echo ignored, so a slower echo can no
+  longer write an older string over the character just typed, which is exactly how a fast phrase ended up
+  a word short.
+- `security/keyboard/SecureKeyboardPanel.kt`: keycap press feedback is **draw-only** (`mutableStateOf`
+  read by the key's draw pass), so lighting the key costs no recomposition and no animation system — the
+  frame that paints the press is the frame that shows the character. Rows are weighted into a grid that
+  is the same height on every layer, so letters ↔ numbers ↔ pad does not move the window.
+- `security/keyboard/SecurePasswordField.kt`: the dock publish is synchronous, identity-checked and keyed
+  on the **layout**, never on the text — typing does not write dock state at all; `clearIfOwner` runs on dispose.
+- `security/keyboard/SecureKeyboardEngine.kt`: new `NUMERIC` layer — a phone-dialer 3×3 pad (`pinRows`) for
+  PINs and amounts, no letters page; number-page symbol rows re-cut to what a phone keyboard puts there,
+  with their shifted counterparts, so a password's punctuation is two taps away.
+- `security/keyboard/SecureKeyboardEngineTest.kt`: JVM tests pin the QWERTY rows and the bottom row.
+
+### Added — Settings → Crypto scanning
+- `data/wallet/WalletPreferences.kt` (new DataStore `svp_wallet_scan`): which chains are switched off, and
+  the owner's hand-added tokens as JSON. `addCustomToken` accepts EVM contracts only (the shape is
+  normalised through `EvmCrypto`, duplicates refused) because that is the only thing the scanner can read.
+- `presentation/screens/settings/CryptoScanSheets.kt` (new): `CryptoScanViewModel` plus
+  **Manage networks** (one row per chain with its native symbol and token standard, and a switch; the last
+  chain on cannot be switched off) and **Manage tokens** (chain chips, contract field, *Read the chain and
+  add it* — the name, symbol and decimals come from the contract itself, never from what someone typed —
+  and a removable list of your tokens). Its own view model, so `SettingsViewModel` was not touched.
+- `presentation/screens/settings/SettingsScreen.kt`: the new section with live counts
+  (`3/5` chains, `n` tokens).
+- `presentation/screens/crypto/CryptoWalletViewModel.kt` + `CryptoWalletScreen.kt`: the scan's own
+  plain-language reason (e.g. every chain is switched off in Settings) now shows as a notice instead of an
+  unexplained empty portfolio. A chain that simply failed keeps its own retry line.
+
+### Changed — the web face reads the same portfolio
+`tools/blogger-theme/secure_wallet_blogger_theme.xml`: `renderWalletItem` no longer caps at six rows — it
+lists up to 24 funded rows per wallet, each carrying its chain name and the offline marker, matching what
+the phone shows. Shipped `app/src/main/assets/blogger_theme.xml` and `release/Blogger-Theme-3.6.7.xml` are
+byte-identical to each other and to the copy inside the APK
+(md5 `3b5f5ff8649b1f3a4033818c447dae70`), `var SEED` still blank, 13/13 generator tests pass.
+
+### Verification
+`:app:testReleaseUnitTest` green (JVM suite incl. the two new files); `:app:assembleRelease` builds the
+signed APK — `versionCode 380 / versionName 3.6.7`, `com.securevault.app`, signer SHA-256
+`28fefa4663e44d109b61d8b7b48efd77aa56f8fd1d3fa4715bc0fd4a10328c1c` (same key as every release, so it
+installs over 3.6.6 and the vault survives). R8 stays deliberately off. No emulator or adb here, so the
+scanner against a real funded wallet and the board's feel on the OPPO are still owner-side checks.
+
+## [3.6.6] — 2026-11-04 (versionCode 379)
+
+Two defects reported together: *"why make so complicated — simple login with Google account"* and
+*"why keyboard not opening on crypto vault"*.
+
+### Fixed — the secure board opens inside a bottom sheet, so Crypto fields are not dead
+`CryptoWalletScreen` puts every one of its text fields in a `ModalBottomSheet` (`AddWalletSheet` at
+`presentation/screens/crypto/CryptoWalletScreen.kt:1206`, `SendSheet` at `:769`). A sheet composes in
+its **own window**, while the app-level keyboard dock is mounted once in the activity window at
+`presentation/navigation/VaultApp.kt:231`. The field published its layout to that dock, the shared
+component then suppressed the inline board because a dock existed, and the strip painted behind the
+sheet — so tapping a wallet name, seed phrase, private key or amount opened nothing at all.
+
+- `SecureKeyboardDock` now records the view its strip draws in (`security/keyboard/SecurePasswordField.kt`).
+- New `reachableSecureKeyboardDock()` returns that dock only when the calling composition shares its
+  window; otherwise null, which is the existing instruction to draw the board under the field.
+- `SecurePasswordField`, `rememberSecureBoard`, both `VaultTextField`/`VaultSearchField` gates and
+  `RecoverySeedSection.boardIsOpen` read through it, so full-screen forms keep the docked board and
+  every sheet or dialog gets a working inline one. No crypto, sync or crypto-key code touched.
+
+### Changed — the web sign-in card is one button, not a console manual
+- The waiting panel, *Check if it is ready*, *Show the Google button* and the load-time
+  `getProjectConfig` probe are all **removed**, with their CSS. `idpRefusal`/`domainRefusal` became
+  the two predicates `isIdpRefusal`/`isDomainRefusal`: the page still tells the two Google lists
+  apart, it no longer recites either one's menu path at the reader.
+- One way in at a time: Google's own button is drawn alone; the vault-window button appears only
+  after that one is refused, and both disappear once `RT.popupFailed` proves neither route works
+  from this address — the line then names Connect Drive and the backup file instead of a dead button.
+- A Google-list refusal still empties the red paragraph and folds the server wording under *What the
+  vault server actually said*. `Try again` clears the refusal memory and the popup flag, so a saved
+  console entry takes effect without a reload.
+- Generator test 13 rewritten: the panel ids and the probe must be **absent**, the classifiers must
+  separate the two refusals, `showGoogleButton` must call `showPopupOffer(false)`, and both
+  `liveFail` branches are pinned. 13/13.
+
+701 unit tests and 13/13 generator tests pass. `Blogger-Theme-3.6.6.xml` (md5 `4bcc33bd…`) is
+byte-identical to the theme bundled in `SecureWalletPro-3.6.6.apk`; same release key, `var SEED`
+blank, no Kotlin crypto, sync or `google-services.json` change.
+
+## [3.6.5] — 2026-11-04 (versionCode 378)
+
+Theme-only, and the answer to "fix that error permanently, every time". The refusal text was now
+short and correct, but the owner still saw a red error panel every single load, because Google has
+not listed `securevaultpro.blogspot.com` yet. That state is not a fault on this page, so the page
+stopped calling it one.
+
+### Changed — a pending console step is never painted as an error
+- New waiting panel (`svp-live-wait`, amber, high-contrast) titled *One step is left, and it is not
+  on this page*, carrying the probe text plus **Check if it is ready** and **Show the Google button**.
+  `showGoogleButton` fills it from the load-time domain probe, so the reader sees the pending step
+  before pressing anything, and `liveFail` routes a recognised refusal into the same panel with
+  `liveErr('')` — the red paragraph is reserved for failures Google cannot be talked out of.
+- `checkReady()` re-reads Google's public `getProjectConfig` list on demand and flips the chip to
+  `ready` with "This address is now on the list. Press Sign in with Google (vault window)." — no
+  more pressing sign-in to find out whether the console entry landed.
+- Once Google has refused the branded button, `hideGisButton(true)` takes it out of the way and
+  leaves the single working route; *Show the Google button* restores it and forgets the memory.
+- `showWait('')` clears with the error, on retry, and on a successful sign-in.
+- Generator test extended: waiting branch must call `liveErr('')` before `showWait(warning)`, one id
+  per new element, `checkReady` bound, ready-state flip, load-time probe drives the panel, GIS button
+  hidden after its own refusal.
+- Verified in a real browser for the first time: the shipped CSS + script were served locally and
+  inspected — the panel renders between the two sign-in buttons, and pressing
+  *Check if it is ready* moved the chip `waiting → ready` with the correct hint and no error text.
+  (On `localhost` the address genuinely is authorized, so the ready path is the real one; the
+  blogspot refusal path is proven by the live probe plus these assertions, not by a browser here.)
+
+701 unit tests and 13/13 generator tests pass. `Blogger-Theme-3.6.5.xml` (md5 `2212bea4…`) is
+byte-identical to the theme bundled in `SecureWalletPro-3.6.5.apk`; same release key, `var SEED`
+blank, no Kotlin, crypto, sync or `google-services.json` change.
+
+## [3.6.4] — 2026-11-04 (versionCode 377)
+
+Theme-only. The owner's next screenshot showed the vault-window button rendering correctly but the
+red panel running to ~15 lines — the page was explaining Google's console layout instead of telling
+him which button to press. Also, that screenshot was an audience refusal, i.e. he had pressed the
+branded Google button, which is the route that needs the second console entry.
+
+### Changed — one instruction on screen, the manual folded away
+- `idpRefusal` is now four short sentences: the branded button is shut until the vault project
+  lists its client ID, press **Sign in with Google (vault window)** instead, the two values verbatim,
+  and the warning not to register the button in the other project. The console walkthrough and the
+  raw Firebase text moved into a collapsed *What the vault server actually said* block
+  (`svp-live-raw`, filled by the new `liveErrRaw`, cleared with the error).
+- `domainRefusal` trimmed to the same shape: what is missing, where to add it, which button after.
+- The refusal kind is remembered (`svp.lastRefusal`, cleared on a successful sign-in), so a page
+  that has already been refused by the branded button opens with a hint pointing at the vault-window
+  route instead of steering the reader back to the failure.
+- Wording corrected: the earlier text implied project `10151634026` was a foreign vault. Both faces
+  use the same web API key, so the same Auth project mints the uid for the app and for the popup
+  route — the mismatch is only that the web client ID is not on that project's Google-provider list.
+- Generator test extended: lead under 620 characters, one raw block, folded only when translated,
+  refusal remembered and forgotten.
+
+701 unit tests and 13/13 generator tests pass. `Blogger-Theme-3.6.4.xml` (md5 `cfa18b40…`) is
+byte-identical to the theme bundled in `SecureWalletPro-3.6.4.apk`; same release key, `var SEED`
+blank, no Kotlin or crypto change.
+
+## [3.6.3] — 2026-11-04 (versionCode 376)
+
+Theme-only, driven by the owner's live screenshot: he pressed the new vault-window button and got
+`auth/unauthorized-domain` — proof the route reaches the vault's own Auth project and is stopped
+purely by the missing Authorized-domains entry. Two follow-on defects in my own 3.6.2 behaviour
+were visible in that same screenshot.
+
+### Fixed — the remedy survived its own error
+- `liveFail` hid the vault-window button whenever the failure was not an audience refusal, so the
+  domain error told the reader to press a button the error had just removed. It now keeps the
+  offer for either refusal (`showPopupOffer(!!lead)`).
+- `retryLive` cached the page-load domain probe, so an entry saved in the console stayed invisible
+  until a full reload. `RT.domainProbe` is now cleared on retry, and `Try again` re-reads
+  `getProjectConfig` — the pre-flight warning disappears by itself once the origin is listed.
+- Generator test extended with both guards.
+
+Live evidence taken from this machine while diagnosing: the public
+`identitytoolkit/.../getProjectConfig?key=<theme key>` returned `authorizedDomains`
+`[localhost, vault-35423.firebaseapp.com, vault-35423.web.app]` — blogspot absent, so the console
+entry was still outstanding. 701 unit tests and 13/13 generator tests pass;
+`Blogger-Theme-3.6.3.xml` (md5 `8c22021b…`) is byte-identical to the theme bundled in
+`SecureWalletPro-3.6.3.apk`, same release key.
+
+## [3.6.2] — 2026-11-04 (versionCode 375)
+
+Web-only. The 3.6.1 page diagnosed the owner's sign-in refusal correctly but only offered the
+working route *after* the failure, which left two console entries to make. This release makes the
+Firebase-project route visible from the start, so one console entry — adding
+`securevaultpro.blogspot.com` to project `vault-35423`'s Authorized domains — is enough to open
+the vault.
+
+### Changed — the alternate sign-in is now a first-class button
+- `Sign in with Google (vault window)` ships in the unlock card markup next to the Google button
+  and is shown as soon as the Google button is drawn (`showPopupOffer(true)` in `showGoogleButton`),
+  not only after `liveFail`. It runs `popupSignIn()` → `signInWithPopup`, which uses the vault
+  project's own OAuth client and is gated only by Authorized domains.
+- The duplicate `svp-live-popup` button that used to sit inside `svp-live-actions` was removed;
+  `Try again` / `Sign out` keep that row.
+- `idpRefusal`, `domainRefusal` and the pre-flight `probeAuthorizedDomains` warning all name the
+  vault-window button, so every refusal path points at something already on screen.
+- 13th generator test now also asserts the markup: the row exists, each sign-in id appears exactly
+  once, the button binds `popupSignIn`, and the offer is raised from `showGoogleButton`.
+
+No Kotlin, crypto, sync or auth-config change: `google-services.json`, the SHA-1, the keyring
+envelope and `var SEED` (blank) are untouched. Artifact `Blogger-Theme-3.6.2.xml` is byte-identical
+to the asset bundled in `SecureWalletPro-3.6.2.apk` (md5 `14cf05bc…`), signed with the same release
+key; 701 unit tests and 13/13 generator tests pass.
+
 ## [3.4.11] — 2026-10-31 (versionCode 356)
 
 The 3.4.10 sweep still could not open the owner's Drive backup. Rather than guess at another key,

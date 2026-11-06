@@ -14,6 +14,7 @@ import com.securevault.pro.data.local.entity.SecureContactEntity
 import com.securevault.pro.data.local.entity.SecureNoteEntity
 import com.securevault.pro.data.local.entity.TotpEntity
 import com.securevault.pro.data.local.entity.VaultEntryEntity
+import com.securevault.pro.data.remote.realtime.RealtimeModule
 import com.securevault.pro.domain.model.CategoryCounts
 import com.securevault.pro.domain.model.CustomField
 import com.securevault.pro.domain.model.DecoyVault
@@ -63,6 +64,22 @@ data class AutofillQuery(
     val hints: List<String> = emptyList()
 )
 
+/**
+ * One local vault mutation, named if possible.
+ *
+ * [module] is one of the seven `RealtimeModule.segment` values and [id] the record just written or
+ * deleted, so the realtime engine can push exactly that node on the millisecond path. A null
+ * [module], a blank [id] or an unrecognised segment means "identity unknown" and falls back to the
+ * full signature sweep — the pre-existing behaviour — so bulk paths (imports, wipes, restores) and
+ * any call site that cannot name its record regress to the old semantics instead of aiming at the
+ * wrong node. [deleted] selects the tombstone push.
+ */
+data class VaultMutation(
+    val module: String? = null,
+    val id: String? = null,
+    val deleted: Boolean = false
+)
+
 @Singleton
 class VaultRepository @Inject constructor(
     private val vaultDao: VaultDao,
@@ -84,19 +101,38 @@ class VaultRepository @Inject constructor(
     private val contactCache = ConcurrentHashMap<String, Pair<Long, SecureContact>>()
 
     private val fileCount = MutableStateFlow(0)
-    private val _mutations = MutableSharedFlow<Unit>(extraBufferCapacity = 16)
-    val mutations: Flow<Unit> = _mutations
+    private val _mutations = MutableSharedFlow<VaultMutation>(extraBufferCapacity = 16)
+    val mutations: Flow<VaultMutation> = _mutations
 
     init {
-        fileVault.setMutationListener(::notifyMutation)
+        // A file write names its own id, so it routes through the `files` fast push like any
+        // record; a blank id (should not happen) still degrades to the safety-net sweep.
+        fileVault.setMutationListener { fileId, deleted ->
+            notifyMutation(RealtimeModule.FILES.segment, fileId, deleted)
+        }
     }
 
     suspend fun refreshFileCount() {
         fileCount.value = fileVault.count()
     }
 
+    /** Identity-free mutation signal: the consumers reload, and realtime falls back to a sweep. */
     fun notifyMutation() {
-        _mutations.tryEmit(Unit)
+        _mutations.tryEmit(VaultMutation())
+    }
+
+    /**
+     * Identity-bearing mutation signal. The segment is validated with
+     * [RealtimeModule.fromSegment] rather than trusted: an unknown module degrades to an
+     * identity-free sweep instead of aiming the fast push at a non-existent node.
+     */
+    fun notifyMutation(module: String, id: String, deleted: Boolean = false) {
+        val known = RealtimeModule.fromSegment(module)?.segment
+        _mutations.tryEmit(VaultMutation(module = known, id = id.takeIf { known != null }, deleted))
+    }
+
+    private fun notifyRecord(module: RealtimeModule, id: String, deleted: Boolean = false) {
+        notifyMutation(module.segment, id, deleted)
     }
 
     fun observeEntries(): Flow<List<VaultEntry>> {
@@ -266,7 +302,7 @@ class VaultRepository @Inject constructor(
         vaultDao.upsert(entity)
         syncLinkedTotp(entity)
         entryCache.remove(entry.id)
-        notifyMutation()
+        notifyRecord(RealtimeModule.ENTRIES, entry.id)
         true
     }
 
@@ -276,7 +312,9 @@ class VaultRepository @Inject constructor(
         totpDao.delete(linkedTotpId(id))
         totpCache.remove(linkedTotpId(id))
         entryCache.remove(id)
-        notifyMutation()
+        notifyRecord(RealtimeModule.ENTRIES, id, deleted = true)
+        // The linked TOTP row vanished with the entry; it is a record that may never have been
+        // pushed, so its tombstone stays with the sweep rather than being fired blindly here.
     }
 
     suspend fun toggleFavorite(id: String) = withContext(Dispatchers.IO) {
@@ -284,7 +322,7 @@ class VaultRepository @Inject constructor(
         val entity = vaultDao.getById(id) ?: return@withContext
         vaultDao.setFavorite(id, !entity.isFavorite)
         entryCache.remove(id)
-        notifyMutation()
+        notifyRecord(RealtimeModule.ENTRIES, id)
     }
 
     suspend fun markAccessed(id: String) = withContext(Dispatchers.IO) {
@@ -317,7 +355,7 @@ class VaultRepository @Inject constructor(
             )
         )
         cardCache.remove(card.id)
-        notifyMutation()
+        notifyRecord(RealtimeModule.CARDS, card.id)
         true
     }
 
@@ -325,7 +363,7 @@ class VaultRepository @Inject constructor(
         if (sessionManager.isDecoy()) return@withContext
         cardDao.delete(id)
         cardCache.remove(id)
-        notifyMutation()
+        notifyRecord(RealtimeModule.CARDS, id, deleted = true)
     }
 
     suspend fun saveTotp(account: TotpAccount): Boolean = withContext(Dispatchers.IO) {
@@ -350,7 +388,7 @@ class VaultRepository @Inject constructor(
             )
         )
         totpCache.remove(account.id)
-        notifyMutation()
+        notifyRecord(RealtimeModule.TOTPS, account.id)
         true
     }
 
@@ -358,7 +396,7 @@ class VaultRepository @Inject constructor(
         if (sessionManager.isDecoy()) return@withContext
         totpDao.delete(id)
         totpCache.remove(id)
-        notifyMutation()
+        notifyRecord(RealtimeModule.TOTPS, id, deleted = true)
     }
 
     suspend fun saveNote(note: SecureNote): Boolean = withContext(Dispatchers.IO) {
@@ -378,7 +416,7 @@ class VaultRepository @Inject constructor(
             )
         )
         noteCache.remove(note.id)
-        notifyMutation()
+        notifyRecord(RealtimeModule.NOTES, note.id)
         true
     }
 
@@ -444,7 +482,7 @@ class VaultRepository @Inject constructor(
         noteDao.delete(id)
         noteCache.remove(id)
         refreshFileCount()
-        notifyMutation()
+        notifyRecord(RealtimeModule.NOTES, id, deleted = true)
     }
 
     suspend fun toggleNotePin(id: String) = withContext(Dispatchers.IO) {
@@ -452,7 +490,7 @@ class VaultRepository @Inject constructor(
         val entity = noteDao.getById(id) ?: return@withContext
         noteDao.upsert(entity.copy(isPinned = !entity.isPinned, updatedAt = System.currentTimeMillis()))
         noteCache.remove(id)
-        notifyMutation()
+        notifyRecord(RealtimeModule.NOTES, id)
     }
 
     suspend fun saveContact(contact: SecureContact): Boolean = withContext(Dispatchers.IO) {
@@ -472,7 +510,7 @@ class VaultRepository @Inject constructor(
             )
         )
         contactCache.remove(contact.id)
-        notifyMutation()
+        notifyRecord(RealtimeModule.CONTACTS, contact.id)
         true
     }
 
@@ -480,7 +518,7 @@ class VaultRepository @Inject constructor(
         if (sessionManager.isDecoy()) return@withContext
         contactDao.delete(id)
         contactCache.remove(id)
-        notifyMutation()
+        notifyRecord(RealtimeModule.CONTACTS, id, deleted = true)
     }
 
     suspend fun importDeviceContacts(

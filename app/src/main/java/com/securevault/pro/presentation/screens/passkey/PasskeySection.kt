@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -698,14 +697,16 @@ private fun DetailRow(label: String, value: String) {
             text = label,
             style = MaterialTheme.typography.bodySmall,
             color = VaultColor.textFaint,
-            modifier = Modifier.widthIn(min = 96.dp, max = 140.dp)
+            // Two parts of the row to the value's three. A 96.dp floor used to eat more than half
+            // of a 240.dp split-view window, which left the domain with a sliver to wrap into.
+            modifier = Modifier.weight(2f)
         )
         Spacer(Modifier.width(8.dp))
         Text(
             text = value.ifBlank { "—" },
             style = MaterialTheme.typography.bodySmall,
             color = VaultColor.textBody,
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.weight(3f),
             lineHeight = 17.sp
         )
     }

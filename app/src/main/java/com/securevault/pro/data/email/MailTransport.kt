@@ -1,7 +1,6 @@
 package com.securevault.pro.data.email
 
 import java.io.Closeable
-import java.io.FilterOutputStream
 import java.io.IOException
 import java.io.InputStream
 import java.io.OutputStream
@@ -205,24 +204,3 @@ class MailProtocolException(message: String, cause: Throwable? = null) : Excepti
 
 /** Authentication was refused. Says why, and never repeats the secret that was refused. */
 class MailAuthException(message: String, cause: Throwable? = null) : Exception(message, cause)
-
-/**
- * An output stream that keeps a bounded line buffer so a caller can ask "how much did I read past
- * the answer I wanted". Used only by the pre-STARTTLS phase.
- */
-internal class CountingOutputStream(private val delegate: OutputStream) : FilterOutputStream(delegate) {
-    var written: Long = 0L
-        private set
-
-    override fun write(b: Int) {
-        delegate.write(b)
-        written++
-    }
-
-    override fun write(b: ByteArray, off: Int, len: Int) {
-        delegate.write(b, off, len)
-        written += len
-    }
-
-    override fun flush() = delegate.flush()
-}

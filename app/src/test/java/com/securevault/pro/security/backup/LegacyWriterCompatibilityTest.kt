@@ -17,10 +17,11 @@ import java.util.Base64
  * choices: its sealing secret, its salt width, its iteration count, and whether the salt travelled
  * inside the JSON envelope or in a separate `key.salt` file.
  *
- * The test does not call the opener with a hand-picked secret. It builds the plan with
- * [LegacyKeyPlan.ordered] and the salts with [LegacySaltPlan], which is what
- * `CloudSyncManager.decryptBackup` does, so a regression in the *order* or in the salt sweep fails
- * here even though the cipher still works.
+ * The test does not call the opener with a hand-picked secret. It names the key the way a restore
+ * does — [LegacyKeyPlan.exactSecret] for a stored envelope, [LegacyKeyPlan.bareBlobSecret] for the
+ * salt-less shape — with the salts from [LegacySaltPlan], which is what
+ * `CloudSyncManager.decryptBackup` runs. So a regression in how a file's one key is chosen fails
+ * here even though the cipher still works, and every case asserts a single derivation.
  *
  * The final case is a genuine file written by another program: a Node/WebCrypto export with a
  * 16-byte salt, the shape the Blogger companion writes to Drive as `secure_wallet_web.enc`.
@@ -72,87 +73,97 @@ class LegacyWriterCompatibilityTest {
     private fun openEnvelope(
         w: Writer,
         passphrase: String? = null,
-        emails: List<String> = emptyList(),
-        accountIds: List<String> = emptyList()
+        email: String? = null,
+        vaultSecret: String? = null,
+        keyId: String? = null
     ): LegacyEnvelopeOpener.OpenAttempt {
         val envelope = BackupEnvelopeFormat.parse(
             BackupEnvelopeFormat.envelopeJson(
                 3,
                 Base64.getEncoder().encodeToString(w.salt),
-                w.data
+                w.data,
+                keyId
             ).toByteArray()
         ) ?: error("${w.name} is not parseable")
         assertTrue("${w.name} must parse as an envelope", envelope.recognised)
-        val secrets = LegacyKeyPlan.ordered(
-            emails = emails,
+        val secret = LegacyKeyPlan.exactSecret(
+            keyId = envelope.keyId,
             passphrase = passphrase,
-            vaultSecret = null,
-            accountIds = accountIds,
-            version = envelope.version
+            vaultSecret = vaultSecret
         )
         return opener.openWithSalts(
             salts = LegacySaltPlan.variants(envelope.salt),
             data = envelope.data,
-            secrets = secrets,
-            iterationProfiles = LegacyEnvelopeOpener.exactProfiles(envelope.version)
+            secrets = listOfNotNull(secret)
         )
     }
 
     /** Exactly what `CloudSyncManager.decryptBackup` does for a salt-less `iv.ciphertext` blob. */
     private fun openBareBlob(
         w: Writer,
-        emails: List<String> = emptyList(),
-        accountIds: List<String> = emptyList()
+        email: String? = null,
+        accountId: String? = null
     ): LegacyEnvelopeOpener.OpenAttempt {
-        val secrets = LegacyKeyPlan.ordered(
-            emails = emails,
-            vaultSecret = null,
-            accountIds = accountIds,
-            version = null
-        )
+        val secret = LegacyKeyPlan.bareBlobSecret(email = email, accountId = accountId)
+        val salt = w.keySalt ?: secret?.value?.let { LegacySaltPlan.padAddress(it) }
+        if (secret == null || salt == null) {
+            return LegacyEnvelopeOpener.OpenAttempt(null, 0, false)
+        }
         return opener.openWithSalts(
-            salts = LegacySaltPlan.fallback(w.keySalt, emails),
+            salts = listOf(salt),
             data = w.data,
-            secrets = secrets,
-            iterationProfiles = LegacyEnvelopeOpener.exactProfiles(null)
+            secrets = listOf(secret)
         )
     }
 
     @Test
     fun `the original app's Drive slot opens with the universal key it was sealed with`() {
         val (plaintext, w) = writer("W4-original-app-universal-32b-600k")
-        val attempt = openEnvelope(w, emails = listOf("owner@example.com"))
+        val attempt = openEnvelope(w, email = "owner@example.com")
         assertEquals(plaintext, attempt.opened?.json)
         assertEquals(OpeningSecretKind.RETIRED_UNIVERSAL_KEY, attempt.opened?.kind)
         assertEquals(600_000, attempt.opened?.iterations)
+        assertEquals("the file names its key, so one derivation is enough", 1, attempt.candidatesTried)
     }
 
     @Test
     fun `the browser companion's 16-byte-salt copy opens when its passphrase is offered`() {
         val (plaintext, w) = writer("W1-web-companion-16b-passphrase")
         assertEquals("the web writer emits a 16-byte salt", 16, w.salt.size)
-        val attempt = openEnvelope(w, passphrase = w.secret, emails = listOf("owner@example.com"))
+        val attempt = openEnvelope(w, passphrase = w.secret, email = "owner@example.com")
         assertEquals(plaintext, attempt.opened?.json)
         assertEquals(OpeningSecretKind.PASSPHRASE, attempt.opened?.kind)
         assertEquals("the salt is used exactly as the browser wrote it", 16, attempt.opened?.saltBytes)
+        assertEquals(1, attempt.candidatesTried)
+    }
+
+    @Test
+    fun `a copy stamped as the account's opens with the vault key and nothing else`() {
+        val (plaintext, w) = writer("W4-original-app-universal-32b-600k")
+        val marked = openEnvelope(w, vaultSecret = w.secret, keyId = LegacyKeyPlan.KEY_ID_VAULT)
+        assertEquals(plaintext, marked.opened?.json)
+        assertEquals(OpeningSecretKind.VAULT_KEY, marked.opened?.kind)
+        assertEquals(1, marked.candidatesTried)
     }
 
     @Test
     fun `the earliest bare iv ciphertext opens with key dot salt and the account address`() {
         val (plaintext, w) = writer("W2-web-portal-keysalt-email")
         assertNotNull("this shape carries its salt in key.salt", w.keySalt)
-        val attempt = openBareBlob(w, emails = listOf(w.secret))
+        val attempt = openBareBlob(w, email = w.secret)
         assertEquals(plaintext, attempt.opened?.json)
         assertEquals(OpeningSecretKind.ACCOUNT_EMAIL, attempt.opened?.kind)
         assertEquals(600_000, attempt.opened?.iterations)
+        assertEquals(1, attempt.candidatesTried)
     }
 
     @Test
     fun `the password protector's bare blob opens with the numeric Google account id`() {
         val (plaintext, w) = writer("W3-password-protector-keysalt-accountid")
-        val attempt = openBareBlob(w, accountIds = listOf(w.secret))
+        val attempt = openBareBlob(w, accountId = w.secret)
         assertEquals(plaintext, attempt.opened?.json)
         assertEquals(OpeningSecretKind.ACCOUNT_ID, attempt.opened?.kind)
+        assertEquals(1, attempt.candidatesTried)
     }
 
     @Test
@@ -165,24 +176,22 @@ class LegacyWriterCompatibilityTest {
         assertTrue(envelope.recognised)
         assertEquals("this file was written with a 16-byte salt", 16, envelope.salt.size)
 
-        val secrets = LegacyKeyPlan.ordered(
-            emails = listOf("owner@example.com"),
+        val secret = LegacyKeyPlan.exactSecret(
+            keyId = envelope.keyId,
             passphrase = "testpass123",
-            vaultSecret = null,
-            accountIds = listOf("118273645091827364509"),
-            version = envelope.version
+            vaultSecret = null
         )
         val attempt = opener.openWithSalts(
             salts = LegacySaltPlan.variants(envelope.salt),
             data = envelope.data,
-            secrets = secrets,
-            iterationProfiles = LegacyEnvelopeOpener.exactProfiles(envelope.version)
+            secrets = listOfNotNull(secret)
         )
 
         assertEquals(EXTERNAL_PLAINTEXT, attempt.opened?.json)
         assertEquals(OpeningSecretKind.PASSPHRASE, attempt.opened?.kind)
         assertEquals(600_000, attempt.opened?.iterations)
         assertEquals(16, attempt.opened?.saltBytes)
+        assertEquals("one key for one file", 1, attempt.candidatesTried)
     }
 
     @Test

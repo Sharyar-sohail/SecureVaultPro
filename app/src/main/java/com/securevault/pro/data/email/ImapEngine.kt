@@ -39,13 +39,30 @@ class ImapEngine(
     var authenticated: Boolean = false
         private set
 
+    /**
+     * True when the server advertised `UIDPLUS` (RFC 4315), i.e. it accepts a UID set on
+     * `UID EXPUNGE`.
+     *
+     * This decides what a delete may do. Without the extension the only way to empty a mailbox is
+     * `EXPUNGE`, which removes *every* message already flagged deleted in that folder — including
+     * ones the owner did not just select, from any app. That is a data-destroying side effect this
+     * client will never cause, so without the capability a delete stops at flagging the named
+     * messages and says so.
+     */
+    val supportsUidPlus: Boolean
+        get() = capability.any { it.equals("UIDPLUS", ignoreCase = true) }
+
+    /** True when the server understands the `IDLE` command; recorded for the sync loop's own use. */
+    val supportsIdle: Boolean
+        get() = capability.any { it.equals("IDLE", ignoreCase = true) }
+
     fun nextTag(): String = "A%04d".format(tagCounter.incrementAndGet())
 
     /** Reads the `* OK …` greeting. Must be the first thing done on a connection. */
     @Throws(IOException::class)
     fun readGreeting(): String {
         val reply = reader.readReply()
-            ?: throw MailNetworkException("The IMAP server connected but said nothing.")
+            ?: throw MailNetworkException("The mail server accepted the connection but sent nothing.")
         greeting = reply.text
         if (reply.code.equals("PREAUTH", true) || greeting.contains("PREAUTH", true)) authenticated = true
         return greeting
@@ -78,24 +95,27 @@ class ImapEngine(
     fun startTls(host: String): MailTransport {
         if (!supportsStartTls(capability) && !greetingContainsCapability("STARTTLS")) {
             throw MailProtocolException(
-                "$host did not offer STARTTLS on this port, so the connection stayed unencrypted " +
-                    "and was closed. Use the SSL/TLS port instead (993 for IMAP)."
+                "$host would not encrypt this connection, so it was closed before any password was " +
+                    "sent. Use the secure port instead — usually 993 for reading mail."
             )
         }
         val tag = nextTag()
         writeCommand("$tag STARTTLS")
         val exchange = reader.readUntilTag(tag)
         if (!exchange.ok) {
-            throw MailProtocolException("STARTTLS was refused: ${exchange.completed.text}")
+            throw MailProtocolException(
+                "$host refused to switch this connection to an encrypted one, so it was closed " +
+                    "before any password was sent. Try the secure port — usually 993 for reading mail."
+            )
         }
         if (reader.bufferedAhead != 0) {
             throw MailProtocolException(
-                "The server sent extra data with its STARTTLS answer; the connection was closed " +
-                    "rather than risk a corrupt TLS session."
+                "The server sent unexpected data while switching to encryption, so this connection " +
+                    "was closed rather than risk a corrupt secure session."
             )
         }
         val socket = transport as? SocketTransport
-            ?: throw MailProtocolException("This transport cannot be upgraded to TLS.")
+            ?: throw MailProtocolException("This connection cannot be switched to an encrypted one.")
         return MailConnector.upgradeToTls(socket, host, reader.bufferedAhead)
     }
 
@@ -131,7 +151,7 @@ class ImapEngine(
         val tag = nextTag()
         writeCommand("$tag AUTHENTICATE XOAUTH2")
         val answer = reader.readReplyUntil(ImapReplyKind.CONTINUATION)
-            ?: throw MailNetworkException("The IMAP server closed the connection during sign-in.")
+            ?: throw MailNetworkException("The mail server closed the connection during sign-in.")
         if (answer.kind != ImapReplyKind.CONTINUATION) {
             // The server rejected the mechanism outright; its tagged answer says why.
             throw MailAuthException(
@@ -186,7 +206,8 @@ class ImapEngine(
                 "this account needs an app password: turn on 2-Step Verification and create one, then use it instead of the normal password"
             folded.contains("imap") && (folded.contains("disabled") || folded.contains("not enabled") ||
                 folded.contains("turn on") || folded.contains("enable")) ->
-                "IMAP access is switched off for this account - enable it in the provider's settings first"
+                "this mailbox is not allowed to be opened by other mail apps - turn that access on " +
+                    "in the provider's own account settings"
             folded.contains("too many") || folded.contains("rate") || folded.contains("try again later") ||
                 folded.contains("temporary") ->
                 "the server is throttling sign-in attempts - wait a minute and try again"
@@ -204,7 +225,15 @@ class ImapEngine(
         return "$base ${quoted.take(200).ifBlank { "The server gave no reason." } }"
     }
 
-    /** `SELECT inbox` / `EXAMINE inbox`, returning the counts the server reported. */
+    /**
+     * `SELECT inbox` / `EXAMINE inbox`, returning the counts the server reported.
+     *
+     * The reply is read from both places the protocol puts the numbers: the untagged status lines
+     * carry the message count, and the tagged `OK` carries the folder's generation number
+     * (`UIDVALIDITY`) and the number the next arriving message will get (`UIDNEXT`). A client that
+     * ignores the tagged answer has no way to notice that the server renumbered the folder, and then
+     * acts on messages the owner is not looking at.
+     */
     @Throws(IOException::class)
     fun select(wireName: String, readOnly: Boolean = false): MailboxStatus {
         val tag = nextTag()
@@ -212,16 +241,21 @@ class ImapEngine(
         writeCommand("$tag $command ${mailboxArgument(wireName)}")
         val exchange = reader.readUntilTag(tag)
         if (!exchange.ok) {
-            throw MailProtocolException("The folder ${decodeFolderName(wireName)} could not be opened: ${exchange.completed.text}")
+            throw MailProtocolException(
+                "The folder ${decodeFolderName(wireName)} could not be opened on the mail server."
+            )
         }
         val status = exchange.untagged.firstOrNull { it.text.contains("EXISTS", true) }
             ?.let { ImapResponseParser.selectStatus(it) } ?: MailboxStatus(0, 0, 0, 0)
         val unseen = exchange.untagged.firstOrNull { it.text.contains("UNSEEN", true) }
             ?.let { ImapResponseParser.selectStatus(it) }
+        val tagged = ImapResponseParser.selectStatus(exchange.completed)
         return status.copy(
-            unseen = unseen?.unseen ?: 0,
-            uidValidity = status.uidValidity.takeIf { it != 0L }
-                ?: (unseen?.uidValidity ?: 0L)
+            unseen = status.unseen.takeIf { it != 0 } ?: unseen?.unseen ?: tagged.unseen,
+            uidValidity = tagged.uidValidity.takeIf { it != 0L }
+                ?: status.uidValidity.takeIf { it != 0L }
+                ?: (unseen?.uidValidity ?: 0L),
+            uidNext = tagged.uidNext
         )
     }
 
@@ -231,7 +265,7 @@ class ImapEngine(
         val tag = nextTag()
         writeCommand("$tag LIST ${mailboxArgument(reference)} ${mailboxArgument(mailbox)}")
         val exchange = reader.readUntilTag(tag)
-        if (!exchange.ok) throw MailProtocolException("The server would not list folders: ${exchange.completed.text}")
+        if (!exchange.ok) throw MailProtocolException("The mail server would not show its list of folders.")
         return exchange.untagged.mapNotNull { reply ->
             if (!reply.text.startsWith("LIST", true)) null else ImapResponseParser.list(reply)
         }
@@ -243,7 +277,7 @@ class ImapEngine(
         val tag = nextTag()
         writeCommand("$tag UID SEARCH $criteria")
         val exchange = reader.readUntilTag(tag)
-        if (!exchange.ok) throw MailProtocolException("The folder search failed: ${exchange.completed.text}")
+        if (!exchange.ok) throw MailProtocolException("The search of this folder did not complete.")
         return exchange.untagged.firstOrNull { it.text.startsWith("SEARCH", true) }
             ?.let { ImapResponseParser.search(it) }
             ?: emptyList()
@@ -273,22 +307,23 @@ class ImapEngine(
                     if (!reply.text.contains("OK", true) && !reply.text.contains("PREAUTH", true)) {
                         // A FETCH that failed after some untagged answers still reports what arrived.
                         if (out.isEmpty()) {
-                            throw MailProtocolException("The message could not be fetched: ${reply.text.take(160)}")
+                            throw MailProtocolException("The message text could not be read from the mail server.")
                         }
                     }
                     return out
                 }
                 ImapReplyKind.UNTAGGED -> ImapResponseParser.fetch(reply)?.let { out += it }
                 ImapReplyKind.CONTINUATION -> throw MailProtocolException(
-                    "The server asked for more input in the middle of a FETCH."
+                    "The mail server interrupted the download with an unexpected request, so this " +
+                        "connection was closed."
                 )
                 ImapReplyKind.SEND_ECHO -> Unit
             }
         }
-        throw MailNetworkException("The connection ended before the FETCH answer arrived.")
+        throw MailNetworkException("The connection ended before the message arrived.")
     }
 
-    /** `UID STORE n +FLAGS (\Seen)` — the only flag writes the mail module makes. */
+    /** `UID STORE n +FLAGS (\Seen)` — the flag writes the mail module makes. */
     @Throws(IOException::class)
     fun uidStore(uids: List<Long>, flags: List<String>, replace: Boolean = false): Boolean {
         if (uids.isEmpty() || flags.isEmpty()) return true
@@ -298,6 +333,22 @@ class ImapEngine(
         writeCommand("$tag UID STORE $set $operator (${flags.joinToString(" ")})")
         val exchange = reader.readUntilTag(tag)
         return exchange.ok
+    }
+
+    /**
+     * `UID STORE n -FLAGS (\Flagged)` — the subtraction form, which is how a star is really cleared.
+     *
+     * The alternative is rewriting the whole flag set, and a client that guesses that set can drop a
+     * flag another app put there: a message the owner marked as answered or kept as a draft would
+     * silently lose that mark. Removing only the one flag asked for cannot damage anything else, so
+     * this is the form the screens use for both star and unread.
+     */
+    @Throws(IOException::class)
+    fun uidRemoveFlags(uids: List<Long>, flags: List<String>): Boolean {
+        if (uids.isEmpty() || flags.isEmpty()) return true
+        val tag = nextTag()
+        writeCommand("$tag UID STORE ${uids.joinToString(",")} -FLAGS (${flags.joinToString(" ")})")
+        return reader.readUntilTag(tag).ok
     }
 
     /** `UID COPY` between folders, used by the archive action on the message screen. */
@@ -311,16 +362,29 @@ class ImapEngine(
         return reader.readUntilTag(tag).ok
     }
 
-    /** `UID EXPUNGE` after a `+FLAGS (\Deleted)`; the module never deletes without the owner asking. */
+    /**
+     * Marks the named messages deleted and, when the server supports removing just those, removes
+     * them; the module never deletes without the owner asking.
+     *
+     * The removal step is `UID EXPUNGE <the same uid list>` (RFC 4315), which takes a set argument —
+     * the bare `UID EXPUNGE` this method used to send is not a valid command, every server answers it
+     * with a refusal, and the owner's delete silently never happened while the screen said it had.
+     *
+     * When the capability is absent this stops after the flag and says so. The only other way to
+     * reclaim space is `EXPUNGE`, which removes every message already marked deleted in the whole
+     * folder — including ones the owner deleted from another app and never asked to destroy here.
+     * Guessing on the owner's mail data is not a trade this client makes.
+     */
     @Throws(IOException::class)
     fun uidDelete(uids: List<Long>, expunge: Boolean): Boolean {
         if (uids.isEmpty()) return true
+        val set = uids.joinToString(",")
         val tag = nextTag()
-        writeCommand("$tag UID STORE ${uids.joinToString(",")} +FLAGS (\\Deleted)")
+        writeCommand("$tag UID STORE $set +FLAGS (\\Deleted)")
         val stored = reader.readUntilTag(tag).ok
-        if (!stored || !expunge) return false
+        if (!stored || !expunge || !supportsUidPlus) return stored
         val expungeTag = nextTag()
-        writeCommand("$expungeTag UID EXPUNGE")
+        writeCommand("$expungeTag UID EXPUNGE $set")
         return reader.readUntilTag(expungeTag).ok
     }
 
@@ -356,7 +420,7 @@ class ImapEngine(
 
     @Throws(IOException::class)
     private fun writeCommand(line: String) {
-        if (closed) throw MailNetworkException("The IMAP connection is already closed.")
+        if (closed) throw MailNetworkException("The connection to the mail server is already closed.")
         // The command text can carry a password on the LOGIN line: it is written to the socket and
         // never returned, logged or stored anywhere.
         writeBytes(line + "\r\n")

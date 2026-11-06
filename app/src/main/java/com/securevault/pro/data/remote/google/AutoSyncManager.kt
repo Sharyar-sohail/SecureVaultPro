@@ -1,6 +1,8 @@
 package com.securevault.pro.data.remote.google
 
 import com.securevault.pro.data.backup.BackupCounts
+import com.securevault.pro.data.remote.realtime.MutationRouter
+import com.securevault.pro.data.remote.realtime.PushPlan
 import com.securevault.pro.data.remote.realtime.RealtimeEngine
 import com.securevault.pro.data.repository.VaultRepository
 import com.securevault.pro.security.AppLockManager
@@ -87,10 +89,9 @@ class AutoSyncManager @Inject constructor(
             }
         }
         scope.launch {
-            vaultRepository.mutations.collect {
+            vaultRepository.mutations.collect { mutation ->
                 _state.update { it.copy(pending = true) }
-                // Realtime delta push runs the instant a mutation lands, ahead of the Drive debounce.
-                realtimeEngine.scheduleReconcile()
+                routeRealtimeMutation(mutation.module, mutation.id, mutation.deleted)
                 wake.trySend(Unit)
             }
         }
@@ -109,10 +110,29 @@ class AutoSyncManager @Inject constructor(
 
     fun markDirty() {
         _state.update { it.copy(pending = true) }
-        // The single mutation signal every screen fires: push the changed record through the realtime
-        // engine immediately (the millisecond path) instead of waiting on the Drive archive debounce.
-        realtimeEngine.scheduleReconcile()
+        // Identity-free mutation signal: no record is named, so only the sweep runs here. The
+        // Drive archive debounce below is untouched and realtime stays independent of it.
+        routeRealtimeMutation(module = null, id = null, deleted = false)
         wake.trySend(Unit)
+    }
+
+    /**
+     * The realtime half of a mutation signal, kept fully separate from the Drive debounce.
+     * A named record goes to the millisecond path first ([RealtimeEngine.markRecordChanged] /
+     * [RealtimeEngine.markRecordDeleted] queue exactly one sealed node write); the signature sweep
+     * is still scheduled after it as the safety net — once the fast push lands, `pushOne` has
+     * recorded the signature in `lastPushed`, so the sweep finds it matched and performs zero
+     * network writes. An identity-free or mistyped signal skips the fast push and behaves exactly
+     * like the old full-scan path.
+     */
+    private fun routeRealtimeMutation(module: String?, id: String?, deleted: Boolean) {
+        when (val plan = MutationRouter.plan(module, id, deleted)) {
+            is PushPlan.Record ->
+                if (plan.deleted) realtimeEngine.markRecordDeleted(plan.module.segment, plan.id)
+                else realtimeEngine.markRecordChanged(plan.module.segment, plan.id)
+            PushPlan.Sweep -> Unit
+        }
+        realtimeEngine.scheduleReconcile()
     }
 
     suspend fun syncNow(): Result<QuietSyncOutcome> = syncInternal(requireDrive = true)

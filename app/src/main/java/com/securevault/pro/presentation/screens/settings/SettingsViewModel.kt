@@ -18,8 +18,6 @@ import com.securevault.pro.presentation.theme.VaultFonts
 import com.securevault.pro.presentation.theme.VaultPaletteController
 import com.securevault.pro.presentation.theme.VaultPalettes
 import com.securevault.pro.security.AppLockManager
-import com.securevault.pro.security.DeadManStatus
-import com.securevault.pro.security.DeadManSwitchManager
 import com.securevault.pro.security.LocalWipeService
 import com.securevault.pro.security.SessionManager
 import com.securevault.pro.security.SessionMode
@@ -32,7 +30,6 @@ import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
@@ -55,13 +52,13 @@ data class SettingsUiState(
     val biometricEnabled: Boolean = false,
     val screenshotBlocked: Boolean = true,
     val randomizeKeypad: Boolean = true,
+    val secureKeyboardEnabled: Boolean = true,
+    val secureBoardHeight: Int = 0,
+    val secureKeyboardHaptics: Boolean = true,
     val travelMode: Boolean = false,
     val autoLockSeconds: Int = 60,
     val inactivityLockSeconds: Int = 120,
     val clipboardSeconds: Int = 30,
-    val deadManArmed: Boolean = false,
-    val deadManIntervalDays: Int = 7,
-    val deadManDaysLeft: Int = 7,
     val decoyEnabled: Boolean = false,
     val pinLength: Int = 6,
     val cloudEmail: String = "",
@@ -106,7 +103,6 @@ class SettingsViewModel @Inject constructor(
     private val sessionManager: SessionManager,
     private val cloudSyncManager: CloudSyncManager,
     private val bloggerThemeExporter: BloggerThemeExporter,
-    private val deadManSwitchManager: DeadManSwitchManager,
     private val localWipeService: LocalWipeService,
     private val realtimeEngine: RealtimeEngine,
     private val keyring: Keyring
@@ -151,6 +147,21 @@ class SettingsViewModel @Inject constructor(
             }
         }
         viewModelScope.launch {
+            appLockManager.secureKeyboardEnabled.collect { value ->
+                _state.update { it.copy(secureKeyboardEnabled = value) }
+            }
+        }
+        viewModelScope.launch {
+            appLockManager.secureBoardHeight.collect { value ->
+                _state.update { it.copy(secureBoardHeight = value) }
+            }
+        }
+        viewModelScope.launch {
+            appLockManager.secureKeyboardHaptics.collect { value ->
+                _state.update { it.copy(secureKeyboardHaptics = value) }
+            }
+        }
+        viewModelScope.launch {
             appLockManager.travelMode.collect { value ->
                 _state.update { it.copy(travelMode = value) }
             }
@@ -164,22 +175,6 @@ class SettingsViewModel @Inject constructor(
             appLockManager.inactivityLockSeconds.collect { value ->
                 _state.update { it.copy(inactivityLockSeconds = value) }
             }
-        }
-        viewModelScope.launch {
-            combine(
-                appLockManager.deadManArmed,
-                appLockManager.deadManIntervalDays,
-                appLockManager.deadManLastCheckIn
-            ) { armed, interval, last -> DeadManStatus(armed, interval, last) }
-                .collect { status ->
-                    _state.update {
-                        it.copy(
-                            deadManArmed = status.armed,
-                            deadManIntervalDays = status.intervalDays,
-                            deadManDaysLeft = if (status.armed) status.daysRemaining() else status.intervalDays
-                        )
-                    }
-                }
         }
         viewModelScope.launch {
             appLockManager.clipboardSeconds.collect { value ->
@@ -408,6 +403,68 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { appLockManager.setRandomizeKeypad(enabled) }
     }
 
+    /**
+     * Typing on the vault's secret fields either happens on the app's own on-screen board or falls
+     * back to whatever keyboard the phone supplies. Turning it off is the honest escape hatch for a
+     * device where the board fights the screen; the phone keyboard then types for you again.
+     */
+    fun setSecureKeyboardEnabled(enabled: Boolean) {
+        if (!ensureWritable()) return
+        viewModelScope.launch {
+            appLockManager.setSecureKeyboardEnabled(enabled)
+            _state.update {
+                it.copy(
+                    message = if (enabled) {
+                        "Secret typing now uses the app's own keyboard. No keyboard you installed can see it."
+                    } else {
+                        "The app's own keyboard is off. Your phone's keyboard types on secret fields again."
+                    },
+                    messageIsError = !enabled
+                )
+            }
+        }
+    }
+
+    /**
+     * The app board's keycap size: normal, large or extra large. Only the keys grow, so the typing
+     * area gets easier to hit without changing how the board behaves.
+     */
+    fun setSecureBoardHeight(height: Int) {
+        if (!ensureWritable()) return
+        val size = when (height) {
+            1 -> "Large"
+            2 -> "Extra large"
+            else -> "Normal"
+        }
+        viewModelScope.launch {
+            appLockManager.setSecureBoardHeight(height)
+            _state.update {
+                it.copy(message = "Keyboard size set to $size.", messageIsError = false)
+            }
+        }
+    }
+
+    /**
+     * Whether a key on the app board gives a small buzz when tapped. Turning it off stays useful on a
+     * device where the buzz is distracting; the key still types either way.
+     */
+    fun setSecureKeyboardHaptics(enabled: Boolean) {
+        if (!ensureWritable()) return
+        viewModelScope.launch {
+            appLockManager.setSecureKeyboardHaptics(enabled)
+            _state.update {
+                it.copy(
+                    message = if (enabled) {
+                        "The keyboard buzzes when you tap a key."
+                    } else {
+                        "The keyboard stays quiet when you tap a key."
+                    },
+                    messageIsError = false
+                )
+            }
+        }
+    }
+
     fun setTravelMode(enabled: Boolean) {
         if (!ensureWritable()) return
         viewModelScope.launch {
@@ -438,79 +495,6 @@ class SettingsViewModel @Inject constructor(
     fun setInactivityLockSeconds(seconds: Int) {
         if (!ensureWritable()) return
         viewModelScope.launch { appLockManager.setInactivityLockSeconds(seconds) }
-    }
-
-    fun armDeadManSwitch(masterPassword: String, intervalDays: Int) {
-        if (!ensureWritable()) return
-        if (masterPassword.isBlank()) {
-            _state.update {
-                it.copy(message = "Enter your master password to arm the dead man's switch.", messageIsError = true)
-            }
-            return
-        }
-        viewModelScope.launch {
-            _state.update { it.copy(working = true, message = null) }
-            val valid = withContext(Dispatchers.Default) {
-                appLockManager.verifyMasterPassword(masterPassword)
-            }
-            if (!valid) {
-                _state.update {
-                    it.copy(working = false, message = "Master password is incorrect.", messageIsError = true)
-                }
-                return@launch
-            }
-            deadManSwitchManager.arm(intervalDays)
-            _state.update {
-                it.copy(
-                    working = false,
-                    message = "Dead man's switch armed. Open and unlock the app within $intervalDays day(s) to keep local data. Drive backups are never touched.",
-                    messageIsError = false
-                )
-            }
-        }
-    }
-
-    fun disarmDeadManSwitch(masterPassword: String) {
-        if (!ensureWritable()) return
-        if (masterPassword.isBlank()) {
-            _state.update {
-                it.copy(message = "Enter your master password to disarm the switch.", messageIsError = true)
-            }
-            return
-        }
-        viewModelScope.launch {
-            _state.update { it.copy(working = true, message = null) }
-            val valid = withContext(Dispatchers.Default) {
-                appLockManager.verifyMasterPassword(masterPassword)
-            }
-            if (!valid) {
-                _state.update {
-                    it.copy(working = false, message = "Master password is incorrect.", messageIsError = true)
-                }
-                return@launch
-            }
-            deadManSwitchManager.disarm()
-            _state.update {
-                it.copy(
-                    working = false,
-                    message = "Dead man's switch disarmed. Nothing will be wiped automatically.",
-                    messageIsError = false
-                )
-            }
-        }
-    }
-
-    fun checkInDeadManSwitch() {
-        if (!ensureWritable()) return
-        viewModelScope.launch {
-            deadManSwitchManager.checkIn()
-            _state.update {
-                it.copy(
-                    message = "Check-in recorded. The countdown restarted.",
-                    messageIsError = false
-                )
-            }
-        }
     }
 
     fun changeMasterPassword(current: String, newPassword: String, confirm: String) {
@@ -688,7 +672,7 @@ class SettingsViewModel @Inject constructor(
             _state.update {
                 it.copy(
                     message = if (enabled) {
-                        "Companion portal enabled. Only encrypted envelopes are transferred."
+                        "Companion portal enabled. Only encrypted data is transferred."
                     } else {
                         "Companion portal disabled."
                     },

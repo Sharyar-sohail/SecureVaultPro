@@ -1,6 +1,8 @@
 package com.securevault.pro
 
+import android.content.Context
 import android.content.Intent
+import android.content.res.Configuration
 import android.graphics.Color
 import android.os.Bundle
 import android.view.WindowManager
@@ -17,6 +19,7 @@ import com.securevault.pro.security.passkey.PasskeyHandoff
 import com.securevault.pro.diagnostics.CrashLogger
 import com.securevault.pro.presentation.navigation.VaultApp
 import com.securevault.pro.presentation.screens.diagnostics.RescueScreen
+import com.securevault.pro.presentation.theme.MAX_FONT_SCALE
 import com.securevault.pro.presentation.theme.VaultFontController
 import com.securevault.pro.presentation.theme.VaultFonts
 import com.securevault.pro.presentation.theme.VaultPaletteController
@@ -27,6 +30,13 @@ import kotlinx.coroutines.launch
 
 @AndroidEntryPoint
 class MainActivity : FragmentActivity() {
+
+    override fun attachBaseContext(newBase: Context) {
+        val configuration = Configuration(newBase.resources.configuration).apply {
+            fontScale = fontScale.coerceAtMost(MAX_FONT_SCALE)
+        }
+        super.attachBaseContext(newBase.createConfigurationContext(configuration))
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

@@ -31,7 +31,7 @@ enum class OpeningSecretKind {
      */
     ACCOUNT_ID,
 
-    /** A retired shared literal (see `LegacyKeyPlan.SHARED_LEGACY_KEYS`). Read-only. */
+    /** A retired shared literal from a different product's reader. Never offered, never written. */
     SHARED_LEGACY_KEY,
 
     /** Anything else offered as a candidate. */
@@ -78,34 +78,24 @@ class LegacyEnvelopeOpener @Inject constructor(
         /** The only count a v3 writer ever used. */
         const val CURRENT_ITERATIONS = KeyDerivation.PBKDF2_ITERATIONS
 
-        /** The two extra counts the pre-3.4 reader used for envelopes older than v3. */
-        const val LEGACY_V2_ITERATIONS_210K = KeyDerivation.PIN_ITERATIONS
-        const val LEGACY_V2_ITERATIONS_120K = 120_000
+        /**
+         * The counts the 3.1.9 reader derived at.
+         *
+         * Read out of the shipped 3.1.9 build (`SecureWalletPro-3.1.9.apk`, versionCode 328): every
+         * PBKDF2 call site in it loads 600,000 and nothing else. Deriving at a count no writer of
+         * that era used cannot open a file — it only spends the seconds the restore is waiting for.
+         */
+        val ORIGINAL_READER_PROFILES = listOf(CURRENT_ITERATIONS)
 
         /**
-         * The four counts the original `CloudSyncManager` restore loop actually iterated over.
+         * The exact derivation count the old code used for a file of [version] — nothing else.
          *
-         * Copied from the shipped reader (`for (iter in listOf(600_000, 100_000, 10_000, 1_000))`)
-         * rather than derived from current writers: a file sealed at any of these counts the old app
-         * could open, so this app must too, or a restore that worked on the old build reports
-         * "corrupted" on this one.
+         * Every writer this product has shipped stretches at `PBKDF2_ITERATIONS` (600,000), which is
+         * what 3.1.9 tried for every file it found, envelopes of any version and the salt-less blob
+         * alike. [version] is kept in the signature because callers still pass it; it no longer
+         * changes the count, because no count other than this one was ever used.
          */
-        val ORIGINAL_READER_PROFILES = listOf(CURRENT_ITERATIONS, 100_000, 10_000, 1_000)
-
-        /**
-         * The exact derivation counts the old code used for a file of [version] — nothing else.
-         *
-         * Every shipped writer used `PBKDF2_ITERATIONS` (600,000), but the original reader also
-         * derived at 100,000, 10,000 and 1,000 for every file, and at 210,000 and 120,000 for
-         * envelopes older than v3. Those numbers are the whole history; the list is the reader's
-         * own, so a file it could open still opens here.
-         */
-        fun exactProfiles(version: Int?): List<Int> =
-            if (version != null && version in 1..2) {
-                ORIGINAL_READER_PROFILES + listOf(LEGACY_V2_ITERATIONS_210K, LEGACY_V2_ITERATIONS_120K)
-            } else {
-                ORIGINAL_READER_PROFILES
-            }
+        fun exactProfiles(version: Int?): List<Int> = ORIGINAL_READER_PROFILES
     }
 
     /** [json] is the vault body; the rest is what the caller needs to describe the restore honestly. */

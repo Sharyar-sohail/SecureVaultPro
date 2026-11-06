@@ -104,17 +104,30 @@ object ImapResponseParser {
         )
     }
 
-    /** An ENVELOPE address list: each member is `(host mailbox nil personal)`, NIL-safe. */
+    /**
+     * An ENVELOPE address list. RFC 9051 §7.4.2 fixes the field order as
+     * `(host-name route mailbox-name personal-name)`, so index 0 is the domain and index 3 is the
+     * display name; index 1 (`route`) is legacy source-routing that no current server fills and is
+     * read only to keep the positions honest.
+     *
+     * Reading the positions in any other order loses the domain, and every sender in the inbox shows
+     * as a bare mailbox name that cannot be replied to.
+     */
     fun addressList(token: ImapToken?): List<ImapAddress> {
         val group = token?.asListTokens() ?: return emptyList()
         return group.mapNotNull { entry ->
             val fields = entry.asListTokens()
             if (fields.isEmpty() && entry !is ImapToken.ListTok) return@mapNotNull null
+            // A group marker — `(NIL NIL "undisclosed-recipients" NIL)` — names nobody, so skip it.
+            val mailbox = if (fields.getOrNull(2).isNil()) "" else fields.getOrNull(2).text().trim()
+            val host = if (fields.getOrNull(0).isNil()) "" else fields.getOrNull(0).text().trim()
+            if (mailbox.isEmpty() && host.isEmpty()) return@mapNotNull null
+            val personal = if (fields.getOrNull(3).isNil()) "" else fields.getOrNull(3).text()
             ImapAddress(
-                displayName = if (fields.getOrNull(0).isNil()) "" else fields.getOrNull(0).text(),
-                host = if (fields.getOrNull(1).isNil()) "" else fields.getOrNull(1).text(),
-                mailbox = fields.getOrNull(2).text(),
-                personalName = if (fields.getOrNull(3).isNil()) "" else fields.getOrNull(3).text()
+                host = host,
+                mailbox = mailbox,
+                personalName = personal,
+                displayName = personal
             )
         }
     }
@@ -256,27 +269,57 @@ object ImapResponseParser {
             .map { it.text() }
             .toSet()
 
-    /** The untagged status a SELECT/EXAMINE answer carries: `(12 EXISTS 3 RECENT)`. */
+    /**
+     * The status a SELECT/EXAMINE answer carries: the untagged `* 12 EXISTS` / `* 3 RECENT` lines and
+     * the tagged `OK [UIDVALIDITY 3857529045] [UIDNEXT 4392]`.
+     *
+     * Two shapes have to be read, because the protocol uses both. A status line puts the number
+     * *before* its word (`* 12 EXISTS`), while bracketed response data puts it *after*
+     * (`[UIDNEXT 4392]`). A forward-only scan finds no number in front of `EXISTS`, which made every
+     * folder report zero messages and hid the whole inbox.
+     */
     fun selectStatus(reply: ImapReply): MailboxStatus {
         val tokens = ImapTokenizer.tokenize(reply)
         var exists = 0
         var recent = 0
         var unseen = 0
         var uidValidity = 0L
-        var i = 0
-        while (i + 1 < tokens.size) {
-            val key = tokens[i].text().uppercase()
-            val value = tokens[i + 1].asLongOrNull() ?: 0L
-            when (key) {
+        var uidNext = 0L
+        for (index in tokens.indices) {
+            val raw = tokens[index].text().trim()
+            if (raw.isEmpty()) continue
+            if (raw.startsWith("[")) {
+                // `[UIDVALIDITY 3857529045]`, `[UNSEEN 4]`: label first, number second.
+                val body = raw.removePrefix("[").removeSuffix("]").trim()
+                val label = body.substringBefore(' ').uppercase()
+                val value = body.substringAfter(' ', "").trim().toLongOrNull()
+                if (value == null) continue
+                when (label) {
+                    "UIDVALIDITY" -> uidValidity = value
+                    "UIDNEXT" -> uidNext = value
+                    "UNSEEN" -> unseen = value.toInt()
+                    "EXISTS" -> exists = value.toInt()
+                    "RECENT" -> recent = value.toInt()
+                }
+                continue
+            }
+            val label = raw.uppercase()
+            if (label !in STATUS_WORDS) continue
+            val value = tokens.getOrNull(index - 1).asLongOrNull()
+                ?: tokens.getOrNull(index + 1).asLongOrNull()
+                ?: continue
+            when (label) {
                 "EXISTS" -> exists = value.toInt()
                 "RECENT" -> recent = value.toInt()
                 "UNSEEN" -> unseen = value.toInt()
                 "UIDVALIDITY" -> uidValidity = value
+                "UIDNEXT" -> uidNext = value
             }
-            i++
         }
-        return MailboxStatus(exists, recent, unseen, uidValidity)
+        return MailboxStatus(exists, recent, unseen, uidValidity, uidNext)
     }
+
+    private val STATUS_WORDS = setOf("EXISTS", "RECENT", "UNSEEN", "UIDVALIDITY", "UIDNEXT")
 
     /** Flags a mailbox advertises: `* FLAGS (\Answered \Flagged \Deleted \Seen \Draft)`. */
     fun flags(reply: ImapReply): List<String> =
@@ -296,10 +339,16 @@ data class ImapFolderListing(
     val wireName: String
 )
 
-/** The counts a SELECT/EXAMINE reported. */
+/**
+ * The counts a SELECT/EXAMINE reported. [uidValidity] changes only when the server has thrown the
+ * folder's UIDs away and renumbered them, so it is the one number that decides whether any UID held
+ * on to a message still means the same message. [uidNext] is the UID the *next* arriving mail will
+ * carry: the anchor a client without a local cache uses to fetch only what it has never seen.
+ */
 data class MailboxStatus(
     val exists: Int,
     val recent: Int,
     val unseen: Int,
-    val uidValidity: Long
+    val uidValidity: Long,
+    val uidNext: Long = 0L
 )

@@ -126,6 +126,10 @@ fun SettingsScreen(
     var pairingOpenError by remember { mutableStateOf<String?>(null) }
     var showExportDialog by remember { mutableStateOf(false) }
     var showThemes by remember { mutableStateOf(false) }
+    var showScanNetworks by remember { mutableStateOf(false) }
+    var showScanTokens by remember { mutableStateOf(false) }
+    val scanViewModel: CryptoScanViewModel = hiltViewModel()
+    val scanState by scanViewModel.state.collectAsStateWithLifecycle()
 
     var exportPayload by remember { mutableStateOf<LocalExportData?>(null) }
     var bloggerPayload by remember { mutableStateOf<BloggerThemeFile?>(null) }
@@ -231,8 +235,6 @@ fun SettingsScreen(
     var showAutoLockDialog by remember { mutableStateOf(false) }
     var showInactivityDialog by remember { mutableStateOf(false) }
     var showClipboardDialog by remember { mutableStateOf(false) }
-    var showDeadManDialog by remember { mutableStateOf(false) }
-    var showDeadManDisarmDialog by remember { mutableStateOf(false) }
 
     var masterCurrent by remember { mutableStateOf("") }
     var masterNew by remember { mutableStateOf("") }
@@ -249,8 +251,6 @@ fun SettingsScreen(
     var removeDecoyMaster by remember { mutableStateOf("") }
     var wipeMaster by remember { mutableStateOf("") }
     var wipeDeleteCloud by remember { mutableStateOf(true) }
-    var deadManMaster by remember { mutableStateOf("") }
-    var deadManInterval by remember { mutableIntStateOf(state.deadManIntervalDays) }
 
     var companionDraft by remember { mutableStateOf("") }
     var companionError by remember { mutableStateOf<String?>(null) }
@@ -306,9 +306,6 @@ fun SettingsScreen(
             900 to "15 minutes"
         )
     }
-    val deadManOptions = remember {
-        listOf(1 to "1 day", 3 to "3 days", 7 to "7 days", 14 to "14 days", 30 to "30 days")
-    }
 
     GlassScaffold(
         title = "Settings",
@@ -360,6 +357,68 @@ fun SettingsScreen(
                     title = "Themes",
                     subtitle = "${activeTheme.name} · ${activeTheme.tagline}",
                     onClick = { showThemes = true }
+                )
+            }
+
+            SettingsSection(
+                title = "Keyboard",
+                subtitle = "Controls the app's own on-screen keyboard, the one that types your secrets",
+                accent = VaultColor.accent
+            ) {
+                SettingsSwitchRow(
+                    icon = Glyph.gridOn,
+                    accent = VaultColor.accent,
+                    title = "Use the app's own keyboard",
+                    subtitle = "Your secrets are typed on our on-screen board, so no keyboard you installed can see what you type · Off puts your phone's keyboard back",
+                    checked = state.secureKeyboardEnabled,
+                    enabled = writable,
+                    onChanged = viewModel::setSecureKeyboardEnabled
+                )
+                RowDivider()
+                Text(
+                    text = "Keyboard size",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = VaultColor.textStrong
+                )
+                Text(
+                    text = "How tall the keys are on the app's own keyboard.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = VaultColor.textFaint,
+                    lineHeight = 15.sp
+                )
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    TuningChip(
+                        label = "Normal",
+                        selected = state.secureBoardHeight == 0,
+                        modifier = Modifier.weight(1f),
+                        onClick = { viewModel.setSecureBoardHeight(0) }
+                    )
+                    TuningChip(
+                        label = "Large",
+                        selected = state.secureBoardHeight == 1,
+                        modifier = Modifier.weight(1f),
+                        onClick = { viewModel.setSecureBoardHeight(1) }
+                    )
+                    TuningChip(
+                        label = "Extra large",
+                        selected = state.secureBoardHeight == 2,
+                        modifier = Modifier.weight(1f),
+                        onClick = { viewModel.setSecureBoardHeight(2) }
+                    )
+                }
+                RowDivider()
+                SettingsSwitchRow(
+                    icon = Glyph.vibration,
+                    accent = VaultColor.secondary,
+                    title = "Vibrate on key press",
+                    subtitle = "The keyboard gives a small buzz when you tap a key",
+                    checked = state.secureKeyboardHaptics,
+                    enabled = writable,
+                    onChanged = viewModel::setSecureKeyboardHaptics
                 )
             }
 
@@ -451,73 +510,34 @@ fun SettingsScreen(
             }
 
             SettingsSection(
-                title = "Dead man's switch",
-                subtitle = "Archives to Drive first · then erases this device only",
-                accent = VaultColor.debit
+                title = "Crypto scanning",
+                subtitle = "Which chains the wallet reads, and which tokens it reads besides them",
+                accent = VaultColor.credit
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    ThemedIcon(
-                        glyph = Glyph.warning,
-                        contentDescription = null,
-                        tint = VaultColor.debit,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        text = if (state.deadManArmed) {
-                            "Armed · ${state.deadManDaysLeft} day(s) until this device is archived to Drive and erased."
-                        } else {
-                            "Disarmed. No automatic erase will run."
-                        },
-                        style = MaterialTheme.typography.bodySmall,
-                        color = if (state.deadManArmed) VaultColor.warning else VaultColor.textBody,
-                        lineHeight = 18.sp
-                    )
-                }
-                Spacer(Modifier.height(8.dp))
-                if (state.deadManArmed) {
-                    SettingsActionRow(
-                        icon = Glyph.checkCircle,
-                        accent = VaultColor.credit,
-                        title = "Check in now",
-                        subtitle = "Restarts the countdown · every unlock also counts as a check-in",
-                        enabled = writable,
-                        onClick = viewModel::checkInDeadManSwitch
-                    )
-                    RowDivider()
-                    SettingsActionRow(
-                        icon = Glyph.warning,
-                        accent = VaultColor.debit,
-                        title = "Disarm",
-                        subtitle = "Requires your master password",
-                        enabled = writable,
-                        destructive = true,
-                        onClick = {
-                            deadManMaster = ""
-                            showDeadManDisarmDialog = true
-                        }
-                    )
-                } else {
-                    SettingsActionRow(
-                        icon = Glyph.security,
-                        accent = VaultColor.debit,
-                        title = "Arm dead man's switch",
-                        subtitle = "Past the interval, this device is archived to Drive and then erased",
-                        value = "${state.deadManIntervalDays}d",
-                        enabled = writable,
-                        onClick = {
-                            deadManMaster = ""
-                            deadManInterval = state.deadManIntervalDays
-                            showDeadManDialog = true
-                        }
-                    )
-                }
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    text = "On the first launch after the deadline the vault is uploaded to a visible Google Drive ZIP, and only then is this device erased (vault tables, attachments, offline backups and the Keystore key). Google Drive must be connected; if the archive fails nothing is erased. Encrypted Drive envelopes are never deleted by this switch.",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = VaultColor.textFaint,
-                    lineHeight = 15.sp
+                SettingsActionRow(
+                    icon = Glyph.language,
+                    accent = VaultColor.credit,
+                    title = "Manage networks",
+                    subtitle = "Switch the chains scanned for balances",
+                    value = "${scanState.enabledCount}/${scanState.networks.size}",
+                    enabled = writable,
+                    onClick = {
+                        scanViewModel.clearMessage()
+                        showScanNetworks = true
+                    }
+                )
+                RowDivider()
+                SettingsActionRow(
+                    icon = Glyph.currencyBitcoin,
+                    accent = VaultColor.decorative,
+                    title = "Manage tokens",
+                    subtitle = "Add a BEP-20 or ERC-20 by its contract address",
+                    value = if (scanState.customTokens.isEmpty()) null else "${scanState.customTokens.size}",
+                    enabled = writable,
+                    onClick = {
+                        scanViewModel.clearMessage()
+                        showScanTokens = true
+                    }
                 )
             }
 
@@ -628,7 +648,7 @@ fun SettingsScreen(
 
             SettingsSection(
                 title = "Google & backup",
-                subtitle = "One account · import above, export below · only sealed envelopes leave this device",
+                subtitle = "One account · import above, export below · only encrypted copies leave this device",
                 accent = VaultColor.secondary
             ) {
                 SettingsActionRow(
@@ -873,7 +893,7 @@ fun SettingsScreen(
                 }
                 Spacer(Modifier.height(12.dp))
                 Text(
-                    text = "Erasing destroys every vault table (including crypto wallets), encrypted attachment, offline backup and the Android Keystore key on this device. With the cloud option ticked, the encrypted Drive snapshots and the live sync copies the web companion reads are deleted too, after a copy of your vault is archived to Google Drive. Untick it only if you want to keep them. The app returns to first-run setup.",
+                    text = "Erasing destroys every record on this device (including crypto wallets), every encrypted attachment, every offline backup and this device's unlock key. With the cloud option ticked, the encrypted Drive snapshots and the live sync copies the web companion reads are deleted too, after a copy of your vault is archived to Google Drive. Untick it only if you want to keep them. The app returns to first-run setup.",
                     style = MaterialTheme.typography.bodySmall,
                     color = VaultColor.textBody,
                     lineHeight = 18.sp
@@ -1277,7 +1297,7 @@ fun SettingsScreen(
                                 color = VaultColor.textStrong
                             )
                             Text(
-                                text = "Archives first, then removes the primary envelope, XML mirror and snapshots",
+                                text = "Archives first, then removes the main backup, the XML copy and the snapshots",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = VaultColor.textFaint,
                                 lineHeight = 15.sp
@@ -1435,7 +1455,7 @@ fun SettingsScreen(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(
-                        text = "The browser mirror receives the same end-to-end encrypted envelope that is uploaded to Drive. Remote hosts must use https://; plain http is refused because Android and browsers block it, which is what produced the old certificate error.",
+                        text = "The browser mirror receives the same end-to-end encrypted copy that is uploaded to Drive. Remote hosts must use https://; plain http is refused because Android and browsers block it, which is what produced the old certificate error.",
                         style = MaterialTheme.typography.bodySmall,
                         color = VaultColor.textBody,
                         lineHeight = 18.sp
@@ -1573,135 +1593,6 @@ fun SettingsScreen(
         )
     }
 
-    if (showDeadManDialog) {
-        LaunchedEffect(state.deadManArmed) {
-            if (state.deadManArmed) showDeadManDialog = false
-        }
-        AlertDialog(
-            onDismissRequest = { if (!state.working) showDeadManDialog = false },
-            containerColor = VaultColor.elevated,
-            titleContentColor = VaultColor.textStrong,
-            textContentColor = VaultColor.textBody,
-            title = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    ThemedIcon(
-                        glyph = Glyph.warning,
-                        contentDescription = null,
-                        tint = VaultColor.debit,
-                        modifier = Modifier.size(22.dp)
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text("Arm dead man's switch", style = MaterialTheme.typography.titleLarge)
-                }
-            },
-            text = {
-                Column(
-                    modifier = Modifier
-                        .heightIn(max = 440.dp)
-                        .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(
-                        text = "If this app is not unlocked within the interval, the next launch first uploads your vault to a visible Google Drive ZIP, then erases this device only. Drive must be connected; if the archive fails, nothing is erased.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = VaultColor.textBody,
-                        lineHeight = 18.sp
-                    )
-                    deadManOptions.forEach { (days, label) ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(VaultShapes.input)
-                                .clickable { deadManInterval = days }
-                                .padding(horizontal = 4.dp, vertical = 9.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = label,
-                                style = MaterialTheme.typography.labelLarge,
-                                color = if (days == deadManInterval) VaultColor.accent else VaultColor.textStrong,
-                                modifier = Modifier.weight(1f)
-                            )
-                            if (days == deadManInterval) {
-                                ThemedIcon(
-                                    glyph = Glyph.check,
-                                    contentDescription = null,
-                                    tint = VaultColor.accent,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-                        }
-                    }
-                    VaultTextField(
-                        value = deadManMaster,
-                        onValueChange = { deadManMaster = it },
-                        label = "Master password",
-                        leadingIcon = Glyph.lock,
-                        isPassword = true,
-                        enabled = !state.working
-                    )
-                }
-            },
-            confirmButton = {
-                DialogConfirmButton(
-                    label = "Arm",
-                    working = state.working,
-                    enabled = deadManMaster.isNotBlank() && !state.working,
-                    onClick = { viewModel.armDeadManSwitch(deadManMaster, deadManInterval) }
-                )
-            },
-            dismissButton = {
-                TextButton(onClick = { showDeadManDialog = false }, enabled = !state.working) {
-                    Text("Cancel", color = VaultColor.textBody)
-                }
-            }
-        )
-    }
-
-    if (showDeadManDisarmDialog) {
-        LaunchedEffect(state.deadManArmed) {
-            if (!state.deadManArmed) showDeadManDisarmDialog = false
-        }
-        AlertDialog(
-            onDismissRequest = { if (!state.working) showDeadManDisarmDialog = false },
-            containerColor = VaultColor.elevated,
-            titleContentColor = VaultColor.textStrong,
-            textContentColor = VaultColor.textBody,
-            title = { Text("Disarm dead man's switch", style = MaterialTheme.typography.titleLarge) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(
-                        text = "No automatic wipe will run after you disarm. Your master password authorises this change.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = VaultColor.textBody,
-                        lineHeight = 18.sp
-                    )
-                    VaultTextField(
-                        value = deadManMaster,
-                        onValueChange = { deadManMaster = it },
-                        label = "Master password",
-                        leadingIcon = Glyph.lock,
-                        isPassword = true,
-                        enabled = !state.working
-                    )
-                }
-            },
-            confirmButton = {
-                DialogConfirmButton(
-                    label = "Disarm",
-                    working = state.working,
-                    enabled = deadManMaster.isNotBlank() && !state.working,
-                    onClick = { viewModel.disarmDeadManSwitch(deadManMaster) }
-                )
-            },
-            dismissButton = {
-                TextButton(onClick = { showDeadManDisarmDialog = false }, enabled = !state.working) {
-                    Text("Cancel", color = VaultColor.textBody)
-                }
-            }
-        )
-    }
-
     if (showAutoLockDialog) {
         ChoiceDialog(
             title = "Auto-lock",
@@ -1752,6 +1643,20 @@ fun SettingsScreen(
             onTuningChange = viewModel::setLayoutTuning,
             onReset = viewModel::resetLayoutTuning,
             onDismiss = { showThemes = false }
+        )
+    }
+
+    if (showScanNetworks) {
+        ManageNetworksSheet(
+            viewModel = scanViewModel,
+            onDismiss = { showScanNetworks = false }
+        )
+    }
+
+    if (showScanTokens) {
+        ManageTokensSheet(
+            viewModel = scanViewModel,
+            onDismiss = { showScanTokens = false }
         )
     }
 }

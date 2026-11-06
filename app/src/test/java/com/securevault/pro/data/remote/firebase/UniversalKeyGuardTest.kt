@@ -102,13 +102,13 @@ class UniversalKeyGuardTest {
     /** The read path is the other half of the rule: an old vault must still open. */
     @Test
     fun `the universal key survives only as a read candidate`() {
-        // The opening order lives in LegacyKeyPlan so it can be tested without Android; the sync
-        // manager must keep delegating to it rather than re-inventing an order of its own.
+        // The exact key lives in LegacyKeyPlan so it can be tested without Android; the sync manager
+        // must keep delegating to it rather than re-inventing a key of its own.
         val plan = sourceFile("java/com/securevault/pro/security/backup/LegacyKeyPlan.kt")
         assumeTrue("LegacyKeyPlan.kt is not next to this test run", plan != null)
         val candidates = plan!!.readText()
         assertTrue("old envelopes must still open", candidates.contains("PRIMARY_CLOUD_KEY"))
-        assertTrue("the user's own key must be tried", candidates.contains("vaultSecret"))
+        assertTrue("the user's own key must be offered", candidates.contains("vaultSecret"))
         assertTrue(
             "the passphrase the owner typed must be offered, or a reinstall has no secret at all",
             candidates.contains("passphrase")
@@ -117,66 +117,152 @@ class UniversalKeyGuardTest {
         assertFalse("opening candidates must not gain a writer role", candidates.contains("sealPayload"))
 
         val sync = syncManagerSource().readText()
-        assertTrue("the sync manager must use the shared plan", sync.contains("LegacyKeyPlan.ordered("))
+        assertTrue("the sync manager must use the shared plan", sync.contains("LegacyKeyPlan.exactSecret("))
     }
 
-    /** The owner's rule: the exact writers only, never a numbered sweep. */
+    /** The owner's rule, verbatim: one exact key per file, never a numbered sweep. */
     @Test
-    fun `the common restore is the exact writer keys, not a sweep`() {
+    fun `a restore names one exact key and never builds a candidate list`() {
         val sync = syncManagerSource().readText()
         assertTrue(
-            "a v3 copy must be opened with the bounded writer chain",
-            sync.contains("LegacyKeyPlan.restoreChain(")
+            "the copy's own key is resolved by the marker plus one device fact",
+            sync.contains("LegacyKeyPlan.exactSecret(")
         )
-        assertTrue(
-            "the exact key 3.1.9 wrote Drive copies with must stay in that chain",
-            (sourceFile("java/com/securevault/pro/security/backup/LegacyKeyPlan.kt")?.readText() ?: sync)
-                .contains("PRIMARY_CLOUD_KEY, OpeningSecretKind.RETIRED_UNIVERSAL_KEY")
-        )
-        assertFalse(
-            "the overlay must never print a key counter again",
-            sync.contains("Exact legacy key")
-        )
-        assertFalse(
-            "the progress overlay must not advertise a derivation total",
-            sync.contains("of \$total")
-        )
+        assertTrue("and handed to the opener as a single secret", sync.contains("openExact("))
+        for (sweep in listOf("LegacyKeyPlan.ordered(", "LegacyKeyPlan.restoreChain(", "buildSecrets(")) {
+            assertFalse("the restore must not regain a candidate list: $sweep", sync.contains(sweep))
+        }
+
+        val plan = sourceFile("java/com/securevault/pro/security/backup/LegacyKeyPlan.kt")
+        if (plan != null) {
+            val text = plan.readText()
+            assertTrue(
+                "the exact key 3.1.9 wrote Drive copies with must stay the fallback",
+                text.contains("PRIMARY_CLOUD_KEY, OpeningSecretKind.RETIRED_UNIVERSAL_KEY")
+            )
+            for (retired in listOf("LEGACY_CLOUD_KEY_V1", "LEGACY_CLOUD_KEY_V2", "LEGACY_CLOUD_KEY ")) {
+                assertFalse("the retired sweep keys must be gone: $retired", text.contains(retired))
+            }
+        }
     }
 
     /**
-     * The other half of the 3.1.9 promise: when the exact key misses, the reader's own list runs.
+     * The overlay a restore shows is the owner's language, never a note about the code.
      *
-     * A v3 envelope says nothing about which build sealed it, so a copy from a pre-keyring release
-     * must be offered every candidate the shipped reader offered, at every count it iterated. The
-     * regression this guards is the one that shipped: the fallback was gated on the owner having
-     * typed a password and was then narrowed to 600,000 rounds, so a Google login reported "Invalid
-     * Legacy Key" on files 3.1.9 opened without asking anything.
+     * The regression this pins is the developer sentence that shipped in 3.5.3 — the loading screen
+     * printed how the pipeline was implemented ("the way its 3.1.9 reader did") and the failure box
+     * counted rejected keys. Both are internal facts; the owner needs neither, and a key counter is
+     * the tell that a sweep came back.
      */
     @Test
-    fun `a v3 copy the exact key misses still gets the original reader's list`() {
+    fun `a restore tells the owner nothing but plain language`() {
         val sync = syncManagerSource().readText()
-        assertTrue(
-            "the v3 fallback must run even when no password was typed",
-            sync.contains("Checking every key the original app used")
-        )
         assertFalse(
-            "a missing passphrase must not end the v3 restore before the reader's list runs",
-            sync.contains("first.opened != null || passphrase.isNullOrBlank()")
+            "internal implementation notes must never reach the screen",
+            sync.contains("3.1.9 reader")
         )
+        assertFalse(sync.contains("Opening the backup the way"))
+        assertFalse("the overlay must never print a key counter again", sync.contains("Exact legacy key"))
+        assertFalse("the progress overlay must not advertise a derivation total", sync.contains("of \$total"))
+        assertTrue(
+            "the restore line must be a plain user message",
+            sync.contains("Restoring your secure data...")
+        )
+
+        for (call in overlayCalls(sync)) {
+            for (banned in listOf(
+                "PBKDF2", "AES", "GCM", "600,000", "iteration", "derivation", "keyring",
+                "salt", "envelope", "3.1.9", "candidate"
+            )) {
+                assertFalse(
+                    "the progress overlay is owner-facing and must not say \"$banned\": $call",
+                    call.contains(banned, ignoreCase = true)
+                )
+            }
+        }
+
+        val setup = sourceFile("java/com/securevault/pro/presentation/screens/welcome/SetupViewModel.kt")
+        assumeTrue("SetupViewModel.kt is not next to this test run", setup != null)
+        val text = setup!!.readText()
         assertFalse(
-            "the v3 fallback must not be narrowed to one derivation count",
-            sync.contains(".map { it.copy(iterationProfiles = listOf(LegacyEnvelopeOpener.CURRENT_ITERATIONS)) }")
+            "onboarding must not prompt for a master password to open Drive copies",
+            text.contains("sealed with this account's own vault key")
         )
-        val fallbackAt = sync.indexOf("Checking every key the original app used")
-        val fallbackCall = sync.substring((fallbackAt - 700).coerceAtLeast(0), fallbackAt + 200)
+        for (prompt in listOf("Enter the master password", "enter the master password")) {
+            assertFalse("a Drive restore must never ask for a password: $prompt", text.contains(prompt))
+        }
+    }
+
+    /**
+     * Reconnecting to Drive after the master password is chosen happens off the setup screen.
+     *
+     * Signing in and finishing setup is what unwraps the account's vault key, so the copies sealed
+     * with it become readable exactly then — but the fetch is a network call, and 3.5.3's regression
+     * was running it in front of the PIN pad, which left the owner stuck on the login screen with no
+     * sync. Creating the vault must hand over the session first and restore afterwards.
+     */
+    @Test
+    fun `the pending drive restore runs after the vault is handed over, never before`() {
+        val setup = sourceFile("java/com/securevault/pro/presentation/screens/welcome/SetupViewModel.kt")
+        assumeTrue("SetupViewModel.kt is not next to this test run", setup != null)
+        val text = setup!!.readText()
         assertTrue(
-            "the fallback must hand the original reader's candidate plan to the opener",
-            fallbackCall.contains("buildSecrets(")
+            "a Drive restore that needs the account key must be remembered",
+            text.contains("private var pendingDriveEmail: String? = null")
+        )
+        assertFalse("no branch may fall back to asking for a secret", text.contains("restoreNeedsSecret = true"))
+
+        val drive = section(text, "private suspend fun restoreFromDrive(", "fun onRestoreSecretChange")
+        assertTrue("a key rejection must queue the Drive account", drive.contains("pendingDriveEmail = email"))
+        assertTrue(
+            "only a first-pass key rejection may queue it, and the queue must be read out to the UI",
+            drive.contains("awaitsOwnUnlock = keyRejected && secret.isNullOrBlank()") &&
+                drive.contains("driveRestoreQueued = awaitsOwnUnlock")
+        )
+        assertTrue("the Drive branch must never open a secret form", drive.contains("restoreNeedsSecret = false"))
+        assertTrue(
+            "a connected Drive with backups found must never be shown as an error box",
+            drive.contains("noticeIsError = keyRejected && !awaitsOwnUnlock")
         )
         assertTrue(
-            "the exact key must be tried before the list, so a current copy costs one derivation",
-            sync.contains("val first = openPrimary(") &&
-                sync.contains("if (first.opened != null) {")
+            "a key rejection must still hand the flow forward, so the owner never sits on the welcome tiles",
+            drive.contains("readyForSetup = keyRejected")
+        )
+        for (phrase in listOf("Setup vault", "setup vault", "tap Setup", "click Setup")) {
+            assertFalse("the restore is automatic; the owner must not be sent to a button: $phrase",
+                drive.contains(phrase))
+        }
+
+        val create = section(text, "fun createVault()", "private fun restoreInBackground(")
+        assertTrue("creating the vault must hand the session over", create.contains("sessionManager.unlock("))
+        assertTrue("the pending restore must be cleared", create.contains("pendingDriveEmail = null"))
+        assertTrue(
+            "the queued-restore notice must not outlive the handover",
+            create.contains("driveRestoreQueued = false")
+        )
+        assertTrue(
+            "the retry must run after the handover, so nothing sits between the PIN pad and the dashboard",
+            create.indexOf("restoreInBackground(") > create.indexOf("sessionManager.unlock(")
+        )
+
+        val retry = section(text, "private fun restoreInBackground(", "private fun validate(state: SetupUiState)")
+        assertTrue(
+            "the master password must reach the restore as the keyring secret",
+            retry.contains("restoreAnyCloudBackup(email, passphrase = masterPassword)")
+        )
+        val cap = Regex("const val DRIVE_RETRY_TIMEOUT_MS = ([0-9_]+)L").find(text)
+        assertTrue("the retry must be time-capped so it can never hang setup", cap != null)
+        val millis = cap!!.groupValues[1].replace("_", "").toLong()
+        assertTrue("a $millis ms retry cap must outlast one keyring fetch", millis >= 45_000L)
+        assertTrue("a $millis ms retry cap must not be longer than a patient re-open", millis <= 180_000L)
+        for (prompt in listOf("Enter the master password", "enter the master password", "type your password")) {
+            assertFalse("the retry must report, never prompt: $prompt", retry.contains(prompt))
+        }
+
+        val file = section(text, "fun importLocalFile(", "fun createVault()")
+        assertTrue(
+            "a passphrase-sealed local export still needs the typed passphrase",
+            file.contains("FILE_SECRET_PROMPT") && file.contains("restoreNeedsSecret = needsSecret")
         )
     }
 
@@ -273,8 +359,17 @@ class UniversalKeyGuardTest {
         return file!!
     }
 
-    private fun argumentWindows(text: String, callee: String): List<String> {
-        val windows = mutableListOf<String>()
+    /**
+     * One function's source, from its signature to the next declaration, so an assertion about the
+     * Drive branch cannot be satisfied by the file branch and vice versa.
+     */
+    private fun section(text: String, signature: String, endMarker: String): String {
+        val start = text.indexOf(signature)
+        assertTrue("expected $signature in the source", start >= 0)
+        return text.substring(start).substringBefore(endMarker)
+    }
+
+    private fun argumentWindows(text: String, callee: String): List<String> {        val windows = mutableListOf<String>()
         var search = 0
         while (true) {
             val hit = text.indexOf(callee, search)
@@ -304,6 +399,19 @@ class UniversalKeyGuardTest {
 
     /** Collapses the newlines in a multi-line call so a failure message stays readable. */
     private fun String.whitespaced(): String = replace(Regex("\\s+"), " ")
+
+    /**
+     * The text of every progress overlay: the string literals handed to `update(...)`.
+     *
+     * Only literals are collected, because a subtitle that is a variable — the file being
+     * downloaded, the current import stage — is not this file's wording to get wrong.
+     */
+    private fun overlayCalls(text: String): List<String> =
+        argumentWindows(text, "update(")
+            .map { window ->
+                Regex("\"(?:[^\"\\\\]|\\\\.)*\"").findAll(window).joinToString(" ") { it.value }
+            }
+            .filter { it.isNotBlank() }
 
     /**
      * Null when the tree is not next to the test run (a job that ships compiled output only);

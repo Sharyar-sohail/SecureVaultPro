@@ -69,6 +69,39 @@ data class PasskeyAvailability(
         transport == PasskeyTransportState.ANDROID_TOO_OLD -> "android too old"
         else -> "unknown"
     }
+
+    /**
+     * The same verdict in the two or three words an owner reads on a status chip. [reasonLabel] stays
+     * the machine-ish string the tests pin; this is the one the screen shows, because "ANDROID TOO OLD"
+     * on a person's phone is a bug dressed as a label.
+     */
+    fun ownerBadge(): String = when {
+        transport == PasskeyTransportState.READY && sessionIsPrimary && vaultKeyOpens -> "Ready"
+        transport == PasskeyTransportState.READY && !vaultKeyOpens -> "Vault key stuck"
+        transport == PasskeyTransportState.READY -> "Vault locked"
+        transport == PasskeyTransportState.PROVIDER_NOT_REGISTERED -> "No passkey service"
+        transport == PasskeyTransportState.ANDROID_TOO_OLD -> "Needs Android 14"
+        else -> "Cannot tell"
+    }
+
+    /**
+     * The Android version this phone reports, in the words the owner sees in their own settings
+     * ("Android 12"), not the API number. An unknown level falls back to the number rather than
+     * guessing a name, because naming the wrong version is worse than naming none.
+     */
+    fun androidName(): String = when (sdkInt) {
+        28 -> "Android 9"
+        29 -> "Android 10"
+        30 -> "Android 11"
+        31 -> "Android 12"
+        32 -> "Android 12L"
+        33 -> "Android 13"
+        34 -> "Android 14"
+        35 -> "Android 15"
+        36 -> "Android 16"
+        in 0..27 -> "Android $sdkInt"
+        else -> "Android 16 or newer"
+    }
 }
 
 /** Pure decision function. Everything it needs is a number or a boolean the caller observed. */
@@ -131,6 +164,15 @@ enum class PasskeyFailureKind {
 
     /** The relying-party JSON was rejected — bad domain, bad challenge, bad options. */
     INVALID_REQUEST,
+
+    /**
+     * The provider answered, but what it handed back did not match what this app asked for: a
+     * different challenge than the one it sent, a response from the other ceremony, or no credential
+     * id to match it to a site. Checked by [PasskeyResponseChecks] before anything is stored, because
+     * sealing a response that belongs to somebody else's request would index a passkey this vault
+     * cannot use and would say so for years.
+     */
+    RESPONSE_MISMATCH,
 
     /** Anything else, with the provider's own words kept for the message. */
     UNKNOWN
@@ -221,24 +263,142 @@ object PasskeyFailureClassifier {
         )
     }
 
-    /** The sentence an owner should see, without pretending a fix happened. */
+    /**
+     * The sentence an owner should see, without pretending a fix happened.
+     *
+     * Written for a person, not a log line: no "assertion", no "attestation", no "relying party", no
+     * "transport". Every sentence names the thing that happened, whether anything was saved, and what
+     * to do next — and never blames the phone's owner for a limit the phone itself imposes.
+     */
     fun ownerMessage(failure: PasskeyFailure): String = when (failure.kind) {
         PasskeyFailureKind.CANCELLED ->
             "Cancelled. Nothing was saved and nothing was sent to the site."
         PasskeyFailureKind.TIMED_OUT ->
-            "That took too long, so it was stopped. Your passkey is unchanged — start it again."
+            "The passkey screen stayed open too long, so this app stopped waiting. Nothing was " +
+                "changed — start it again when you are ready."
         PasskeyFailureKind.NO_PASSKEY ->
-            "This device has no passkey for that site."
+            "Your device has no passkey for that site yet. Add one here, or sign in with a password."
         PasskeyFailureKind.TRANSPORT_UNAVAILABLE ->
-            "This Android version has no passkey transport for this app. Passkeys need Android 14 " +
-                "or newer on this build."
+            "Passkeys need Android 14 or newer. This phone's Android version gives this app no " +
+                "passkey service to ask, so nothing was created and nothing was lost. Your saved " +
+                "passwords and autofill still work as before."
         PasskeyFailureKind.UNSUPPORTED ->
-            "The credential provider on this device does not handle passkeys for this app."
+            "Your device's passkey service will not handle a passkey for this app. " +
+                "Nothing was saved."
         PasskeyFailureKind.INVALID_REQUEST ->
-            "The site's passkey request was not accepted" +
-                (failure.providerMessage?.let { ": ${it.take(90)}" } ?: ".")
+            "Your device would not accept this passkey request. Check the site's address is the one " +
+                "shown on its own sign-up page, then try again — nothing was saved."
+        PasskeyFailureKind.RESPONSE_MISMATCH ->
+            "The passkey screen answered with something that did not match what this app asked for, " +
+                "so this app kept nothing and sent nothing. A passkey may still have been created on " +
+                "your device; you can delete it in the system passkey settings."
         PasskeyFailureKind.UNKNOWN ->
-            "The credential provider did not complete the request" +
+            "Your device did not finish the passkey request" +
                 (failure.providerMessage?.let { ": ${it.take(90)}" } ?: ".")
     }
+}
+
+/**
+ * What this app can tell about the answer a passkey screen handed back, before it stores or sends it.
+ *
+ * A WebAuthn response carries its own public receipts: the `clientDataJSON` field repeats the
+ * challenge that was asked for and names which ceremony the answer belongs to
+ * (`webauthn.create` when a passkey is made, `webauthn.get` when it is used). Nothing here is new
+ * crypto and nothing is a substitute for the site checking the signature on its own server — this
+ * app has no server, so it can never confirm a login. What these checks do is stop the one failure
+ * mode this side can actually cause: sealing an answer that belongs to a different request, then
+ * listing it as a passkey for the wrong site forever.
+ *
+ * Deliberately tolerant about *absent* fields and strict about *wrong* ones. A provider that does not
+ * echo a challenge is not proof of a problem, while a provider echoing a different one is.
+ */
+object PasskeyResponseChecks {
+
+    /** The response is shaped like an answer to this app's own request. */
+    enum class Verdict { MATCHES, UNREADABLE, WRONG_CEREMONY, CHALLENGE_DIFFERS, NO_KEY_ID }
+
+    /**
+     * The answer to a passkey *creation* request. [requestJson] is the document this app sent, so the
+     * challenge it named can be compared with the challenge the answer repeats.
+     */
+    fun forEnrolment(responseJson: String?, requestJson: String?): Verdict = check(
+        responseJson = responseJson,
+        requestJson = requestJson,
+        expectedType = "webauthn.create",
+        requireKeyId = true
+    )
+
+    /** The answer to a passkey *sign-in* request. */
+    fun forSignIn(responseJson: String?, requestJson: String?): Verdict = check(
+        responseJson = responseJson,
+        requestJson = requestJson,
+        expectedType = "webauthn.get",
+        requireKeyId = false
+    )
+
+    /** The owner-facing reason a verdict is a refusal; null when the answer is fine. */
+    fun failureFor(verdict: Verdict): PasskeyFailure? = when (verdict) {
+        Verdict.MATCHES -> null
+        else -> PasskeyFailure(
+            kind = PasskeyFailureKind.RESPONSE_MISMATCH,
+            providerMessage = when (verdict) {
+                Verdict.UNREADABLE -> "the answer could not be read"
+                Verdict.WRONG_CEREMONY -> "the answer is from the other kind of passkey screen"
+                Verdict.CHALLENGE_DIFFERS -> "the answer names a different request"
+                Verdict.NO_KEY_ID -> "the answer named no passkey"
+                Verdict.MATCHES -> null
+            },
+            providerType = null
+        )
+    }
+
+    private fun check(
+        responseJson: String?,
+        requestJson: String?,
+        expectedType: String,
+        requireKeyId: Boolean
+    ): Verdict {
+        val response = parseObject(responseJson) ?: return Verdict.UNREADABLE
+        if (requireKeyId && PasskeyWire.credentialIdOf(responseJson).isNullOrBlank()) {
+            return Verdict.NO_KEY_ID
+        }
+        val clientData = response.getAsJsonObject("response")
+            ?.takeIf { it.isJsonObject }
+            ?.let(::clientDataJsonOf)
+        // No readable client data at all: the whole point of the response is missing, so this app
+        // would be storing an envelope it cannot describe. Refuse rather than index a mystery.
+        if (clientData == null) return Verdict.UNREADABLE
+        val type = clientData.get("type")?.takeIf { it.isJsonPrimitive }?.asString
+        if (type != null && !type.equals(expectedType, ignoreCase = true)) {
+            return Verdict.WRONG_CEREMONY
+        }
+        val asked = requestJson?.let(::challengeOf)
+        val answered = clientData.get("challenge")?.takeIf { it.isJsonPrimitive }?.asString
+        if (asked != null && answered != null &&
+            PasskeyWire.normalizeBase64Url(asked) != PasskeyWire.normalizeBase64Url(answered)
+        ) {
+            return Verdict.CHALLENGE_DIFFERS
+        }
+        return Verdict.MATCHES
+    }
+
+    private fun parseObject(text: String?): com.google.gson.JsonObject? =
+        text?.takeIf { it.isNotBlank() }?.let { raw ->
+            runCatching { com.google.gson.JsonParser.parseString(raw) }.getOrNull()
+                ?.takeIf { it.isJsonObject }?.asJsonObject
+        }
+
+    private fun clientDataJsonOf(response: com.google.gson.JsonObject): com.google.gson.JsonObject? {
+        val encoded = response.get("clientDataJSON")?.takeIf { it.isJsonPrimitive }?.asString
+            ?: return null
+        val decoded = PasskeyWire.decodeBase64UrlToString(encoded) ?: return null
+        return parseObject(decoded)
+    }
+
+    /** The challenge this app put into its own request document, wrapped or not. */
+    private fun challengeOf(requestJson: String): String? =
+        parseObject(requestJson)?.let { root ->
+            val options = root.getAsJsonObject(PasskeyRequestBuilder.PUBLIC_KEY_WRAPPER_FIELD) ?: root
+            options.get("challenge")?.takeIf { it.isJsonPrimitive }?.asString
+        }
 }

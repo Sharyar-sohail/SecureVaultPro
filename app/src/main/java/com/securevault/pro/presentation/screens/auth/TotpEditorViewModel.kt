@@ -151,11 +151,17 @@ class TotpEditorViewModel @Inject constructor(
             _state.update { it.copy(error = "Enter a valid Base32 secret.") }
             return
         }
+        // Store the canonical uppercase unpadded Base32 form of what was typed or
+        // scanned. decodeBase32 already ignores spacing, hyphens, padding and the two
+        // look-alike digits, so the key bytes — and every code ever produced from them —
+        // are identical; only the sealed plaintext becomes uniform, which also keeps the
+        // repository's duplicate-secret check exact. The sealing itself is untouched.
+        val canonical = TotpGenerator.canonicalSecret(current.secret) ?: current.secret.trim().uppercase()
         val account = TotpAccount(
             id = draftId,
             issuer = current.issuer.trim().ifBlank { "Authenticator" },
             accountName = current.accountName.trim(),
-            secret = current.secret.trim(),
+            secret = canonical,
             algorithm = TotpAlgorithm.from(current.algorithm).name,
             digits = current.digits.coerceIn(6, 8),
             period = current.period.coerceIn(15, 120)

@@ -592,7 +592,9 @@ private fun ForensicRow(label: String, value: String, accent: Color) {
             text = label,
             style = MaterialTheme.typography.labelSmall,
             color = VaultColor.textFaint,
-            modifier = Modifier.width(104.dp)
+            // A share of the row, not a fixed 104.dp: the labels keep their column on a phone and
+            // the value keeps enough of a 240.dp split-view window to still be readable.
+            modifier = Modifier.weight(2f)
         )
         Text(
             text = value,
@@ -600,7 +602,7 @@ private fun ForensicRow(label: String, value: String, accent: Color) {
             color = VaultColor.textStrong,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f)
+            modifier = Modifier.weight(3f)
         )
         Spacer(Modifier.width(6.dp))
         Text(

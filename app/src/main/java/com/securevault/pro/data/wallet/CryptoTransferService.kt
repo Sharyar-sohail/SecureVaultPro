@@ -85,10 +85,39 @@ class CryptoTransferService @Inject constructor(
             TokenSpec(CryptoNetwork.BSC, "SHIB", "Shiba Inu", "0x2859e4544C4bB03966803b044A93563Bd2D0DD4D", 18),
             TokenSpec(CryptoNetwork.POLYGON, "USDC", "USD Coin", "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359", 6),
             TokenSpec(CryptoNetwork.POLYGON, "USDT", "Tether USD", "0xc2132D05D31c914a87C6611C10748AEb04B58e8F", 6),
-            TokenSpec(CryptoNetwork.TRON, "USDT", "Tether USD", "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t", 6)
+            TokenSpec(CryptoNetwork.TRON, "USDT", "Tether USD", "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t", 6),
+            // Circle's own USDC on Tron, published by Tronscan/OKLink under this exact contract; the
+            // scanner reads the same address, so a holding found on chain is also spendable.
+            TokenSpec(CryptoNetwork.TRON, "USDC", "USD Coin", "TEkxiTehnzSmSe2XqrBj4w32RUN966rdz8", 6)
         )
 
         private const val TRON_FEE_LIMIT_SUN = 30_000_000L
+
+        /**
+         * The flat gas reserve the MAX button falls back on when no public node answers, in the same
+         * coins this app has always left behind for a fee.
+         */
+        private val FLAT_RESERVE = mapOf(
+            CryptoNetwork.BITCOIN to 0.00003,
+            CryptoNetwork.TRON to 1.1
+        )
+        private const val FLAT_EVM_RESERVE = 0.002
+
+        /** Gas a plain coin transfer burns on an EVM chain, used when the node will not measure it. */
+        private const val FALLBACK_NATIVE_GAS = 21_000L
+
+        /** Gas an ERC-20 `transfer` burns — the flat figure this app quoted before nodes were asked. */
+        private const val FALLBACK_TOKEN_GAS = 120_000L
+
+        /** Inputs a MAX spend plausibly spends from, and the margin taken on top of the measured fee. */
+        private const val MAX_RESERVE_INPUTS = 2
+        private const val MAX_RESERVE_SAFETY = 150
+
+        /**
+         * What a node says when it refuses the call itself, rather than failing to answer.
+         * Anything else in an `error.message` is a transport complaint, and the next host is tried.
+         */
+        private val REJECTED_CALL = listOf("revert", "insufficient", "not enough", "would exceed")
 
         /** The one Tron host the registry publishes; never a string assembled from user input. */
         val TRON_API: String = ChainRegistry.require(CryptoNetwork.TRON).rpcEndpoints.first()
@@ -97,10 +126,19 @@ class CryptoTransferService @Inject constructor(
     fun tokensFor(network: CryptoNetwork): List<TokenSpec> =
         TOKEN_SPECS.filter { it.network == network }
 
-    /** The contracts this app knows for a chain — the allowed set the trust gate checks against. */
-    private fun knownTokens(network: CryptoNetwork): List<TransactionTrust.KnownToken> =
-        TOKEN_SPECS.filter { it.network == network }
-            .map { TransactionTrust.KnownToken(it.symbol, it.contract) }
+    /**
+     * The contracts this app may send: the built-in list plus the ones this wallet actually holds.
+     * A token the scanner found on-chain and priced is evidence enough — the trust gate still refuses
+     * any symbol that does not match one of these exact contracts, so a lookalike stays blocked.
+     */
+    private fun knownTokens(
+        network: CryptoNetwork,
+        wallet: CryptoWallet
+    ): List<TransactionTrust.KnownToken> =
+        (TOKEN_SPECS.filter { it.network == network }
+            .map { TransactionTrust.KnownToken(it.symbol, it.contract) } +
+            verifiedTokens(wallet.balances, network))
+            .distinctBy { it.contract.lowercase() }
 
     // ------------------------------------------------------------ validation
 
@@ -137,6 +175,7 @@ class CryptoTransferService @Inject constructor(
      */
     private fun trustGate(
         network: CryptoNetwork,
+        wallet: CryptoWallet,
         asset: TransferAsset,
         from: String,
         to: String,
@@ -158,7 +197,7 @@ class CryptoTransferService @Inject constructor(
             nativeBalance = nativeAvailable,
             fee = fee,
             nodeChainId = nodeChainId,
-            knownTokens = knownTokens(network)
+            knownTokens = knownTokens(network, wallet)
         )
     )
 
@@ -204,7 +243,6 @@ class CryptoTransferService @Inject constructor(
         if (held < amount.toDouble()) error("You only hold ${formatAmount(held)} ${asset.symbol}.")
         val units = unitsOf(amount, asset.decimals)
         val gasPrice = fetchGasPrice(chain)
-        val gasLimit = BigInteger.valueOf(if (asset.isNative) 21_000L else 120_000L)
         val nonce = fetchNonce(chain.rpcs, from)
         // Asked of the same node the transaction will be broadcast to, so a host that answers for a
         // different chain id is caught before anything is signed, not after.
@@ -213,6 +251,11 @@ class CryptoTransferService @Inject constructor(
             TransactionCodec.erc20TransferData(asset.contract ?: error("Missing token contract"), units)
         }
         val value = if (asset.isNative) units else BigInteger.ZERO
+        // Pre-flight, the way Rabby and MetaMask do it: the node runs this exact transfer without
+        // broadcasting it. A contract that refuses is named before the owner pays anything, and a
+        // node that merely did not answer never blocks the send.
+        simulate(chain, from, to, value, data)?.let { error(it) }
+        val gasLimit = estimateGasLimit(chain, from, to, value, data)
         val feeWei = gasPrice.multiply(BigDecimal(gasLimit)).toBigInteger()
         val fee = BigDecimal(feeWei).movePointLeft(network.decimals)
         val nativeHeld = nativeBalance(wallet, network)
@@ -223,6 +266,7 @@ class CryptoTransferService @Inject constructor(
         val feeUsd = fee.toDouble() * nativePrice
         val report = trustGate(
             network = network,
+            wallet = wallet,
             asset = asset,
             from = from,
             to = to,
@@ -313,6 +357,7 @@ class CryptoTransferService @Inject constructor(
         val btcFee = BigDecimal.valueOf(feeSats).movePointLeft(8)
         val report = trustGate(
             network = CryptoNetwork.BITCOIN,
+            wallet = wallet,
             asset = asset,
             from = from,
             to = to,
@@ -371,6 +416,7 @@ class CryptoTransferService @Inject constructor(
         val price = nativePrice(wallet, CryptoNetwork.TRON)
         val report = trustGate(
             network = CryptoNetwork.TRON,
+            wallet = wallet,
             asset = asset,
             from = from,
             to = to,
@@ -568,6 +614,123 @@ class CryptoTransferService @Inject constructor(
         val raw = runCatching { rpcCall(chain.rpcs, "eth_gasPrice", JSONArray()) }.getOrNull()
         val price = raw?.removePrefix("0x")?.toBigIntegerOrNull(16)
         return BigDecimal(price ?: chain.fallbackGasPrice)
+    }
+
+    /**
+     * The gas this one transfer will actually burn, asked of the node instead of assumed.
+     *
+     * The old quote charged every token send for 120,000 gas whether it needed it or not, which is why
+     * a small ETH balance could not pay "the" fee: the review screen showed several times what the
+     * network would take. [eth_estimateGas] answers with what the call consumed, and the quote adds a
+     * tenth on top for the drift between simulation and mining. A node that will not answer falls back
+     * to the flat figure this app has always used, so the send is never blocked by a silent host.
+     */
+    private fun estimateGasLimit(
+        chain: EvmChain,
+        from: String,
+        to: String,
+        value: BigInteger,
+        data: ByteArray
+    ): BigInteger {
+        val flat = BigInteger.valueOf(if (data.isEmpty()) FALLBACK_NATIVE_GAS else FALLBACK_TOKEN_GAS)
+        val measured = runCatching {
+            WalletHttp.hexToBigInteger(
+                WalletHttp.call(
+                    chain.rpcs,
+                    "eth_estimateGas",
+                    JSONArray().put(callObject(from, to, value, data)).put("latest")
+                )
+            )
+        }.getOrNull()?.takeIf { it.signum() > 0 } ?: return flat
+        return measured.max(BigInteger.valueOf(FALLBACK_NATIVE_GAS))
+            .let { limit -> limit + limit.divide(BigInteger.TEN) }
+    }
+
+    /**
+     * Runs the transfer against the node without broadcasting it, and returns the plain-English
+     * refusal when the chain itself says no. Null means either that it would go through or that no
+     * host answered — silence is not evidence a transfer is broken, so it never blocks a send.
+     */
+    private fun simulate(
+        chain: EvmChain,
+        from: String,
+        to: String,
+        value: BigInteger,
+        data: ByteArray
+    ): String? {
+        val body = JSONArray().put(callObject(from, to, value, data)).put("latest")
+        val envelope = JSONObject()
+            .put("jsonrpc", "2.0")
+            .put("id", 1)
+            .put("method", "eth_call")
+            .put("params", body)
+            .toString()
+        chain.rpcs.forEach { endpoint ->
+            val answer = runCatching { JSONObject(httpPost(endpoint, envelope, "application/json")) }.getOrNull()
+                ?: return@forEach
+            val message = answer.optJSONObject("error")?.optString("message").orEmpty()
+            if (message.isBlank()) return null
+            if (REJECTED_CALL.none { keyword -> message.contains(keyword, true) }) return@forEach
+            return "The ${chain.descriptor.displayName} network refuses this transfer: " +
+                "${cleanRevert(message)}. Nothing was signed."
+        }
+        return null
+    }
+
+    /** Turns a node's revert payload into something a person can read. */
+    private fun cleanRevert(message: String): String {
+        val detail = message.substringAfter("revert", "").trim().takeIf { it.isNotEmpty() } ?: message
+        return when {
+            detail.contains("insufficient", true) -> "the wallet does not hold enough of this token"
+            detail.contains("approval", true) || detail.contains("allowance", true) ->
+                "the token needs an approval this transfer does not carry"
+            detail.contains("address", true) && detail.contains("zero", true) -> "the destination is the null address"
+            detail.contains("paused", true) -> "the token contract is paused"
+            detail.contains("transfer of both frozen", true) || detail.contains("frozen", true) ->
+                "the token contract has frozen this transfer"
+            else -> "the contract answered \"$detail\""
+        }.let { text ->
+            if (detail.equals(message, ignoreCase = true)) text.replaceFirst("the contract answered", "it answered") else text
+        }
+    }
+
+    /** One transaction as a node wants to be asked about it: the call, then the block. */
+    private fun callObject(from: String, to: String, value: BigInteger, data: ByteArray): JSONObject =
+        JSONObject()
+            .put("from", from)
+            .put("to", to)
+            .put("value", "0x" + value.toString(16))
+            .put("data", "0x" + Hash.hex(data))
+
+    /**
+     * What the MAX button has to leave behind so the network can be paid for.
+     *
+     * Measured from the chain when a node answers — today's gas price times the gas a plain transfer
+     * burns, one and a half times over for the drift before it is broadcast — and the flat reserve
+     * this app has always used when none does. A token never needs a reserve out of its own balance:
+     * its fee is paid in the chain's coin, which is a different row.
+     */
+    suspend fun maxFeeReserve(asset: TransferAsset): Double = withContext(Dispatchers.IO) {
+        if (!asset.isNative) return@withContext 0.0
+        val network = CryptoNetwork.entries.firstOrNull { it.id == asset.networkId }
+            ?: return@withContext 0.0
+        val live = runCatching { liveFeeReserve(network) }.getOrDefault(0.0)
+        if (live > 0.0) live else FLAT_RESERVE[network] ?: FLAT_EVM_RESERVE
+    }
+
+    private fun liveFeeReserve(network: CryptoNetwork): Double = when (network) {
+        CryptoNetwork.BITCOIN -> {
+            val sats = fetchBitcoinFeeRate() *
+                TransactionCodec.bitcoinVsize(MAX_RESERVE_INPUTS, 2) * MAX_RESERVE_SAFETY / 100.0
+            sats / 100_000_000.0
+        }
+        CryptoNetwork.TRON -> FLAT_RESERVE.getValue(CryptoNetwork.TRON)
+        else -> {
+            val chain = evmChains[network] ?: return FLAT_EVM_RESERVE
+            val units = BigInteger.valueOf(FALLBACK_NATIVE_GAS * MAX_RESERVE_SAFETY / 100)
+            fetchGasPrice(chain).multiply(BigDecimal(units)).toBigInteger()
+                .let { fee -> BigDecimal(fee).movePointLeft(chain.descriptor.decimals).toDouble() }
+        }
     }
 
     /**

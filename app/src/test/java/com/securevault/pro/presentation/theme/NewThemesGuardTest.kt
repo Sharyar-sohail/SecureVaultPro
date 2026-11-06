@@ -136,5 +136,22 @@ class NewThemesGuardTest {
         assertTrue("backdrops must spread, got ${backdrops.size}", backdrops.size >= 6)
         val pies = VaultPalettes.all.map { listOf(it.pieForm, it.pieLegend, it.pieRoundCaps, it.pieGradient) }.distinct()
         assertTrue("chart grammars must spread, got ${pies.size}", pies.size >= 8)
+        // The composition chart has to read as several different objects across the lineup, not one
+        // dial in fifteen colours: every PieForm value must actually be drawn by a theme, at least
+        // five of them must be in use, and no single grammar may carry more than six of the fifteen.
+        assertEquals("every chart form must have a value in play", 6, PieForm.entries.size)
+        val forms = VaultPalettes.all.map { it.pieForm }
+        assertEquals(
+            "every chart form must be used by at least one theme",
+            PieForm.entries.toSet(),
+            forms.toSet()
+        )
+        assertTrue(
+            "at least 5 distinct chart forms, got ${forms.distinct().map { it.name }}",
+            forms.distinct().size >= 5
+        )
+        forms.groupingBy { it }.eachCount().forEach { (form, count) ->
+            assertTrue("$form carries $count of the fifteen themes - one grammar may not carry more than 6", count <= 6)
+        }
     }
 }

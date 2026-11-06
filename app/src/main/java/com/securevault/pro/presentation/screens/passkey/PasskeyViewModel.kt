@@ -9,10 +9,13 @@ import com.securevault.pro.security.passkey.PasskeyDescription
 import com.securevault.pro.security.passkey.PasskeyDomainGroup
 import com.securevault.pro.security.passkey.PasskeyDomainRules
 import com.securevault.pro.security.passkey.PasskeyEnrolmentResult
+import com.securevault.pro.security.passkey.PasskeyHandoff
 import com.securevault.pro.security.passkey.PasskeyRecord
 import com.securevault.pro.security.passkey.PasskeyRecordCodec
 import com.securevault.pro.security.passkey.PasskeyService
+import com.securevault.pro.security.passkey.PasskeySignInResult
 import com.securevault.pro.security.passkey.PasskeyTransportState
+import com.securevault.pro.security.passkey.passkeyRefusalSentence
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -46,7 +49,15 @@ data class PasskeyUiState(
     val busy: Boolean = false,
     val ceremonySecondsLeft: Int = 0,
     val message: String? = null,
-    val lastAssertion: String? = null
+    val lastAssertion: String? = null,
+    /**
+     * The site a browser's passkey screen asked this app for, when that ask arrived on this visit.
+     * Empty when nothing was asked. Kept separate from [domainDraft] so the owner can see which
+     * request is *not* theirs.
+     */
+    val askedForDomain: String = "",
+    /** True when this app holds a passkey record for [askedForDomain], so the card can say so. */
+    val askedForHasPasskey: Boolean = false
 ) {
     val canEnrol: Boolean
         get() = availability?.canEnrol == true && !busy
@@ -104,6 +115,12 @@ class PasskeyViewModel @Inject constructor(
                     availability = availability,
                     groups = PasskeyDomainRules.groupByDomain(records),
                     recordCount = records.size,
+                    // Whether the site the browser asked for is one this app can actually answer —
+                    // recomputed on every read, because a record may have been added or forgotten
+                    // since the ask arrived and the card must not claim otherwise.
+                    askedForHasPasskey = current.askedForDomain.isNotBlank() && records.any {
+                        it.rpDomain == current.askedForDomain
+                    },
                     // The detail screen was opened from a snapshot; keep its counters honest after
                     // a ceremony without making the owner go back and open it again.
                     selected = current.selected?.let { shown ->
@@ -111,6 +128,53 @@ class PasskeyViewModel @Inject constructor(
                     } ?: current.selected
                 )
             }
+        }
+    }
+
+    /**
+     * Tells the screen which site a browser's passkey screen asked this app about, or clears the note
+     * when nothing was asked. Called by the section with what [PasskeyHandoff] delivered.
+     */
+    fun noteHandoff(domain: String?) {
+        val normalized = PasskeyDomainRules.normalize(domain.orEmpty())
+        _state.update { it.copy(askedForDomain = normalized, askedForHasPasskey = false) }
+        if (normalized.isNotBlank()) refresh()
+    }
+
+    /** The owner says "not now": the note goes away and nothing else about the visit changes. */
+    fun dismissAskedDomain() {
+        PasskeyHandoff.clearDelivered()
+        _state.update { it.copy(askedForDomain = "", askedForHasPasskey = false) }
+    }
+
+    /** Opens the enrolment form pre-filled with the site the browser named, for a first-time add. */
+    fun enrolForAskedDomain() {
+        val domain = _state.value.askedForDomain
+        if (domain.isBlank()) return
+        _state.update {
+            it.copy(view = PasskeyView.ENROL, domainDraft = domain, message = null)
+        }
+    }
+
+    /**
+     * Signs in to the site the browser named, using whatever passkey this app holds for it.
+     *
+     * The browser that asked is not the browser that gets the answer: this app has no way to hand an
+     * answer back to a site it did not start the request for, and it never claimed otherwise. What
+     * this does prove, on a phone whose passkey service answers, is that the saved key opens and
+     * works — which is the half the owner can check with their own face.
+     */
+    fun signInForAskedDomain(activity: Activity?) {
+        val domain = _state.value.askedForDomain
+        if (domain.isBlank()) return
+        if (activity == null) {
+            _state.update { it.copy(message = NO_ACTIVITY_MESSAGE) }
+            return
+        }
+        beginCeremony(PasskeyService.SIGN_IN_WATCHDOG_MS) {
+            val result = service.authenticate(activity, domain)
+            _state.update { it.copy(lastAssertion = result.ownerSentence()) }
+            if (result is PasskeySignInResult.SignedIn) refresh()
         }
     }
 
@@ -311,21 +375,14 @@ class PasskeyViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Why the app will not start a passkey — in the same words the result classes use, so the button,
+     * the banner and the toast never give three different explanations for one refusal. Null means the
+     * app could not form a verdict at all, which is said plainly rather than guessed at.
+     */
     private fun refusalSentence(availability: PasskeyAvailability?): String =
-        when (availability?.transport) {
-            PasskeyTransportState.ANDROID_TOO_OLD ->
-                "Passkeys need Android 14 or newer. This phone reports API " +
-                    "${availability.sdkInt}, and this app has no credential provider for it."
-            PasskeyTransportState.PROVIDER_NOT_REGISTERED ->
-                "No credential provider is available to this app on this device."
-            PasskeyTransportState.UNKNOWN ->
-                "This app could not read the device's credential provider, so it will not start a ceremony."
-            else -> if (availability != null && !availability.sessionIsPrimary) {
-                "Unlock the vault first — a passkey can only be added to, or used from, your real vault."
-            } else {
-                "This device's key would not open, so nothing was stored. Restart the app and try again."
-            }
-        }
+        availability?.let(::passkeyRefusalSentence)
+            ?: "This app could not read this phone's passkey support, so it will not start one."
 
     private companion object {
         const val NO_ACTIVITY_MESSAGE =

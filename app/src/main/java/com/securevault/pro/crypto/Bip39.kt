@@ -7,8 +7,11 @@ object Bip39 {
 
     val VALID_WORD_COUNTS = setOf(12, 15, 18, 21, 24)
 
+    /** Compiled once: this runs on every keystroke of a typed phrase. */
+    private val WHITESPACE = Regex("\\s+")
+
     fun normalize(mnemonic: String): String =
-        mnemonic.trim().lowercase().replace(Regex("\\s+"), " ")
+        mnemonic.trim().lowercase().replace(WHITESPACE, " ")
 
     fun words(mnemonic: String): List<String> =
         normalize(mnemonic).split(' ').filter { it.isNotBlank() }
@@ -16,12 +19,20 @@ object Bip39 {
     fun hasValidWordCount(mnemonic: String): Boolean = words(mnemonic).size in VALID_WORD_COUNTS
 
     /** Full checksum validation against the BIP39 English word list. */
-    fun validate(mnemonic: String, english: List<String>): Boolean {
+    fun validate(mnemonic: String, english: List<String>): Boolean =
+        validate(mnemonic) { word -> english.indexOf(word).takeIf { it >= 0 } }
+
+    /**
+     * The same checksum, looked up through [positionOf] — the word's index in the list, or null when
+     * the list has no such word. A caller that validates as fast as keys are pressed passes an index
+     * it built once; scanning 2048 words per word per keystroke is what makes the board feel slow.
+     */
+    fun validate(mnemonic: String, positionOf: (String) -> Int?): Boolean {
         val parts = words(mnemonic)
         if (parts.size !in VALID_WORD_COUNTS) return false
         val indexes = IntArray(parts.size)
         parts.forEachIndexed { index, word ->
-            val position = english.indexOf(word)
+            val position = positionOf(word) ?: return false
             if (position < 0) return false
             indexes[index] = position
         }

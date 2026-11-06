@@ -6,28 +6,11 @@ import com.securevault.pro.crypto.CryptoNetwork
  * Ordered public endpoints. Every host is keyless and returns data for the first
  * endpoint that answers, so one blocked or rate-limited provider cannot take a
  * whole network offline.
+ *
+ * Chain RPC hosts and explorers are *not* listed here: `ChainRegistry` is the one source for those,
+ * so a chain added to the registry is reachable without touching this file.
  */
 internal object CryptoEndpoints {
-
-    val evmRpc: Map<CryptoNetwork, List<String>> = mapOf(
-        CryptoNetwork.ETHEREUM to listOf(
-            "https://ethereum-rpc.publicnode.com",
-            "https://eth.drpc.org",
-            "https://1rpc.io/eth",
-            "https://rpc.flashbots.net"
-        ),
-        CryptoNetwork.BSC to listOf(
-            "https://bsc-rpc.publicnode.com",
-            "https://1rpc.io/bnb",
-            "https://bsc-dataseed1.binance.org",
-            "https://bsc.rpc.blxrbdn.com"
-        ),
-        CryptoNetwork.POLYGON to listOf(
-            "https://polygon-bor-rpc.publicnode.com",
-            "https://polygon.drpc.org",
-            "https://1rpc.io/matic"
-        )
-    )
 
     /** Esplora-compatible Bitcoin instances; they share one JSON shape. */
     val bitcoinApi = listOf("https://mempool.space", "https://mempool.emzy.de")
@@ -38,14 +21,68 @@ internal object CryptoEndpoints {
     val tronApi = listOf("https://api.trongrid.io")
 
     const val COINGECKO_PRICE = "https://api.coingecko.com/api/v3/simple/price"
+
+    /** Same service, quoting by contract instead of coin id — what a discovered token needs. */
+    const val COINGECKO_TOKEN_PRICE = "https://api.coingecko.com/api/v3/simple/token_price"
     const val BINANCE_PRICE = "https://api.binance.com/api/v3/ticker/price"
 
-    val explorerTx = mapOf(
-        CryptoNetwork.ETHEREUM to "https://etherscan.io/tx/",
-        CryptoNetwork.BSC to "https://bscscan.com/tx/",
-        CryptoNetwork.POLYGON to "https://polygonscan.com/tx/",
-        CryptoNetwork.BITCOIN to "https://mempool.space/tx/",
-        CryptoNetwork.TRON to "https://tronscan.org/#/transaction/"
+    /**
+     * CoinGecko's per-chain token quote, keyed by the network id this app stores. The path segment is
+     * CoinGecko's own platform name for that chain, so it is written out here rather than derived.
+     */
+    val tokenPricePlatform = mapOf(
+        CryptoNetwork.ETHEREUM.id to "ethereum",
+        CryptoNetwork.BSC.id to "binance-smart-chain",
+        CryptoNetwork.POLYGON.id to "polygon-pos",
+        CryptoNetwork.ARBITRUM.id to "arbitrum-one",
+        CryptoNetwork.BASE.id to "base",
+        CryptoNetwork.OPTIMISM.id to "optimistic-ethereum",
+        CryptoNetwork.AVALANCHE.id to "avalanche",
+        CryptoNetwork.FANTOM.id to "fantom"
+    )
+
+    /**
+     * Static, versioned token lists. Public JSON over https, no account and no key, so a token list
+     * cannot be a source of leaked credentials.
+     *
+     * The DEX lists (Uniswap, PancakeSwap) are curated and short; the per-chain CoinGecko lists carry
+     * the depth — every token the chain's own maintainers rank, each with the chain id it belongs to.
+     * A list is only worth naming when its `chainId` values match [ChainRegistry]'s, because that id
+     * is the only thing that maps an entry back to a chain this app can read.
+     */
+    val tokenLists = listOf(
+        "https://tokens.uniswap.org" to mapOf(
+            1L to CryptoNetwork.ETHEREUM.id,
+            56L to CryptoNetwork.BSC.id,
+            137L to CryptoNetwork.POLYGON.id
+        ),
+        "https://tokens.pancakeswap.finance/pancakeswap-extended.json" to mapOf(
+            56L to CryptoNetwork.BSC.id
+        ),
+        "https://tokens.coingecko.com/arbitrum-one/all.json" to mapOf(
+            42161L to CryptoNetwork.ARBITRUM.id
+        ),
+        "https://tokens.coingecko.com/base/all.json" to mapOf(
+            8453L to CryptoNetwork.BASE.id
+        ),
+        "https://tokens.coingecko.com/optimistic-ethereum/all.json" to mapOf(
+            10L to CryptoNetwork.OPTIMISM.id
+        ),
+        "https://tokens.coingecko.com/avalanche/all.json" to mapOf(
+            43114L to CryptoNetwork.AVALANCHE.id
+        ),
+        "https://tokens.coingecko.com/fantom/all.json" to mapOf(
+            250L to CryptoNetwork.FANTOM.id
+        )
+    )
+
+    /**
+     * Blockscout instances that answer "every token this address holds" in one request, keyed by
+     * network id. Only chains whose public instance was verified to answer are listed; the others are
+     * scanned through the token lists instead, which is slower per token but covers the same ground.
+     */
+    val tokenHistoryApi = mapOf(
+        CryptoNetwork.ETHEREUM.id to "https://eth.blockscout.com/api/v2/addresses/"
     )
 
     // ---- AUTHENTICATED SECTION ---------------------------------------------------------------

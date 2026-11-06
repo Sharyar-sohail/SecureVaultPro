@@ -42,10 +42,11 @@ import kotlinx.coroutines.withContext
  * password this device cannot decrypt — each throws [MailFlowException] carrying a sentence the owner
  * reads unchanged, so a half-finished operation is never reported as an empty list.
  *
- * Two honest gaps, both in the protocol layer's vocabulary rather than here, and both written up in
- * `agent_notes/email-ui.md`: a message can be marked **read** but not unread, and a star can be added
- * but not always removed, because [ImapEngine.uidStore] only writes `+FLAGS` or a whole replacement
- * set — there is no `-FLAGS`. The screens say so rather than pretending otherwise.
+ * A read that fails on a broken connection is retried once, on a fresh connection, because mobile
+ * radio handovers drop sockets constantly and the owner has no way to tell that from a server that
+ * refuses them. Writes are never retried: a send or a delete that timed out may already have reached
+ * the server, and repeating it would do the thing twice. A Stop press is never retried either — a
+ * cancellation is the owner's decision, not a failure.
  */
 interface MailboxService {
 
@@ -93,7 +94,7 @@ interface MailboxService {
 
     /**
      * `\Seen` written for real — every list and reader fetch uses `BODY.PEEK`, so nothing is marked
-     * read by accident. Marking a message *unread* is not offered: see the class note on `-FLAGS`.
+     * read by accident.
      */
     suspend fun markSeen(
         record: MailAccountRecord,
@@ -102,10 +103,11 @@ interface MailboxService {
     ): MailOutcome<Boolean>
 
     /**
-     * `\Flagged` written for real.
+     * `\Flagged` written or removed for real.
      *
-     * [currentFlags] is the flag set the server reported for this message: clearing a star has to
-     * rewrite the whole set, because the engine cannot subtract one flag.
+     * Clearing a star sends `-FLAGS (\Flagged)`, which takes exactly one flag away and cannot touch
+     * any other. [currentFlags] is therefore not needed and is ignored; it stays in the signature
+     * because the screens already call this with it.
      */
     suspend fun setFlagged(
         record: MailAccountRecord,
@@ -115,7 +117,7 @@ interface MailboxService {
         currentFlags: List<String> = emptyList()
     ): MailOutcome<Boolean>
 
-    /** `UID COPY` then `\Deleted` + `UID EXPUNGE`, and only for messages the owner moved. */
+    /** `UID COPY`, then the selected messages only are marked deleted and removed. */
     suspend fun moveMessages(
         record: MailAccountRecord,
         fromWireName: String,

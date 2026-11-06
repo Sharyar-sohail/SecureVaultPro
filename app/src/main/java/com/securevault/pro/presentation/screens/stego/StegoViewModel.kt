@@ -94,9 +94,9 @@ class StegoViewModel @Inject constructor(
         startJob {
             val name = withContext(Dispatchers.IO) { queryDisplayName(context, uri, "cover.jpg") }
             val bytes = readDocumentBytes(context, uri)
-            val plane = withContext(Dispatchers.IO) { StegoImages.planeOf(bytes) }
+            val photo = withContext(Dispatchers.IO) { StegoImages.photoOf(bytes) }
                 ?: throw StegoInputException("That file is not an image this app can read.")
-            appendCarrier(StegoCarrier(name = name, plane = plane))
+            appendCarrier(StegoCarrier(name = name, plane = photo.plane, color = photo.pixels))
         }
     }
 
@@ -189,26 +189,45 @@ class StegoViewModel @Inject constructor(
                 val pieces = if (total == 1) listOf(message) else codec.sharesFor(message, total)
                 val built = ArrayList<StegoArtifact>(total)
                 var first: StegoCodec.Sealed? = null
+                var survived = true
+                var tested = true
                 for (index in pieces.indices) {
                     if (!isActive) return@withContext
+                    val cover = covers[index]
                     val sealed = codec.sealCarrier(
-                        carrier = covers[index].plane,
+                        carrier = cover.plane,
                         primary = pieces[index],
                         primaryPassphrase = primaryKey,
                         decoy = decoy,
                         decoyPassphrase = decoyKey,
                         shareTotal = total,
                         shareIndex = index,
-                        oneRead = snapshot.readOnce
+                        oneRead = snapshot.readOnce,
+                        // Measured on the handset, with the encoder that will really write the file:
+                        // the seal is only called "safe to send" after this round trip read back. A
+                        // null means this phone could not perform the redraw, which is an untested
+                        // picture, not a surviving one.
+                        attack = { marked -> StegoImages.sendRoundTrip(marked, cover.color) }
                     )
                     if (first == null) first = sealed
+                    survived = survived && sealed.measuredSurvival
+                    tested = tested && sealed.sendTested
+                    val preview = previewPlane(sealed.marked)
+                    val previewColors = colorPreview(cover.color, cover.plane, preview)
                     built += StegoArtifact(
                         key = "carrier-$index-${System.currentTimeMillis()}",
                         displayName = StegoImages.cameraName(SEAL_SEED + index),
                         shareIndex = index,
                         shareTotal = total,
-                        jpegBytes = StegoImages.jpegOf(sealed.marked),
-                        preview = previewPlane(sealed.marked)
+                        jpegBytes = if (cover.color != null) {
+                            StegoImages.colorJpegOf(sealed.marked, cover.color)
+                        } else {
+                            StegoImages.jpegOf(sealed.marked)
+                        },
+                        preview = preview,
+                        previewWidth = if (previewColors == null) 0 else preview.width,
+                        previewHeight = if (previewColors == null) 0 else preview.height,
+                        previewPixels = previewColors
                     )
                 }
                 if (!isActive) return@withContext
@@ -220,13 +239,16 @@ class StegoViewModel @Inject constructor(
                     chipRate = sealed.chipRate,
                     capacityUsedPercent = capacityUsedPercent(sealed.capacityUsed),
                     secretBytes = max(message.size, decoy?.size ?: 0),
-                    perEnvelopeLimit = StegoCapacity.maxSecretBytes(plane, sealed.envelopeCount),
+                    perEnvelopeLimit = StegoCapacity.maxSecretBytes(plane, sealed.envelopeCount, sealed.plan.profile),
                     envelopeCount = sealed.envelopeCount,
                     peakGreyLevel = sealed.peakGreyLevel.roundToInt(),
                     carrierDescription = StegoImages.describe(plane),
-                    grainLabel = "LL spread ${StegoImages.textureOf(plane).spread.roundToInt()}",
+                    grainLabel = "${StegoImages.textureOf(plane).spread.roundToInt()} shades",
                     fileName = built.firstOrNull()?.displayName ?: StegoImages.cameraName(SEAL_SEED),
-                    readOnce = snapshot.readOnce
+                    readOnce = snapshot.readOnce,
+                    keepsColor = covers.isNotEmpty() && covers.all { it.color != null },
+                    survivesSend = survived,
+                    sendTested = tested
                 )
             }
             val doneReport = report ?: return@startJob
@@ -345,6 +367,51 @@ class StegoViewModel @Inject constructor(
                     message = "Ready to read $name"
                 )
             }
+        }
+    }
+
+    /**
+     * The frame the viewfinder locked, added exactly as a picked file is: one more carrier in the
+     * reveal list, read by [reveal] with the passphrases already on screen. A scan that ends without
+     * a locked frame never reaches this call, so a dismissed sheet cannot leave a half entry behind.
+     *
+     * The frame goes through the same two normalisations a file does — [StegoPlanes.sanitised] into
+     * the 8-bit contract, [StegoPlanes.fitted] to the encoder's working grid — so a page read off the
+     * lens and a page read off disk are measured on the same kind of plane and cannot disagree about
+     * what they saw. The sensor's Y plane is already BT.601 luminance, which is the channel the mark
+     * rides in, so a colour photo of a screen or a print reduces the same way a picked JPEG does.
+     */
+    fun addScanned(plane: LumaPlane) {
+        val current = _state.value
+        if (current.busy) return
+        if (current.reads.size >= SecretShares.MAX_SHARES) {
+            _state.update { it.copy(fault = "One reveal reads at most ${SecretShares.MAX_SHARES} carriers.") }
+            return
+        }
+        val working = runCatching {
+            StegoPlanes.fitted(StegoPlanes.sanitised(plane), StegoLimits.MAX_WORKING_PIXELS)
+        }.getOrNull()
+        if (working == null || StegoPlanes.longestSide(working) < StegoLimits.MIN_SCAN_LONGEST) {
+            _state.update {
+                it.copy(
+                    fault = "The frame was too small to read. Move closer so the page fills the " +
+                        "frame, or photograph it and add the photo."
+                )
+            }
+            return
+        }
+        val name = "Scanned photo ${current.reads.size + 1}"
+        _state.update {
+            it.copy(
+                reads = it.reads + StegoCarrier(name = name, plane = working),
+                findings = emptyList(),
+                heldShares = emptyList(),
+                readShareTotal = 1,
+                outcome = null,
+                revealedSecretVisible = false,
+                fault = null,
+                message = "Ready to read $name"
+            )
         }
     }
 
@@ -703,6 +770,27 @@ class StegoViewModel @Inject constructor(
             max(1, (plane.width * scale).roundToInt()),
             max(1, (plane.height * scale).roundToInt())
         )
+    }
+
+    /**
+     * The colour a sealed carrier's thumbnail is painted with: the cover's own pixels, averaged down
+     * to the preview grid first and then wearing the mark's luminance.
+     *
+     * Downsampled *before* the tint rather than after, because the carrier already holds the full-size
+     * colour array and a second full-size ARGB grid is exactly the buffer a low-end phone cannot spare
+     * for one row of a list. Box averaging keeps the two grids in step: the mean of a box of tinted
+     * pixels is the tinted mean, to a rounding error the reader absorbs anyway.
+     */
+    private fun colorPreview(color: IntArray?, grid: LumaPlane, preview: LumaPlane): IntArray? {
+        if (color == null || color.isEmpty() || preview.width <= 0 || preview.height <= 0) return null
+        val small = StegoPlanes.resampledArgb(
+            grid.width,
+            grid.height,
+            color,
+            preview.width,
+            preview.height
+        )
+        return StegoImages.tinted(preview, small)
     }
 
     private fun writePicture(artifact: StegoArtifact): SavedCopy? {

@@ -3,15 +3,15 @@
      Theme: Cyberpunk Neon (voltra) | Grammar: NEON_CHAMFER
      opposite-corner chamfer, hollow glow ring behind, bright edge ticks
      Glyph: address-book (phosphor/regular) | Module: Contacts
-     Plate: #D6335F | worst guarded white-ink ratio: 4.67:1 -->
+     Plate: #0E8A44 | worst guarded white-ink ratio: 4.67:1 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:aapt="http://schemas.android.com/aapt"
     android:width="32dp"
     android:height="32dp"
     android:viewportWidth="256"
     android:viewportHeight="256">
-    <path android:pathData="M6,6H182L250,74V250H74L6,182Z" android:strokeColor="#FFD6335F" android:strokeWidth="16" android:strokeLineCap="round" android:fillColor="#00000000" />
-    <path android:pathData="M28,28H168L228,88V228H88L28,168Z" android:fillColor="#FFD6335F" />
+    <path android:pathData="M6,6H182L250,74V250H74L6,182Z" android:strokeColor="#FF0E8642" android:strokeWidth="16" android:strokeLineCap="round" android:fillColor="#00000000" />
+    <path android:pathData="M28,28H168L228,88V228H88L28,168Z" android:fillColor="#FF0E8642" />
     <path android:pathData="M28,28H228V34H28Z" android:fillColor="#38FFFFFF" />
     <path android:pathData="M28,216H228V228H28Z" android:fillColor="#2E000000" />
     <path android:pathData="M38,38H164L218,92V218H92L38,164Z" android:strokeColor="#FFFFFFFF" android:strokeWidth="3" android:strokeLineCap="round" android:fillColor="#00000000" />

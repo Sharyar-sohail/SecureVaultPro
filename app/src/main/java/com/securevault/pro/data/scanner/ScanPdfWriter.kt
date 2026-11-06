@@ -17,8 +17,8 @@ import kotlin.math.min
  *
  * This is the shape requirement H forced: a 40-page session cannot hold 40 decoded bitmaps, so the
  * PDF writer asks for page *i*, draws it, releases it and only then asks for page *i+1*. The
- * session VM's implementation decodes from the retained JPEG bytes (and may serve from
- * [PageCache]); the print adapter's implementation does the same for a list of saved images.
+ * session VM's implementation decodes from the retained JPEG bytes; the print adapter's
+ * implementation does the same for a list of saved images.
  */
 interface ScanPageProvider {
     val pageCount: Int

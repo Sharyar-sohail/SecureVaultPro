@@ -1,7 +1,6 @@
 package com.securevault.pro.security.backup
 
 import java.util.Base64
-import java.util.Locale
 
 /**
  * What a failed restore can honestly say about the file it could not open.
@@ -37,22 +36,22 @@ object EnvelopeDiagnostics {
             get() = buildList {
                 if (saltBytes != EXPECTED_SALT_BYTES) {
                     add(
-                        "Salt mismatch: this file's salt is $saltBytes bytes and it is fed to PBKDF2 " +
-                            "as-is, while the app derives with $EXPECTED_SALT_BYTES bytes."
+                        "Salt mismatch: this file's salt is $saltBytes bytes, and the app writes " +
+                            "$EXPECTED_SALT_BYTES."
                     )
                 }
                 if (ivBytes == null) {
-                    add("IV mismatch: no IV could be decoded from the first dotted part of the body.")
+                    add("IV mismatch: no IV could be read from the start of the file.")
                 } else if (ivBytes != EXPECTED_IV_BYTES) {
                     add(
-                        "IV mismatch: this file's IV is $ivBytes bytes; AES-GCM is initialised with " +
+                        "IV mismatch: this file's IV is $ivBytes bytes, and the app writes " +
                             "$EXPECTED_IV_BYTES."
                     )
                 }
                 if (payloadBytes != null && payloadBytes <= EXPECTED_TAG_BYTES) {
                     add(
-                        "Ciphertext mismatch: the payload is $payloadBytes bytes, which cannot even " +
-                            "hold the $EXPECTED_TAG_BYTES-byte GCM tag."
+                        "Ciphertext mismatch: the payload is $payloadBytes bytes, which is too short " +
+                            "to hold the $EXPECTED_TAG_BYTES-byte seal."
                     )
                 }
             }
@@ -83,28 +82,22 @@ object EnvelopeDiagnostics {
     }
 
     /**
-     * The failure sentence. Names the mismatching parameter when one is measurable, and says plainly
-     * that the key is the remaining suspect when none is.
+     * The failure sentence the owner reads.
+     *
+     * It says which parameter of the file is broken when one is measurable, and when every width
+     * matches it says the copy is locked with a key this device does not hold. It never counts keys
+     * or derivations: the restore runs exactly one, so a number here would be either one or noise,
+     * and neither tells the owner what to do next.
      */
-    fun describe(
-        envelope: BackupEnvelope,
-        secretsTried: Int
-    ): String {
+    fun describe(envelope: BackupEnvelope): String {
         val s = inspect(envelope)
-        val rounds = s.statedRounds
-            ?.let { String.format(Locale.US, "%,d rounds", it) }
-            ?: "round count not stated"
-        val versionLabel =
-            if (envelope.statedVersion) "v${s.version}" else "unstated (read as older than v3)"
-        val layout = "Envelope $versionLabel, salt ${s.saltBytes} B, IV ${s.ivBytes ?: "?"} B, " +
-            "tag $EXPECTED_TAG_BYTES B, shape ${s.shape}, $rounds."
         if (!s.intact) {
-            return "This backup could not be opened. $layout ${s.problems.joinToString(" ")} " +
-                "The envelope itself is structurally different from what this app writes, so the " +
-                "format — not your account key — is the mismatch."
+            val versionLabel =
+                if (envelope.statedVersion) "v${s.version}" else "version not stated"
+            return "$DAMAGED_PREFIX Envelope $versionLabel, salt ${s.saltBytes} B, " +
+                "IV ${s.ivBytes ?: "?"} B, shape ${s.shape}. ${s.problems.joinToString(" ")}"
         }
-        return "Invalid Legacy Key. $layout Salt, IV and tag widths all match the format this app " +
-            "writes, so the key is the mismatch: ${rejection(secretsTried)}."
+        return KEY_NOT_ON_THIS_DEVICE
     }
 
     /**
@@ -113,11 +106,7 @@ object EnvelopeDiagnostics {
      * sentence names where the salt came from, because "no salt" and "wrong salt file" are different
      * fixes for the owner.
      */
-    fun describeBareBlob(
-        data: String,
-        saltSource: String,
-        secretsTried: Int
-    ): String {
+    fun describeBareBlob(data: String, saltSource: String): String {
         val parts = data.trim().split('.')
         val iv = parts.firstOrNull()?.let(::decode)
         val payloadBytes = when (parts.size) {
@@ -131,39 +120,35 @@ object EnvelopeDiagnostics {
         }
         val problems = buildList {
             if (iv == null) {
-                add("IV mismatch: no IV could be decoded from the first dotted part of the body.")
+                add("IV mismatch: no IV could be read from the start of the file.")
             } else if (iv.size != EXPECTED_IV_BYTES) {
                 add(
-                    "IV mismatch: this blob's IV is ${iv.size} bytes; AES-GCM is initialised with " +
+                    "IV mismatch: this file's IV is ${iv.size} bytes, and the app writes " +
                         "$EXPECTED_IV_BYTES."
                 )
             }
             if (payloadBytes != null && payloadBytes <= EXPECTED_TAG_BYTES) {
                 add(
-                    "Ciphertext mismatch: the payload is $payloadBytes bytes, which cannot even " +
-                        "hold the $EXPECTED_TAG_BYTES-byte GCM tag."
+                    "Ciphertext mismatch: the payload is $payloadBytes bytes, which is too short " +
+                        "to hold the $EXPECTED_TAG_BYTES-byte seal."
                 )
             }
         }
-        val layout = "Salt-less backup, salt from $saltSource, IV ${iv?.size ?: "?"} B, " +
-            "tag $EXPECTED_TAG_BYTES B, payload ${payloadBytes ?: "?"} B."
         if (problems.isNotEmpty()) {
-            return "This backup could not be opened. $layout ${problems.joinToString(" ")} " +
-                "The blob is structurally different from what this app writes, so the format — " +
-                "not your account key — is the mismatch."
+            return "$DAMAGED_PREFIX Salt from $saltSource, IV ${iv?.size ?: "?"} B, " +
+                "payload ${payloadBytes ?: "?"} B. ${problems.joinToString(" ")}"
         }
-        return "Invalid Legacy Key. $layout IV and tag widths match the format this app writes, " +
-            "so the key is the mismatch: ${rejection(secretsTried)}."
+        return KEY_NOT_ON_THIS_DEVICE
     }
 
-    private fun rejection(secretsTried: Int): String =
-        if (secretsTried <= 1) {
-            "the one exact key this file was written with was rejected by the GCM tag, and this " +
-                "device does not hold it. Nothing was guessed"
-        } else {
-            "$secretsTried keys this account has used were rejected by the GCM tag, so this " +
-                "device does not hold the key this file was written with"
-        }
+    /** What a structurally sound file that will not open under its own key means, in one sentence. */
+    const val KEY_NOT_ON_THIS_DEVICE: String =
+        "This backup is locked with a key this device doesn't have. Sign in with the Google account " +
+            "that created it and try again — if the vault key hasn't reached this phone yet, choose " +
+            "the device that made the backup."
+
+    private const val DAMAGED_PREFIX: String =
+        "This backup file looks damaged, so it was left untouched and nothing was changed."
 
     private fun decode(value: String): ByteArray? {
         val clean = value.trim().replace("\n", "").replace("\r", "").replace(" ", "")

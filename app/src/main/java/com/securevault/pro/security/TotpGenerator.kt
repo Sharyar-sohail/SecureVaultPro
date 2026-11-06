@@ -35,6 +35,7 @@ data class OtpAuthData(
 object TotpGenerator {
 
     private const val BASE32_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
+    private val SUPPORTED_ALGORITHMS = setOf("SHA1", "SHA256", "SHA512")
 
     fun generate(
         secret: String,
@@ -84,7 +85,7 @@ object TotpGenerator {
     }
 
     fun decodeBase32(secret: String): ByteArray {
-        val cleaned = secret.uppercase().replace(Regex("[\\s\\-=]"), "")
+        val cleaned = sanitizeBase32(secret)
         if (cleaned.isEmpty()) return ByteArray(0)
         val out = ArrayList<Byte>(cleaned.length * 5 / 8)
         var buffer = 0
@@ -101,6 +102,36 @@ object TotpGenerator {
             }
         }
         return out.toByteArray()
+    }
+
+    /**
+     * Tolerant Base32 normalisation, the way Aegis/Google Authenticator accept a typed
+     * setup key: case-folded, every kind of space (including NBSP and zero-width
+     * separators), hyphens, underscores and '=' padding removed, and the two look-alike
+     * digits substituted — '0'→'O' and '1'→'I'. Those digits are absent from the Base32
+     * alphabet (RFC 4648 uses ABCDEFGHIJKLMNOPQRSTUVWXYZ234567), so they can only ever be
+     * typing mistakes; a secret that previously decoded to "------" now decodes correctly.
+     * No stored secret is affected: every secret that passed validation before decodes to
+     * exactly the same bytes.
+     */
+    private fun sanitizeBase32(secret: String): String = buildString(secret.length) {
+        for (char in secret.uppercase()) {
+            when (char) {
+                '0' -> append('O')
+                '1' -> append('I')
+                '\u00A0', '\u2007', '\u202F', '\u200B', '\u200C', '\u2060' -> Unit
+                '-', '_', '=' -> Unit
+                else -> if (!char.isWhitespace()) append(char)
+            }
+        }
+    }
+
+    /** Canonical uppercase, unpadded Base32 for a tolerant input; null if it never decodes. */
+    fun canonicalSecret(raw: String): String? = try {
+        val bytes = decodeBase32(raw)
+        if (bytes.isEmpty()) null else encodeBase32(bytes)
+    } catch (_: Throwable) {
+        null
     }
 
     fun encodeBase32(data: ByteArray): String {
@@ -127,16 +158,32 @@ object TotpGenerator {
             val uri = Uri.parse(raw.trim())
             if (!"otpauth".equals(uri.scheme, ignoreCase = true)) return null
             if (!"totp".equals(uri.host, ignoreCase = true)) return null
-            val secret = uri.getQueryParameter("secret")?.trim()?.replace(" ", "") ?: return null
-            if (!isValidSecret(secret)) return null
+            val secret = canonicalSecret(uri.getQueryParameter("secret").orEmpty()) ?: return null
+            // KeyURI spec: only SHA1/SHA256/SHA512 are registered algorithms, digits is
+            // 6..8 and period is normally 30 or 60. A URI that explicitly asks for
+            // something else (MD5, 9 digits, period 10) cannot be honoured — the old code
+            // silently fell back to SHA1/6/30 and produced plausible-but-wrong codes for
+            // years. Refuse the link instead so the editor can say so.
+            val algorithmRaw = uri.getQueryParameter("algorithm")
+            val algorithm = if (algorithmRaw.isNullOrBlank()) {
+                TotpAlgorithm.SHA1
+            } else {
+                val normalized = algorithmRaw.trim().uppercase().replace("-", "")
+                if (normalized !in SUPPORTED_ALGORITHMS) return null
+                TotpAlgorithm.from(normalized)
+            }
+            val digitsRaw = uri.getQueryParameter("digits")
+            val digits = if (digitsRaw.isNullOrBlank()) 6
+            else digitsRaw.trim().toIntOrNull()?.takeIf { it in 6..8 } ?: return null
+            val periodRaw = uri.getQueryParameter("period")
+            val period = if (periodRaw.isNullOrBlank()) 30
+            else periodRaw.trim().toIntOrNull()?.takeIf { it in 15..120 } ?: return null
             val labelRaw = Uri.decode(uri.path ?: "").trimStart('/')
             val labelIssuer = if (labelRaw.contains(':')) labelRaw.substringBefore(':').trim() else ""
             val labelAccount = if (labelRaw.contains(':')) labelRaw.substringAfter(':').trim() else labelRaw
+            // Spec order: the issuer query parameter wins over the label prefix.
             val issuer = uri.getQueryParameter("issuer")?.trim()?.takeIf { it.isNotBlank() }
                 ?: labelIssuer.ifBlank { "Authenticator" }
-            val algorithm = TotpAlgorithm.from(uri.getQueryParameter("algorithm"))
-            val digits = uri.getQueryParameter("digits")?.toIntOrNull()?.coerceIn(6, 8) ?: 6
-            val period = uri.getQueryParameter("period")?.toIntOrNull()?.coerceIn(15, 120) ?: 30
             OtpAuthData(
                 issuer = issuer,
                 accountName = labelAccount.ifBlank { "Account" },

@@ -85,8 +85,8 @@ class SecureViewerViewModel @Inject constructor(
                 )
                 return@launch
             }
-            val bytes = withContext(Dispatchers.IO) { fileVault.readFile(id) }
-            if (bytes == null) {
+            val cacheFile = withContext(Dispatchers.IO) { prepareCache(id, meta.name) }
+            if (cacheFile == null) {
                 _state.value = ViewerState(
                     loading = false,
                     id = id,
@@ -98,15 +98,14 @@ class SecureViewerViewModel @Inject constructor(
                 )
                 return@launch
             }
-            val cacheFile = withContext(Dispatchers.IO) { writeCache(id, meta.name, bytes) }
-            val text = withContext(Dispatchers.IO) { extractText(cacheFile, meta.name, meta.mimeType, bytes) }
+            val text = withContext(Dispatchers.IO) { extractText(cacheFile, meta.name, meta.mimeType) }
             _state.value = ViewerState(
                 loading = false,
                 id = id,
                 title = meta.name,
                 mimeType = meta.mimeType,
-                size = bytes.size.toLong(),
-                path = cacheFile?.absolutePath,
+                size = meta.size,
+                path = cacheFile.absolutePath,
                 text = text,
                 decoy = _state.value.decoy
             )
@@ -127,16 +126,28 @@ class SecureViewerViewModel @Inject constructor(
 
     private fun cacheDir(): File = File(context.cacheDir, "secure_viewer").apply { mkdirs() }
 
-    private fun writeCache(id: String, name: String, bytes: ByteArray): File? = runCatching {
+    /**
+     * The decrypted copy this screen shows, written a chunk at a time straight from the container.
+     *
+     * It used to be `readFile(id)` plus `writeBytes`, which put the entire original — up to 2 GB — in
+     * the Java heap before the first pixel appeared, so a large photo or video killed its own screen.
+     * [FileVaultRepository.exportStreamToFile] bounds the working set to one chunk instead, and leaves
+     * nothing behind when authentication fails.
+     *
+     * The file keeps the owner's own name (minus characters a filesystem refuses): this copy is what
+     * FileProvider publishes when the viewer shares, and a receiving app shows that name in its
+     * download list, so `a1b2c3…_Invoice March.pdf` was the original name lost at the hand-over.
+     */
+    private suspend fun prepareCache(id: String, name: String): File? {
         val dir = cacheDir()
         dir.listFiles()?.forEach { it.delete() }
-        val safeName = name.replace(Regex("[\\\\/:*?\"<>|\\u0000-\\u001F]"), "_").take(80)
-        val target = File(dir, "${id.take(36)}_$safeName")
-        target.writeBytes(bytes)
-        target
-    }.getOrNull()
+        val safeName = name.replace(Regex("[\\\\/:*?\"<>|\\u0000-\\u001F]"), "_").trim().take(120)
+            .ifBlank { "vault_file" }
+        val target = File(dir, safeName)
+        return if (fileVault.exportStreamToFile(id, target)) target else null
+    }
 
-    private fun extractText(file: File?, name: String, mime: String, bytes: ByteArray): String? {
+    private fun extractText(file: File?, name: String, mime: String): String? {
         val ext = name.substringAfterLast('.', "").lowercase()
         if (file == null) return null
         return runCatching {
@@ -145,13 +156,33 @@ class SecureViewerViewModel @Inject constructor(
                 ext == "xlsx" -> spreadsheetText(file)
                 ext in setOf("odt", "ods") -> odtText(file)
                 mime.startsWith("text/") || ext in ViewerState.TEXT_EXTENSIONS -> {
-                    val slice = if (bytes.size > MAX_TEXT_BYTES) bytes.copyOf(MAX_TEXT_BYTES) else bytes
+                    // Only the head of the document is ever needed, and reading a whole multi-gigabyte
+                    // log to prove that would be the same blowup the streaming decrypt just removed.
+                    val slice = readHead(file, MAX_TEXT_BYTES)
                     val raw = slice.toString(Charsets.UTF_8)
                     if (ext == "html" || ext == "htm" || mime.contains("html")) htmlToText(raw) else raw
                 }
                 else -> null
             }
         }.getOrNull()
+    }
+
+    /** The first [bytes] of [file], or the whole file when it is smaller than the cap. */
+    private fun readHead(file: File, bytes: Int): ByteArray {
+        val size = minOf(file.length(), bytes.toLong()).toInt().coerceAtLeast(0)
+        if (size == 0) return ByteArray(0)
+        val buffer = ByteArray(size)
+        var filled = 0
+        runCatching {
+            file.inputStream().use { input ->
+                while (filled < size) {
+                    val read = input.read(buffer, filled, size - filled)
+                    if (read <= 0) break
+                    filled += read
+                }
+            }
+        }
+        return if (filled == size) buffer else buffer.copyOf(filled)
     }
 
     private fun officeText(file: File, ext: String): String {

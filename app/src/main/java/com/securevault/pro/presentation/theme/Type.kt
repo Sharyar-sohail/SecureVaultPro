@@ -173,3 +173,15 @@ object VaultType {
     /** Alignment used beside an amount so units and signs never jump. */
     val amountAlignment = TextAlign.End
 }
+
+/**
+ * The ceiling the app renders text at, whatever the owner's system accessibility slider says.
+ *
+ * Every ramp in this file is sized for the screen it lands on, and the auth surfaces are the tightest:
+ * a 32.sp heading multiplied by a 1.4 system scale pushed the master-password form, its action button
+ * and the secure board past the bottom of the window, which is how a login screen ends up unusable.
+ * `MainActivity` clamps this onto the activity's configuration, so dp measurements, hit targets and the
+ * keyboard keep their real size and only point-sized text stops inflating. Below the cap nothing
+ * changes: an owner on 0.85 keeps their smaller text.
+ */
+const val MAX_FONT_SCALE = 1.0f

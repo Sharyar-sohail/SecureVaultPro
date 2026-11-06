@@ -110,6 +110,31 @@ class WelcomeGateTest {
         assertTrue("cancel appears before the auto-stop", grace < stop)
     }
 
+    /**
+     * A Google tap that finds backups must never leave the owner staring at the gate.
+     *
+     * 3.5.4 ended a successful Drive connection with a red card telling the owner to press
+     * "Setup vault". The gate now hands over on its own whenever the ViewModel says a vault is
+     * reachable, and the card only turns red for a genuine fault.
+     */
+    @Test
+    fun `a connected drive hands the gate forward by itself and never in red`() {
+        assertTrue(
+            "the gate must advance on its own once a restore is reachable",
+            source.contains("if (flowStarted && state.readyForSetup) onFinished()")
+        )
+        assertTrue(
+            "the card's colour and icon must both follow the error state",
+            source.contains("if (state.error != null || state.noticeIsError) VaultColor.debit else VaultColor.credit") &&
+                source.contains("if (state.error != null || state.noticeIsError) Glyph.errorOutline else Glyph.checkCircle")
+        )
+        assertFalse("no tile may send the owner to a setup button", source.contains("Setup vault"))
+        val card = source.substringAfter("if (state.restoreNeedsSecret)")
+            .substringBefore("Spacer(Modifier.height(30.dp))")
+        assertTrue("the only typed secret at the gate is an export passphrase", card.contains("Export passphrase"))
+        assertFalse("the gate never asks for a master password for a cloud backup", card.contains("Master password"))
+    }
+
     private fun constLong(name: String): Long {
         val match = Regex("private const val $name = ([0-9_]+)L").find(source)
             ?: throw IllegalStateException("$name is not a private const in the welcome screen")

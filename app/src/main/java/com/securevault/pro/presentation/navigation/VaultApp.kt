@@ -14,6 +14,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -22,6 +23,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -37,6 +39,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -123,18 +126,36 @@ import com.securevault.pro.presentation.screens.email.EmailSection
 import com.securevault.pro.presentation.screens.stego.StegoSection
 import com.securevault.pro.presentation.screens.passkey.PasskeySection
 import com.securevault.pro.security.passkey.PasskeyHandoff
+import com.securevault.pro.security.keyboard.LocalSecureBoardHeight
+import com.securevault.pro.security.keyboard.LocalSecureKeyboardHaptics
+import com.securevault.pro.security.keyboard.LocalSecureKeyboardTyping
+import com.securevault.pro.security.keyboard.SecureKeyboardHost
 import com.securevault.pro.presentation.screens.welcome.IntroScreen
 import com.securevault.pro.presentation.screens.welcome.OnboardingScreen
 import com.securevault.pro.presentation.screens.welcome.SetupScreen
 import com.securevault.pro.presentation.screens.welcome.SplashScreen
 import com.securevault.pro.presentation.theme.DockStyle
+import com.securevault.pro.presentation.theme.DockFill
+import com.securevault.pro.presentation.theme.DockPlan
+import com.securevault.pro.presentation.theme.MarkerAnchor
 import com.securevault.pro.presentation.theme.NavIndicator
 import com.securevault.pro.presentation.theme.SecureWalletTheme
+import com.securevault.pro.presentation.theme.ThemeMotion
+import com.securevault.pro.presentation.theme.VaultPalette
 import com.securevault.pro.presentation.theme.VaultPaletteController
 import com.securevault.pro.presentation.theme.VaultColor
+import com.securevault.pro.presentation.theme.VaultContrast
 import com.securevault.pro.presentation.theme.VaultMotion
-import com.securevault.pro.presentation.theme.VaultShapes
-import com.securevault.pro.presentation.theme.VaultRadius
+import com.securevault.pro.presentation.theme.DOCK_ICON_SCALE
+import com.securevault.pro.presentation.theme.DOCK_LABEL_GAP
+import com.securevault.pro.presentation.theme.DOCK_MARKER_GAP
+import com.securevault.pro.presentation.theme.dockBarShape
+import com.securevault.pro.presentation.theme.dockPlan
+import com.securevault.pro.presentation.theme.dockSeatShape
+import com.securevault.pro.presentation.theme.easingFor
+import com.securevault.pro.presentation.theme.motionFor
+import com.securevault.pro.presentation.theme.themeRouteEnter
+import com.securevault.pro.presentation.theme.themeRouteExit
 import com.securevault.pro.presentation.components.Glyph
 
 @Composable
@@ -155,7 +176,9 @@ private fun VaultAppScaffold(viewModel: AppViewModel) {
     val inactivityLockSeconds by viewModel.inactivityLockSeconds.collectAsStateWithLifecycle()
     val panicShakeEnabled by viewModel.panicShakeEnabled.collectAsStateWithLifecycle()
     val cloudState by viewModel.cloudState.collectAsStateWithLifecycle()
-    val deadManNotice by viewModel.deadManNotice.collectAsStateWithLifecycle()
+    val secureKeyboard by viewModel.secureKeyboardEnabled.collectAsStateWithLifecycle()
+    val secureBoardHeight by viewModel.secureBoardHeight.collectAsStateWithLifecycle()
+    val secureKeyboardHaptics by viewModel.secureKeyboardHaptics.collectAsStateWithLifecycle()
 
     val context = LocalContext.current
     val view = LocalView.current
@@ -200,107 +223,57 @@ private fun VaultAppScaffold(viewModel: AppViewModel) {
         onShake = viewModel::lockNow
     )
 
-    androidx.compose.runtime.CompositionLocalProvider(LocalSecureClipboard provides clipboard) {
+    androidx.compose.runtime.CompositionLocalProvider(
+        LocalSecureClipboard provides clipboard,
+        LocalSecureKeyboardTyping provides secureKeyboard,
+        LocalSecureBoardHeight provides secureBoardHeight,
+        LocalSecureKeyboardHaptics provides secureKeyboardHaptics
+    ) {
         Box(Modifier.fillMaxSize()) {
-            // A short fade + lift as the app moves between major stages (boot, onboarding, lock,
-            // vault). Navigation, routes and back handling are untouched: only the stage body
-            // is wrapped, and the outgoing screen is disposed as soon as the 180-240 ms hop ends.
-            val stageEnter = VaultMotion.fadeEnter(durationMillis = 240) +
-                VaultMotion.slideEnterVertically(durationMillis = 240) { it / 30 }
-            val stageExit = VaultMotion.fadeExit(durationMillis = VaultMotion.SHORT)
-            AnimatedContent(
-                targetState = state.stage,
-                modifier = Modifier.fillMaxSize(),
-                transitionSpec = { stageEnter togetherWith stageExit },
-                label = "appStage"
-            ) { stage ->
-                when (stage) {
-                    AppStage.LOADING -> SplashScreen(
-                        status = cloudState.detail.takeIf { it.isNotBlank() },
-                        title = cloudState.title.takeIf { cloudState.active && it.isNotBlank() },
-                        progress = cloudState.percent.takeIf { cloudState.active }
-                    )
-                    AppStage.ONBOARDING -> OnboardingScreen(onFinished = viewModel::completeOnboarding)
-                    AppStage.INTRO -> IntroScreen(onFinished = viewModel::completeIntro)
-                    AppStage.SETUP -> SetupScreen()
-                    AppStage.LOCKED -> LockScreen()
-                    AppStage.UNLOCKED -> UnlockedApp(
-                        autoLockSeconds = autoLockSeconds,
-                        inactivityLockSeconds = inactivityLockSeconds,
-                        onLock = viewModel::lockNow,
-                        onToggleTheme = viewModel::toggleLightMode
-                    )
+            // One secure board for the whole app, docked at the bottom of the window instead of
+            // inside whichever field is focused. Engaging a field therefore costs the form no
+            // layout height where the field sits — the screen gives up room at the bottom exactly
+            // as it does for the system keyboard, which is what stops the input from jumping.
+            SecureKeyboardHost(modifier = Modifier.fillMaxSize()) {
+                // A short fade + lift as the app moves between major stages (boot, onboarding, lock,
+                // vault). Navigation, routes and back handling are untouched: only the stage body
+                // is wrapped, and the outgoing screen is disposed as soon as the 180-240 ms hop ends.
+                val stageEnter = VaultMotion.fadeEnter(durationMillis = 240) +
+                    VaultMotion.slideEnterVertically(durationMillis = 240) { it / 30 }
+                val stageExit = VaultMotion.fadeExit(durationMillis = VaultMotion.SHORT)
+                AnimatedContent(
+                    targetState = state.stage,
+                    modifier = Modifier.fillMaxSize(),
+                    transitionSpec = { stageEnter togetherWith stageExit },
+                    label = "appStage"
+                ) { stage ->
+                    when (stage) {
+                        AppStage.LOADING -> SplashScreen(
+                            status = cloudState.detail.takeIf { it.isNotBlank() },
+                            title = cloudState.title.takeIf { cloudState.active && it.isNotBlank() },
+                            progress = cloudState.percent.takeIf { cloudState.active }
+                        )
+                        AppStage.ONBOARDING -> OnboardingScreen(onFinished = viewModel::completeOnboarding)
+                        AppStage.INTRO -> IntroScreen(onFinished = viewModel::completeIntro)
+                        AppStage.SETUP -> SetupScreen()
+                        AppStage.LOCKED -> LockScreen()
+                        AppStage.UNLOCKED -> UnlockedApp(
+                            autoLockSeconds = autoLockSeconds,
+                            inactivityLockSeconds = inactivityLockSeconds,
+                            onLock = viewModel::lockNow,
+                            onToggleTheme = viewModel::toggleLightMode
+                        )
+                    }
                 }
             }
-            // App-level notices share one column so a crash report and a dead man's switch
-            // report never sit on top of each other. The switch report is hidden in a decoy
-            // session: a decoy must look like an ordinary vault.
+            // App-level notices share one column so a crash report never sits on top of
+            // anything else the root has to say.
             Column(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .fillMaxWidth()
             ) {
-                if (!state.decoy) {
-                    DeadManNoticeBanner(
-                        notice = deadManNotice,
-                        onDismiss = viewModel::dismissDeadManNotice
-                    )
-                }
                 CrashReportBanner()
-            }
-        }
-    }
-}
-
-/**
- * Says what the dead man's switch actually did on this launch. Rendered above the stage, never
- * as a dialog: after a real erase the vault is back at Setup, and the report has to survive that
- * hop and be readable before anything else.
- */
-@Composable
-private fun DeadManNoticeBanner(notice: String?, onDismiss: () -> Unit) {
-    if (notice.isNullOrBlank()) return
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .statusBarsPadding()
-            .padding(horizontal = 14.dp)
-            .clip(VaultShapes.button)
-            .background(VaultColor.elevated.copy(alpha = 0.97f))
-            .border(1.dp, VaultColor.warning.copy(alpha = 0.55f), VaultShapes.button)
-            .padding(start = 14.dp, end = 8.dp, top = 12.dp, bottom = 6.dp)
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            ThemedIcon(
-                glyph = Glyph.warning,
-                contentDescription = null,
-                tint = VaultColor.warning,
-                modifier = Modifier.size(17.dp)
-            )
-            Spacer(Modifier.width(8.dp))
-            Text(
-                text = "Dead man's switch",
-                style = MaterialTheme.typography.titleSmall,
-                color = VaultColor.textStrong
-            )
-        }
-        Spacer(Modifier.height(6.dp))
-        Text(
-            text = notice,
-            style = MaterialTheme.typography.labelSmall,
-            color = VaultColor.textFaint,
-            lineHeight = 16.sp
-        )
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.End
-        ) {
-            TextButton(onClick = onDismiss) {
-                Text(
-                    text = "Dismiss",
-                    color = VaultColor.textFaint,
-                    style = MaterialTheme.typography.labelLarge
-                )
             }
         }
     }
@@ -325,6 +298,18 @@ private fun UnlockedApp(
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
     val showBottomBar = currentRoute in Routes.topLevelRoutes
+
+    // The place, not just the state: `noteStage` can only say "unlocked", so a trace-less death
+    // inside the note editor and one inside the card wallet produced the same report. `noteScreen`
+    // writes to disk and to the trail only when the name actually changes, so a recomposition of the
+    // host costs nothing.
+    androidx.compose.runtime.SideEffect { CrashLogger.noteScreen(Routes.screenNameFor(currentRoute)) }
+
+    // A route change is part of the theme now: the direction, the curve and the length all come
+    // from the palette's own motion signature, and the device's animation scale is read once here
+    // so a reduced-motion phone simply swaps screens on one frame.
+    val routeMotion = motionFor(VaultPaletteController.current.id)
+    val routeScale = VaultMotion.durationScale()
 
     // A browser passkey sheet can open this app before the vault is unlocked. The request waits in
     // PasskeyHandoff until this graph exists, then lands on the Passkeys section exactly once.
@@ -377,22 +362,10 @@ private fun UnlockedApp(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding),
-            enterTransition = {
-                fadeIn(tween(220, delayMillis = 40)) +
-                    slideInHorizontally(tween(300)) { it / 16 }
-            },
-            exitTransition = {
-                fadeOut(tween(140)) +
-                    slideOutHorizontally(tween(300)) { -it / 30 }
-            },
-            popEnterTransition = {
-                fadeIn(tween(220, delayMillis = 40)) +
-                    slideInHorizontally(tween(300)) { -it / 16 }
-            },
-            popExitTransition = {
-                fadeOut(tween(140)) +
-                    slideOutHorizontally(tween(300)) { it / 30 }
-            }
+            enterTransition = { themeRouteEnter(routeMotion, routeScale) },
+            exitTransition = { themeRouteExit(routeMotion, routeScale) },
+            popEnterTransition = { themeRouteEnter(routeMotion, routeScale, reverse = true) },
+            popExitTransition = { themeRouteExit(routeMotion, routeScale, reverse = true) }
         ) {
             composable(Routes.HOME) {
                 HomeScreen(
@@ -844,53 +817,31 @@ private fun VaultBottomBar(
     }
 
     val palette = VaultPaletteController.current
-    val dock = palette.dock
-    val floats = dock == DockStyle.PILL_FROSTED ||
-        dock == DockStyle.COMFORT_PANEL ||
-        (dock == DockStyle.SOFT_FLOATING && palette.navFloating)
-    val shape = when (dock) {
-        DockStyle.FLAT_PLATE -> RoundedCornerShape(
-            topStart = palette.navCorner,
-            topEnd = palette.navCorner
-        )
-        DockStyle.MINIMAL_BAR -> RectangleShape
-        else -> palette.navShape
-    }
-    val sideInset = when (dock) {
-        DockStyle.PILL_FROSTED -> 18.dp
-        DockStyle.COMFORT_PANEL -> 12.dp
-        DockStyle.SOFT_FLOATING -> if (palette.navFloating) 14.dp else 0.dp
-        else -> 0.dp
-    }
-    val bottomInset = when (dock) {
-        DockStyle.PILL_FROSTED -> 12.dp
-        DockStyle.COMFORT_PANEL -> 10.dp
-        DockStyle.SOFT_FLOATING -> if (palette.navFloating) 10.dp else 0.dp
-        else -> 0.dp
-    }
-    val itemShape = when (palette.navIndicator) {
-        NavIndicator.PILL -> VaultRadius.pill()
-        NavIndicator.UNDERLINE -> RoundedCornerShape(palette.navCorner / 2)
-        else -> RectangleShape
-    }
-    val frostTop = palette.navFrostAlpha
-    val frostBottom = (frostTop + 0.03f).coerceAtMost(1f)
+    // The bar is a *rendering* of the theme's dock spec, not a re-reading of DockStyle: shape,
+    // seat, fill, how the destinations share the width and where the marker lives all come from
+    // `dockPlan`, so fifteen themes draw fifteen different bars instead of four.
+    val plan = dockPlan(palette, tabs.size)
+    val barShape = dockBarShape(plan.corner, palette.navCorner)
+    val seatShape = dockSeatShape(plan.seat, palette.navCorner)
+    val motion = motionFor(palette.id)
+    val lit = VaultContrast.vibrant(palette.cyan)
+    val barBed = dockBed(palette, plan)
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .navigationBarsPadding()
-            .padding(start = sideInset, end = sideInset, bottom = bottomInset)
+            .padding(start = plan.sideInset, end = plan.sideInset, bottom = plan.bottomInset)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(palette.navHeight)
+                .height(plan.barHeight)
                 .then(
-                    if (floats || palette.cardShadow > 0.dp) {
+                    if (plan.floats || palette.cardShadow > 0.dp) {
                         Modifier.shadow(
                             elevation = if (palette.glow) 20.dp else palette.cardShadow.coerceAtLeast(6.dp),
-                            shape = shape,
+                            shape = barShape,
                             ambientColor = VaultColor.accent.copy(alpha = if (palette.glow) 0.24f else 0.08f),
                             spotColor = VaultColor.accent.copy(alpha = if (palette.glow) 0.3f else 0.1f)
                         )
@@ -898,105 +849,313 @@ private fun VaultBottomBar(
                         Modifier
                     }
                 )
-                .clip(shape)
-                .background(
-                    Brush.verticalGradient(
-                        listOf(
-                            palette.abyssElevated.copy(alpha = frostTop),
-                            palette.abyssSurface.copy(alpha = frostBottom)
-                        )
-                    )
-                )
-                // The PILL_FROSTED dock used to paint a second translucent capsule
-                // (a glassHighlight sheen) on top of its own gradient. It read as a
-                // ghost pill sitting behind the icons, so the extra layer is gone:
-                // the dock is one plate, one fill.
+                .clip(barShape)
+                .background(dockFillBrush(palette, plan), barShape)
                 .border(
-                    if (dock == DockStyle.MINIMAL_BAR) 0.dp
+                    if (plan.edgeRule) 0.dp
                     else palette.cardBorderWidth.coerceAtLeast(1.dp),
                     palette.outlineColor,
-                    shape
+                    barShape
                 )
-                .padding(horizontal = if (dock == DockStyle.COMFORT_PANEL) 8.dp else 6.dp),
+                // The item plates are cut *inside* the bar, so the plate inset can never eat the
+                // touch target: `dockPlan` has already given way on it if the bar is too short.
+                .padding(
+                    start = plan.innerInset,
+                    end = plan.innerInset,
+                    top = plan.plateInset,
+                    bottom = plan.plateInset
+                ),
+            horizontalArrangement = Arrangement.spacedBy(plan.itemGap),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            tabs.forEach { tab ->
-                val selected = currentRoute == tab.pattern
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxHeight()
-                        .clip(itemShape)
-                        .background(
-                            if (selected && palette.navIndicator == NavIndicator.PILL) {
-                                VaultColor.accent.copy(alpha = 0.12f)
-                            } else {
-                                Color.Transparent
-                            },
-                            itemShape
-                        )
-                        .clickable { onSelect(tab.route) },
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
+            tabs.forEachIndexed { index, tab ->
+                DockItem(
+                    tab = tab,
+                    index = index,
+                    selected = currentRoute == tab.pattern,
+                    plan = plan,
+                    palette = palette,
+                    motion = motion,
+                    seatShape = seatShape,
+                    barBed = barBed,
+                    lit = lit,
+                    onSelect = { onSelect(tab.route) }
+                )
+            }
+        }
+        // A two-tone bar's break and a minimal bar's hairline are both rules across the bar itself,
+        // drawn after the row so nothing the items do can cover them.
+        if (plan.edgeRule) {
+            Rule(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .fillMaxWidth()
+                    .height(1.dp),
+                ink = palette.surfaceOverlay.copy(alpha = 0.12f)
+            )
+        }
+        if (plan.fill == DockFill.SHEEN_TOP) {
+            Rule(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(horizontal = plan.innerInset * 2)
+                    .fillMaxWidth()
+                    .height(1.5.dp)
+                    .clip(RoundedCornerShape(percent = 50)),
+                ink = palette.glassHighlight.copy(alpha = 0.55f)
+            )
+        }
+    }
+}
+
+/** A single lit or hairline rule across the bar. */
+@Composable
+private fun Rule(modifier: Modifier, ink: Color) {
+    Box(modifier.background(ink))
+}
+
+@Composable
+private fun RowScope.DockItem(
+    tab: BottomTab,
+    index: Int,
+    selected: Boolean,
+    plan: DockPlan,
+    palette: VaultPalette,
+    motion: ThemeMotion,
+    seatShape: Shape,
+    barBed: Color,
+    lit: Color,
+    onSelect: () -> Unit
+) {
+    // A plate is only lit when the marker *is* the plate; elsewhere the accent stays on its own
+    // rule or spot so the item never turns into a slab of brand colour.
+    val seatLit = selected && plan.marker == MarkerAnchor.SEAT && plan.indicator != NavIndicator.NONE
+    val wash = if (seatLit) lit.copy(alpha = if (palette.isLight) 0.16f else 0.22f) else Color.Transparent
+    val bed = VaultContrast.composite(wash, barBed)
+    // Ink over an accent is measured, never assumed: the label rides the composited bed it sits on.
+    val labelInk = if (seatLit) {
+        VaultContrast.ensure(palette.textPrimary, bed)
+    } else if (selected) {
+        VaultColor.textStrong
+    } else {
+        VaultColor.textFaint
+    }
+    val progress by animateFloatAsState(
+        targetValue = if (selected) 1f else 0f,
+        animationSpec = if (plan.indicator == NavIndicator.NONE) {
+            VaultMotion.tweenSpec<Float>(VaultMotion.INSTANT, easingFor(motion.curve))
+        } else {
+            VaultMotion.tweenSpec<Float>(motion.duration, easingFor(motion.curve))
+        },
+        label = "dockMarker"
+    )
+    // The label is the last thing to go: the plan already traded plate inset for it, and this is
+    // the final guard for a bar shorter than one line of the theme's own label size.
+    val showLabel = plan.showLabels && plan.contentHeight <= plan.itemHeight
+
+    Box(
+        modifier = Modifier
+            .weight(plan.itemWeights[index.coerceAtLeast(0)])
+            .fillMaxHeight()
+            .clip(seatShape)
+            .background(wash, seatShape)
+            .clickable(onClick = onSelect),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            if (plan.marker == MarkerAnchor.ICON) {
+                Box(contentAlignment = Alignment.Center) {
+                    DockMarker(
+                        plan = plan,
+                        lit = lit,
+                        progress = progress,
+                        kind = MarkerKind.SPOT
+                    )
                     BrandModuleIcon(
                         module = tab.module,
-                        size = palette.navIconSize * 1.34f,
+                        size = plan.iconSize * DOCK_ICON_SCALE,
                         contentDescription = tab.label,
                         modifier = Modifier.graphicsLayer {
                             alpha = if (selected) 1f else 0.58f
                         }
                     )
-                    if (palette.navLabels) {
-                        Spacer(Modifier.height(3.dp))
-                        Text(
-                            text = if (palette.uppercaseLabels || dock == DockStyle.FLAT_PLATE) {
-                                tab.label.uppercase()
-                            } else {
-                                tab.label
-                            },
-                            style = MaterialTheme.typography.labelSmall.copy(
-                                fontSize = palette.navLabelSize,
-                                letterSpacing = if (dock == DockStyle.FLAT_PLATE) 0.8.sp else 0.4.sp
-                            ),
-                            color = if (selected) VaultColor.textStrong else VaultColor.textFaint,
-                            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                    if (palette.navIndicator == NavIndicator.UNDERLINE) {
-                        Spacer(Modifier.height(4.dp))
-                        Box(
-                            modifier = Modifier
-                                .width(if (selected) 18.dp else 3.dp)
-                                .height(2.dp)
-                                .clip(VaultShapes.tag)
-                                .background(if (selected) VaultColor.accent else Color.Transparent)
-                        )
-                    }
-                    if (palette.navIndicator == NavIndicator.DOT) {
-                        Spacer(Modifier.height(4.dp))
-                        Box(
-                            modifier = Modifier
-                                .size(if (selected) 5.dp else 3.dp)
-                                .clip(CircleShape)
-                                .background(if (selected) VaultColor.accent else Color.Transparent)
-                        )
-                    }
                 }
+            } else {
+                BrandModuleIcon(
+                    module = tab.module,
+                    size = plan.iconSize * DOCK_ICON_SCALE,
+                    contentDescription = tab.label,
+                    modifier = Modifier.graphicsLayer {
+                        alpha = if (selected) 1f else 0.58f
+                    }
+                )
+            }
+            if (showLabel) {
+                Spacer(Modifier.height(DOCK_LABEL_GAP))
+                Text(
+                    text = if (palette.uppercaseLabels || palette.dock == DockStyle.FLAT_PLATE) {
+                        tab.label.uppercase()
+                    } else {
+                        tab.label
+                    },
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        fontSize = plan.labelSize,
+                        letterSpacing = if (palette.dock == DockStyle.FLAT_PLATE) 0.8.sp else 0.4.sp
+                    ),
+                    color = labelInk,
+                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            if (plan.markerInFlow) {
+                Spacer(Modifier.height(DOCK_MARKER_GAP))
+                DockMarker(plan = plan, lit = lit, progress = progress, kind = MarkerKind.RAIL)
             }
         }
-        if (dock == DockStyle.MINIMAL_BAR) {
-            Box(
+        // Markers that ride the item's own edge rather than its flow.
+        when {
+            plan.indicator == NavIndicator.NONE ||
+                (plan.marker == MarkerAnchor.SEAT) ||
+                (plan.marker == MarkerAnchor.BELOW && plan.markerInFlow) ||
+                plan.marker == MarkerAnchor.ICON -> Unit
+            plan.marker == MarkerAnchor.BESIDE -> DockMarker(
+                plan = plan,
+                lit = lit,
+                progress = progress,
+                kind = MarkerKind.TAB,
+                modifier = Modifier.align(Alignment.CenterStart)
+            )
+            plan.marker == MarkerAnchor.ABOVE -> DockMarker(
+                plan = plan,
+                lit = lit,
+                progress = progress,
+                kind = MarkerKind.RAIL,
                 modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .fillMaxWidth()
-                    .height(1.dp)
-                    .background(palette.surfaceOverlay.copy(alpha = 0.12f))
+                    .align(Alignment.TopCenter)
+                    .padding(top = plan.markerThickness)
+            )
+            else -> DockMarker(
+                plan = plan,
+                lit = lit,
+                progress = progress,
+                kind = MarkerKind.RAIL,
+                modifier = Modifier.align(Alignment.BottomCenter)
             )
         }
     }
+}
+
+/**
+ * The selected marker. Its *anchor* comes from the theme's dock spec and its *shape* from the
+ * palette's own [NavIndicator], so the same dot is a rail under the label in one theme, a spot
+ * behind the glyph in another and a tab on the item's leading edge in a third.
+ */
+private enum class MarkerKind {
+    /** A rail across the item, or a dot at its centre when the palette marks with a dot. */
+    RAIL,
+    /** A vertical tab on the item's leading edge. */
+    TAB,
+    /** A disc behind the glyph, cut from the glyph's own seat. */
+    SPOT
+}
+
+@Composable
+private fun DockMarker(
+    plan: DockPlan,
+    lit: Color,
+    progress: Float,
+    kind: MarkerKind,
+    modifier: Modifier = Modifier
+) {
+    if (plan.indicator == NavIndicator.NONE) return
+    val dot = plan.indicator == NavIndicator.DOT
+    val sized = when (kind) {
+        MarkerKind.RAIL -> if (dot) {
+            modifier.size(plan.markerDotSize)
+        } else {
+            modifier.fillMaxWidth(plan.markerWidthFraction).height(plan.markerThickness)
+        }
+        MarkerKind.TAB -> modifier
+            .fillMaxHeight(if (dot) plan.markerDotSize / plan.itemHeight else 0.58f)
+            .width(if (dot) plan.markerDotSize else plan.markerThickness)
+        MarkerKind.SPOT -> modifier.size(plan.iconSize * DOCK_ICON_SCALE + plan.iconSpotPad * 2)
+    }
+    Box(
+        sized
+            .graphicsLayer {
+                alpha = progress
+                val grow = 0.55f + 0.45f * progress
+                when {
+                    dot || kind == MarkerKind.SPOT -> {
+                        scaleX = grow
+                        scaleY = grow
+                    }
+                    kind == MarkerKind.TAB -> scaleY = grow
+                    else -> scaleX = grow
+                }
+            }
+            // A spot is a wash the glyph sits in; a rail or a tab is the accent itself.
+            .background(
+                if (kind == MarkerKind.SPOT) lit.copy(alpha = if (plan.indicator == NavIndicator.DOT) 0.4f else 0.26f) else lit,
+                if (dot || kind == MarkerKind.SPOT) CircleShape else RoundedCornerShape(percent = 50)
+            )
+    )
+}
+
+/**
+ * The bar's own fill, per [DockFill]. Every stop is a palette surface token at the palette's own
+ * `navFrostAlpha`, so the theme decides how much wallpaper reads through whichever silhouette it is
+ * cut to — the flat sheet, the lit footer, the frosted glass or the two-tone break.
+ */
+private fun dockFillBrush(palette: VaultPalette, plan: DockPlan): Brush {
+    val top = plan.frostTop
+    val bottom = plan.frostBottom
+    val surface = palette.abyssSurface
+    val elevated = palette.abyssElevated
+    val glass = palette.abyssGlass
+    return when (plan.fill) {
+        DockFill.FLAT -> Brush.verticalGradient(
+            listOf(surface.copy(alpha = top), surface.copy(alpha = bottom))
+        )
+        DockFill.GRADIENT -> Brush.verticalGradient(
+            listOf(elevated.copy(alpha = top), surface.copy(alpha = bottom))
+        )
+        DockFill.GLASS -> Brush.verticalGradient(
+            listOf(glass.copy(alpha = top), surface.copy(alpha = bottom))
+        )
+        DockFill.TWO_TONE -> Brush.verticalGradient(
+            0f to elevated.copy(alpha = top),
+            0.56f to elevated.copy(alpha = top),
+            0.56f to surface.copy(alpha = bottom),
+            1f to surface.copy(alpha = bottom)
+        )
+        DockFill.SHEEN_TOP -> Brush.verticalGradient(
+            0f to elevated.copy(alpha = top),
+            0.34f to elevated.copy(alpha = bottom),
+            1f to surface.copy(alpha = bottom)
+        )
+    }
+}
+
+/**
+ * The colour the bar's items actually sit on, composited at the theme's frost alpha over the
+ * screen behind it. Label ink is measured against this, which is why a 0.55 frost theme can still
+ * promise readable captions.
+ */
+private fun dockBed(palette: VaultPalette, plan: DockPlan): Color {
+    val top = palette.abyssSurface.copy(alpha = plan.frostTop)
+    return VaultContrast.composite(
+        when (plan.fill) {
+            DockFill.FLAT, DockFill.GLASS -> top
+            DockFill.GRADIENT, DockFill.SHEEN_TOP, DockFill.TWO_TONE ->
+                palette.abyssElevated.copy(alpha = plan.frostTop)
+        },
+        palette.abyssDark
+    )
 }
 
 private fun Context.findActivity(): Activity? {

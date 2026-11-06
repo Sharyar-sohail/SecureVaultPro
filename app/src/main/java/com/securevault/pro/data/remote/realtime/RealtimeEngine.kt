@@ -56,6 +56,37 @@ data class RealtimeStatus(
 )
 
 /**
+ * What the engine should do with one mutation signal: push exactly the named record on the
+ * millisecond path, or fall back to the signature sweep. Pure — no Firebase or Android types —
+ * so the routing decision is provable in a JVM unit test ([MutationRouter]).
+ */
+sealed class PushPlan {
+    /** One record-scoped push: [module] and [id] are already validated, [deleted] picks the tombstone. */
+    data class Record(val module: RealtimeModule, val id: String, val deleted: Boolean) : PushPlan()
+
+    /** Identity unknown (or a caller typo): the full sweep is the only safe path. */
+    object Sweep : PushPlan()
+}
+
+/**
+ * Routes a mutation's (module, id, deleted) triple to a [PushPlan]. A push is only planned when the
+ * segment names one of the seven realtime modules (validated via [RealtimeModule.fromSegment], never
+ * trusted) and the id is non-blank; anything else returns [PushPlan.Sweep] so an unnamed or
+ * mistyped mutation behaves exactly like the old identity-free signal.
+ */
+object MutationRouter {
+    fun plan(module: String?, id: String?, deleted: Boolean): PushPlan {
+        val resolved = RealtimeModule.fromSegment(module)
+        val recordId = id?.takeIf { it.isNotBlank() }
+        return if (resolved != null && recordId != null) {
+            PushPlan.Record(resolved, recordId, deleted)
+        } else {
+            PushPlan.Sweep
+        }
+    }
+}
+
+/**
  * The Android realtime engine: a per-record delta writer and a per-module push listener over the
  * Firebase Realtime Database, speaking the frozen `RECORD-FORMAT-v1.md` contract.
  *
@@ -209,9 +240,11 @@ class RealtimeEngine @Inject constructor(
     }
 
     /**
-     * Called from `AutoSyncManager.markDirty()` — the single mutation signal every screen already
-     * fires. It schedules a signature-diff sweep so a changed record pushes in milliseconds while the
-     * existing Drive archive debounce is left completely untouched.
+     * Called from `AutoSyncManager` for every mutation, as the safety net under the record-scoped
+     * fast push. When [markRecordChanged] / [markRecordDeleted] already ran, `pushOne` has recorded
+     * the signature in `lastPushed`, so this sweep finds every signature matched and performs zero
+     * network writes. It stays because it is what catches deletions and edits made while offline —
+     * identity-free signals (bulk imports, restores, typos) still rely on it alone.
      */
     fun scheduleReconcile() {
         reconcileWake.trySend(Unit)

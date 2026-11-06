@@ -66,8 +66,11 @@ class VaultApplication : Application() {
             }
             probeDeferred("the settings store") { appLockManager.introSeen.first() }
             probeDeferred("the vault database") { repository.getEntry("startup-probe") }
+            CrashLogger.noteEvent("legacy ciphertext migration started")
             runCatching { repository.migrateLegacyCiphertext() }
                 .onFailure { CrashLogger.noteFault(this@VaultApplication, "Legacy file migration failed", it) }
+            CrashLogger.noteEvent("legacy ciphertext migration finished")
+            CrashLogger.noteEvent("startup work finished")
         }
     }
 
@@ -83,11 +86,12 @@ class VaultApplication : Application() {
     /**
      * Runs one startup step and reports it by name if it throws. A probe never crashes the
      * app: it opens recovery mode on the next launch instead, with the failing stage written
-     * down where the owner can read it.
+     * down where the owner can read it. The step itself goes in the trail, not in the screen
+     * record — these run long after the owner is standing on a screen.
      */
     private inline fun probe(name: String, block: () -> Unit) {
         try {
-            CrashLogger.noteStage("probe/$name")
+            CrashLogger.noteProbe(name)
             block()
         } catch (error: Throwable) {
             CrashLogger.forceRescue(this, "Startup probe failed: $name", error)
@@ -96,7 +100,7 @@ class VaultApplication : Application() {
 
     private suspend inline fun probeDeferred(name: String, block: suspend () -> Unit) {
         try {
-            CrashLogger.noteStage("probe/$name")
+            CrashLogger.noteProbe(name)
             block()
         } catch (error: Throwable) {
             CrashLogger.forceRescue(this, "Startup probe failed: $name", error)

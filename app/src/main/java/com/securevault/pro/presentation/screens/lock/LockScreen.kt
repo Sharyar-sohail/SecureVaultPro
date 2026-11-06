@@ -24,8 +24,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -50,7 +52,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -67,6 +68,7 @@ import com.securevault.pro.presentation.components.NeonBackground
 import com.securevault.pro.presentation.components.ThemedIcon
 import com.securevault.pro.security.keyboard.SecureKeyboardHost
 import com.securevault.pro.security.keyboard.SecurePasswordField
+import com.securevault.pro.presentation.screens.welcome.authFormNeedsScroll
 import com.securevault.pro.presentation.theme.ThemeDesign
 import com.securevault.pro.presentation.theme.VaultPaletteController
 import kotlinx.coroutines.delay
@@ -83,6 +85,95 @@ private const val BIOMETRIC_RESUME_COOLDOWN_MS = 20_000L
 // scrolling: four key rows at the regular size do not fit a short phone.
 private val LOCK_COMPACT_BELOW = 820.dp
 private val LOCK_DENSE_BELOW = 620.dp
+
+/** Line heights this screen's own type ramp renders, so the fit maths adds real numbers. */
+private val LOCK_TITLE_DENSE: Dp = 25.dp
+private val LOCK_TITLE_COMPACT: Dp = 26.dp
+private val LOCK_TITLE: Dp = 30.dp
+private val LOCK_BODY_LINE: Dp = 17.dp
+private val LOCK_LABEL_LINE: Dp = 13.dp
+private val LOCK_MEDIUM_LINE: Dp = 16.dp
+
+/** The blocks the unlock screen places, at the height the shared components document. */
+private val LOCK_FIELD_HEIGHT: Dp = 86.dp
+private val LOCK_BUTTON_HEIGHT: Dp = 54.dp
+private val LOCK_STATUS_BOX: Dp = 18.dp
+private val LOCK_DOTS_BOX: Dp = 12.dp
+
+/** Slack for word wrap the line counts cannot predict. */
+private val LOCK_FIT_MARGIN: Dp = 12.dp
+
+/** Characters the warning line fits per row, at its own size inside the icon-and-text row. */
+private const val LOCK_MESSAGE_CHARS_PER_LINE = 32
+
+/** "Too many attempts · retry in 45s" — the lock-out line, counted the same way. */
+private const val LOCKOUT_MESSAGE_CHARS = 34
+
+/** The PIN pad's four rows, at the key size the tier gives them. */
+private fun lockKeypadHeight(compact: Boolean, dense: Boolean): Dp {
+    val key = if (dense) 54.dp else if (compact) 62.dp else 72.dp
+    val gap = if (dense) 8.dp else if (compact) 12.dp else 16.dp
+    return key * 4 + gap * 3
+}
+
+/**
+ * The height the unlock screen draws at the tier it was handed: brand row, emblem, the two
+ * instruction lines, whichever input surface is showing (pad, secure field, biometric button),
+ * the mode links and the footer. Pure dp maths over the same numbers the layout below places, so
+ * [com.securevault.pro.presentation.screens.welcome.authFormNeedsScroll] can answer "does it fit"
+ * instead of hoping the tier guessed right.
+ */
+internal fun lockFormHeight(
+    ready: Boolean,
+    biometricGate: Boolean,
+    masterMode: Boolean,
+    lockedOut: Boolean = false,
+    messageLength: Int = 0,
+    biometricEntry: Boolean = false,
+    compact: Boolean = false,
+    dense: Boolean = false
+): Dp {
+    var total = if (compact) 36.dp else 48.dp
+    total += if (dense) {
+        12.dp
+    } else if (compact) {
+        64.dp + 12.dp
+    } else {
+        104.dp + 20.dp
+    }
+    total += if (dense) LOCK_TITLE_DENSE else if (compact) LOCK_TITLE_COMPACT else LOCK_TITLE
+    total += if (compact) 4.dp else 6.dp
+    total += LOCK_BODY_LINE * (if (compact) 2 else 3)
+    total += if (dense) 10.dp else if (compact) 14.dp else 22.dp
+
+    when {
+        !ready -> total += if (compact) 72.dp else 120.dp
+        biometricGate -> {
+            total += LOCK_BUTTON_HEIGHT
+            total += (if (compact) 6.dp else 10.dp) + LOCK_LABEL_LINE * 3
+            total += (if (compact) 4.dp else 14.dp) + 18.dp + (if (compact) 12.dp else 20.dp)
+        }
+        masterMode -> total += LOCK_FIELD_HEIGHT + (if (compact) 8.dp else 12.dp) + LOCK_BUTTON_HEIGHT
+        else -> total += LOCK_DOTS_BOX + (if (compact) 4.dp else 9.dp) +
+            (if (compact) 14.dp else LOCK_STATUS_BOX)
+    }
+    if (ready && !biometricGate && (lockedOut || messageLength > 0)) {
+        // The line beside the warning glyph, wrapped: `messageLength` is the real string the row
+        // paints, so an OEM's longer wording cannot push the keypad past the fold.
+        val chars = if (lockedOut) maxOf(messageLength, LOCKOUT_MESSAGE_CHARS) else messageLength
+        val lines = ((chars + LOCK_MESSAGE_CHARS_PER_LINE - 1) / LOCK_MESSAGE_CHARS_PER_LINE)
+            .coerceAtLeast(1)
+        total += (if (compact) 6.dp else 10.dp) + LOCK_MEDIUM_LINE * lines
+    }
+
+    if (ready && !biometricGate) {
+        total += if (masterMode) 8.dp else lockKeypadHeight(compact = compact, dense = dense)
+        total += (if (compact) 8.dp else 16.dp) + 18.dp + (if (compact) 14.dp else 20.dp)
+        if (biometricEntry) total += LOCK_MEDIUM_LINE + (if (compact) 10.dp else 16.dp)
+    }
+    total += if (compact) 8.dp else 48.dp
+    return total + LOCK_FIT_MARGIN
+}
 
 @Composable
 fun LockScreen(viewModel: LockViewModel = hiltViewModel()) {
@@ -176,7 +267,10 @@ fun LockScreen(viewModel: LockViewModel = hiltViewModel()) {
         if (state.error != null) {
             pin = ""
             master = ""
-            keypadSeed++
+            // A wrong try must never move the keypad: the retry is the moment the owner is
+            // looking hardest at the digits, and re-shuffling them under his finger reads as
+            // the screen jumping. The pad is re-randomised only when a lockout expires, where
+            // the keypad has been hidden anyway.
             haptics.performHapticFeedback(HapticFeedbackType.LongPress)
         }
     }
@@ -255,9 +349,11 @@ fun LockScreen(viewModel: LockViewModel = hiltViewModel()) {
     // behind the keys.
     SecureKeyboardHost(modifier = Modifier.fillMaxSize()) {
         NeonBackground {
-            // No scroll container: the IME (PIN flows) and the secure board (master password)
-            // shrink this box instead, the column's weighted gaps absorb the loss, and the tier
-            // below shrinks the keypad.
+            // The IME (PIN flows) and the secure board (master password) shrink this box, the
+            // column's weighted gaps absorb the loss, and the tier shrinks the keypad. When the
+            // pieces still need more than the box has, the column scrolls instead — inside the
+            // content area that already clears the docked board, so the board stays a sibling of
+            // constant height and no inset is paid twice.
             BoxWithConstraints(
                 modifier = Modifier
                     .fillMaxSize()
@@ -268,6 +364,19 @@ fun LockScreen(viewModel: LockViewModel = hiltViewModel()) {
                 val available = maxHeight
                 val compact = available < LOCK_COMPACT_BELOW
                 val dense = available < LOCK_DENSE_BELOW
+                val scrollable = authFormNeedsScroll(
+                    available,
+                    lockFormHeight(
+                        ready = state.ready,
+                        biometricGate = biometricGate,
+                        masterMode = masterMode,
+                        lockedOut = lockedOut,
+                        messageLength = (biometricError ?: state.error)?.length ?: 0,
+                        biometricEntry = canUseBiometric,
+                        compact = compact,
+                        dense = dense
+                    )
+                )
 
                 val keySize: Dp = when {
                     dense -> 54.dp
@@ -290,7 +399,13 @@ fun LockScreen(viewModel: LockViewModel = hiltViewModel()) {
 
                 Column(
                     modifier = Modifier
-                        .fillMaxSize()
+                        .then(
+                            if (scrollable) {
+                                Modifier.fillMaxWidth().verticalScroll(rememberScrollState())
+                            } else {
+                                Modifier.fillMaxSize()
+                            }
+                        )
                         .padding(horizontal = 24.dp)
                 ) {
                     Row(
@@ -347,7 +462,11 @@ fun LockScreen(viewModel: LockViewModel = hiltViewModel()) {
                     }
 
                     if (emblemOuter > 0.dp) {
-                        Spacer(Modifier.weight(if (compact) 0.45f else 0.7f))
+                        if (scrollable) {
+                            Spacer(Modifier.height(if (compact) 6.dp else 10.dp))
+                        } else {
+                            Spacer(Modifier.weight(if (compact) 0.45f else 0.7f))
+                        }
                         Box(
                             modifier = Modifier
                                 .size(emblemOuter)
@@ -415,9 +534,7 @@ fun LockScreen(viewModel: LockViewModel = hiltViewModel()) {
                         style = MaterialTheme.typography.bodySmall,
                         color = VaultColor.textBody,
                         textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth(),
-                        maxLines = if (compact) 2 else 3,
-                        overflow = TextOverflow.Ellipsis
+                        modifier = Modifier.fillMaxWidth()
                     )
 
                     Spacer(Modifier.height(if (dense) 10.dp else if (compact) 14.dp else 22.dp))
@@ -463,8 +580,7 @@ fun LockScreen(viewModel: LockViewModel = hiltViewModel()) {
                                 style = MaterialTheme.typography.labelSmall,
                                 color = if (promptDismissed || crashPending != null) VaultColor.warning else VaultColor.textFaint,
                                 textAlign = TextAlign.Center,
-                                maxLines = if (compact) 2 else 3,
-                                overflow = TextOverflow.Ellipsis
+                                modifier = Modifier.fillMaxWidth()
                             )
                             Spacer(Modifier.height(if (compact) 4.dp else 14.dp))
                             Text(
@@ -581,16 +697,18 @@ fun LockScreen(viewModel: LockViewModel = hiltViewModel()) {
                                         text = message,
                                         style = MaterialTheme.typography.labelMedium,
                                         color = VaultColor.debit,
-                                        textAlign = TextAlign.Center,
-                                        maxLines = 2,
-                                        overflow = TextOverflow.Ellipsis
+                                        textAlign = TextAlign.Center
                                     )
                                 }
                             }
                         }
                     }
 
-                    Spacer(Modifier.weight(if (compact) 0.45f else 0.65f))
+                    if (scrollable) {
+                        Spacer(Modifier.height(12.dp))
+                    } else {
+                        Spacer(Modifier.weight(if (compact) 0.45f else 0.65f))
+                    }
 
                     if (state.ready && !biometricGate) {
                         if (!masterMode) {

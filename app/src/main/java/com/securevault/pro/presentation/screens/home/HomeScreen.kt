@@ -44,7 +44,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -95,6 +97,7 @@ import com.securevault.pro.presentation.navigation.Routes
 import com.securevault.pro.presentation.theme.BoardRhythm
 import com.securevault.pro.presentation.theme.LayoutTuning
 import com.securevault.pro.presentation.theme.LayoutTuningController
+import com.securevault.pro.presentation.theme.PieForm
 import com.securevault.pro.presentation.theme.TileKind
 import com.securevault.pro.presentation.theme.VaultColor
 import com.securevault.pro.presentation.theme.VaultContrast
@@ -888,16 +891,27 @@ private fun SyncOrb(
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null
 ) {
-    val transition = rememberInfiniteTransition(label = "syncOrb")
-    val cycle by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1100, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "syncCycle"
-    )
+    // The orb only animates while something is actually happening. An
+    // `rememberInfiniteTransition` asks the frame clock for a callback every vsync for as long as
+    // it is composed, so an idle "Up to date" cloud used to keep the whole dashboard on a 60 fps
+    // tick — the one cost that made Home feel busy rather than instant on a mid-range phone. A
+    // settled or failed sync now draws a still icon, and reduced motion pins every phase still.
+    val reduced = VaultMotion.reduced()
+    val animated = !reduced && (phase == SyncPhase.RUNNING || phase == SyncPhase.PENDING)
+    val cycleState: State<Float> = if (animated) {
+        rememberInfiniteTransition(label = "syncOrb").animateFloat(
+            initialValue = 0f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(1100, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "syncCycle"
+        )
+    } else {
+        remember { mutableFloatStateOf(0.55f) }
+    }
+    val cycle by cycleState
     val density = LocalDensity.current
     val risePx = with(density) { 14.dp.toPx() }
 
@@ -1039,6 +1053,15 @@ private fun VaultCompositionCard(
         }
         Spacer(Modifier.height(8.dp))
         val chartDiameter = 126.dp
+        // The rail and the bar stack print their own total above the ink, so the centred caption
+        // would state the same number twice on those two forms.
+        val chartCaption = if (palette.pieForm == PieForm.SEGMENTED || palette.pieForm == PieForm.BARS) {
+            null
+        } else if (total == 0) {
+            "nothing sealed"
+        } else {
+            "$total sealed"
+        }
         // Below the split point the legend moves under the dial, where the two boxes
         // cannot touch, instead of squeezing beside it until its rows ran under the ring.
         BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
@@ -1054,7 +1077,7 @@ private fun VaultCompositionCard(
                         onSliceSelected = { selected = it },
                         diameter = chartDiameter,
                         strokeWidth = 17.dp,
-                        caption = if (total == 0) "nothing sealed" else "$total sealed"
+                        caption = chartCaption
                     )
                     Spacer(Modifier.width(12.dp))
                     CompositionLegend(
@@ -1077,7 +1100,7 @@ private fun VaultCompositionCard(
                         onSliceSelected = { selected = it },
                         diameter = chartDiameter,
                         strokeWidth = 17.dp,
-                        caption = if (total == 0) "nothing sealed" else "$total sealed"
+                        caption = chartCaption
                     )
                     CompositionLegend(
                         categories = categories,
@@ -1323,7 +1346,13 @@ private fun HomeModuleGrid(
             }
         }
         rows.forEachIndexed { rowIndex, row ->
-            DesignReveal(index = rowIndex, modifier = Modifier.fillMaxWidth().weight(1f)) {
+            // The row's own index plus the size of the board: a theme that reveals from the centre
+            // outward, from the edges in, or in pairs needs both numbers to place its cascade.
+            DesignReveal(
+                index = rowIndex,
+                count = rows.size,
+                modifier = Modifier.fillMaxWidth().weight(1f)
+            ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()

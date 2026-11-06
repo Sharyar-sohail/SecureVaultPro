@@ -21,8 +21,24 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
-private fun vaultTypography(palette: VaultPalette): Typography {
-    val base = VaultTypography
+/**
+ * The theme's typographic voice, laid over the family the owner picked in Settings.
+ *
+ * [family] is applied to the *base scale first*, so a design block's own `fontFamily` wins.
+ * It used to be applied last, which quietly deleted the only thing several themes had to say
+ * about type: every one of the five arcade palettes declares Monospace for its headings and
+ * tags, and re-homing all fifteen roles onto the picked family after the copy() chain threw
+ * that away on every real device — `monoTags` then only survived inside the chart. A theme's
+ * typeface is part of its layout language, so it is now the theme's to keep.
+ *
+ * The exception is `labelSmall`, which deliberately stays on the picked family: that style is
+ * what the dock captions and the board tiles draw at the palette's own 10-11.sp, and their
+ * advance widths are what [fitCell] and `HomeBoardFitTest` budget for. A mono face is roughly
+ * 15% wider per glyph than the sans, and a clipped module name is the one defect that rule
+ * cannot pay for. Tracking on the mono roles is pulled in by the same margin.
+ */
+private fun vaultTypography(palette: VaultPalette, family: FontFamily = FontFamily.SansSerif): Typography {
+    val base = VaultTypography.withFamily(family)
     return when (palette.design) {
         ThemeDesign.NEUTRAL -> base
         ThemeDesign.NEO_BRUTALIST -> base.copy(
@@ -78,9 +94,11 @@ private fun vaultTypography(palette: VaultPalette): Typography {
             titleLarge = base.titleLarge.copy(fontWeight = FontWeight.Bold),
             titleMedium = base.titleMedium.copy(fontWeight = FontWeight.Bold),
             titleSmall = base.titleSmall.copy(fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace),
-            labelLarge = base.labelLarge.copy(fontFamily = FontFamily.Monospace, letterSpacing = 0.9.sp),
-            labelMedium = base.labelMedium.copy(fontFamily = FontFamily.Monospace, letterSpacing = 1.1.sp),
-            labelSmall = base.labelSmall.copy(fontFamily = FontFamily.Monospace, letterSpacing = 1.6.sp)
+            labelLarge = base.labelLarge.copy(fontFamily = FontFamily.Monospace, letterSpacing = 0.3.sp),
+            labelMedium = base.labelMedium.copy(fontFamily = FontFamily.Monospace, letterSpacing = 0.5.sp),
+            // Stays on the picked family — see the kdoc. Tracked, but not past what a 10.sp
+            // dock caption has room for inside its share of the bar.
+            labelSmall = base.labelSmall.copy(letterSpacing = 1.2.sp)
         )
         ThemeDesign.NEO_SKEUOMORPHIC -> base.copy(
             displayLarge = base.displayLarge.copy(fontWeight = FontWeight.Bold, letterSpacing = (-1).sp),
@@ -125,7 +143,7 @@ fun SecureWalletTheme(
     val font = remember(fontId) { VaultFonts.find(fontId).also { VaultFontController.apply(it) } }
     MaterialTheme(
         colorScheme = VaultColor.colorScheme(palette),
-        typography = vaultTypography(palette).withFamily(font.family),
+        typography = vaultTypography(palette, font.family),
         shapes = VaultShapes.material(palette)
     ) {
         Box(Modifier.fillMaxSize()) {

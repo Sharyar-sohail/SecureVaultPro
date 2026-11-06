@@ -62,6 +62,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.qrcode.QRCodeWriter
+import com.securevault.pro.crypto.ChainRegistry
 import com.securevault.pro.crypto.CryptoNetwork
 import com.securevault.pro.crypto.TrustReport
 import com.securevault.pro.crypto.WalletAddress
@@ -180,6 +181,9 @@ fun CryptoWalletScreen(
 
             state.error?.let { message ->
                 item { NoticeCard(message, VaultColor.debit, Glyph.warningAmber) }
+            }
+            state.scanNotice?.let { message ->
+                item { NoticeCard(message = message, accent = VaultColor.warning, icon = Glyph.info) }
             }
             if (state.scanErrors.isNotEmpty()) {
                 item {
@@ -1338,36 +1342,26 @@ private fun plain(value: BigDecimal): String {
     return stripped.toPlainString().ifBlank { "0" }
 }
 
-private fun networkShort(networkId: String): String = when (networkId) {
-    CryptoNetwork.BITCOIN.id -> "BTC"
-    CryptoNetwork.ETHEREUM.id -> "ETH"
-    CryptoNetwork.BSC.id -> "BSC"
-    CryptoNetwork.POLYGON.id -> "POL"
-    CryptoNetwork.TRON.id -> "TRX"
-    else -> ""
-}
+/**
+ * Chain labels come from [ChainRegistry], so a chain added there appears here, in the network
+ * switcher and in Settings' Manage networks with its own name, fee coin and address hint — no
+ * screen keeps a list of chains any more.
+ */
+private fun networkShort(networkId: String): String = ChainRegistry.shortName(networkId)
 
-private fun feeSymbol(networkId: String): String = when (networkId) {
-    CryptoNetwork.BITCOIN.id -> "BTC"
-    CryptoNetwork.ETHEREUM.id -> "ETH"
-    CryptoNetwork.BSC.id -> "BNB"
-    CryptoNetwork.POLYGON.id -> "POL"
-    CryptoNetwork.TRON.id -> "TRX"
-    else -> ""
-}
+private fun feeSymbol(networkId: String): String = ChainRegistry.feeSymbol(networkId)
 
-private fun addressPlaceholder(networkId: String): String = when (networkId) {
-    CryptoNetwork.BITCOIN.id -> "bc1… or 1… / 3…"
-    CryptoNetwork.TRON.id -> "T…"
-    else -> "0x…"
-}
+private fun addressPlaceholder(networkId: String): String =
+    ChainRegistry.descriptorOrNull(networkId)?.let { ChainRegistry.addressHint(it.network) } ?: "Address"
 
-private fun networkAccent(network: CryptoNetwork): Color = when (network) {
-    CryptoNetwork.BITCOIN -> VaultColor.warning
-    CryptoNetwork.ETHEREUM -> VaultColor.decorative
-    CryptoNetwork.BSC -> VaultColor.warning
-    CryptoNetwork.POLYGON -> VaultColor.secondary
-    CryptoNetwork.TRON -> VaultColor.debit
+/**
+ * The chain's colour is its slot in the theme's own accent ramp, so every chain reads distinctly and
+ * no chain can ever be drawn in a colour this theme does not allow.
+ */
+private fun networkAccent(network: CryptoNetwork): Color {
+    val ramp = VaultColor.accentRamp
+    val index = ChainRegistry.all().indexOfFirst { it.network == network }
+    return if (index < 0 || ramp.isEmpty()) VaultColor.accent else ramp[index % ramp.size]
 }
 
 private fun shortAddress(address: String): String {

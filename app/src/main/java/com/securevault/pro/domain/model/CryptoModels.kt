@@ -6,6 +6,13 @@ import com.securevault.pro.crypto.TrustReport
 import com.securevault.pro.crypto.WalletAddress
 import java.math.BigDecimal
 
+/**
+ * One coin or token an address holds.
+ *
+ * [contract] and [decimals] are what makes a discovered token spendable: the scan reads them from the
+ * chain, and the send path signs against the contract it saw rather than a ticker it was told. They
+ * are absent for a native coin, which has no contract and whose decimals come from the chain registry.
+ */
 data class TokenBalance(
     val networkId: String,
     val networkName: String,
@@ -14,7 +21,9 @@ data class TokenBalance(
     val amount: Double,
     val priceUsd: Double = 0.0,
     val available: Boolean = true,
-    val error: String? = null
+    val error: String? = null,
+    val contract: String? = null,
+    val decimals: Int = 0
 ) {
     val usd: Double get() = amount * priceUsd
 }
@@ -33,9 +42,19 @@ data class CryptoWallet(
     val shortLabel: String get() = label.ifBlank { if (isSeedPhrase) "Seed wallet" else "Imported key" }
 }
 
+/**
+ * One pass of the balance scan.
+ *
+ * [scannedNetworkIds] names the chains the scan actually walked, which is not every chain the wallet
+ * has an address on: a chain the owner switched off in Settings is deliberately skipped. The merge
+ * that writes rows back needs that distinction, or a switched-off chain would be marked offline and
+ * its last known balance would read as stale.
+ */
 data class BalanceScan(
     val tokens: List<TokenBalance>,
-    val errors: Map<String, String> = emptyMap()
+    val errors: Map<String, String> = emptyMap(),
+    val scannedNetworkIds: Set<String> = emptySet(),
+    val notice: String? = null
 )
 
 /** A single coin or token that can be sent from a discovered address. */
@@ -51,7 +70,12 @@ data class TransferAsset(
     val priceUsd: Double
 ) {
     val usd: Double get() = amount * priceUsd
-    val key: String get() = "$networkId:$symbol"
+
+    /**
+     * Identity for pickers and de-duplication. A ticker is not an identity — two contracts on one
+     * chain can both say "GOLD" — so a discovered token is keyed by the contract it was read from.
+     */
+    val key: String get() = "$networkId:${contract?.lowercase() ?: symbol}"
 }
 
 data class TransferQuote(

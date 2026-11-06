@@ -134,6 +134,7 @@ object BackupXmlSerializer {
             attribute("updatedAt", wallet.updatedAt)
             append(">\n")
             field("secret", wallet.secret)
+            field("keyBackup", wallet.keyBackup)
             field("balances", wallet.balancesJson)
             append("</wallet>\n")
         }

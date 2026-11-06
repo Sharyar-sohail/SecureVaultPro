@@ -62,12 +62,24 @@ class LegacyRestoreReachTest {
             description.contains("mismatch")
         )
         assertTrue(
-            "the failure must name the exact key the file was written with",
-            description.contains("exact key")
+            "a sound file that will not open must name the key as the cause",
+            description.contains("locked with a key this device doesn't have")
+        )
+        assertTrue(
+            "and must hand the owner the one move that fixes it",
+            description.contains("Sign in with the Google account")
         )
         assertFalse(
             "the owner asked to stop counting keys in the failure sentence",
             description.contains("derivations")
+        )
+        assertFalse(
+            "a restore runs one key, so a count here means a sweep came back",
+            Regex("\\d+\\s+(keys|candidates|secrets)").containsMatchIn(description)
+        )
+        assertFalse(
+            "the sentence is owner-facing and must not carry cipher vocabulary",
+            listOf("GCM", "PBKDF2", "AES").any { description.contains(it, ignoreCase = true) }
         )
     }
 

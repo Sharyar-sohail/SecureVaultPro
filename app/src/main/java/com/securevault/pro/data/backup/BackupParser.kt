@@ -327,7 +327,10 @@ object BackupParser {
             secretElement.isJsonObject -> secretElement.toString()
             else -> secretElement.asJsonStringValue()
         }
-        if (secret.isNullOrBlank()) {
+        // A wallet whose key lives on the device rather than in its row carries only a pointer in
+        // `secret`, so the sealed key is what makes it worth restoring.
+        val keyBackup = obj.stringOf("keyBackup", "key_backup")
+        if (secret.isNullOrBlank() && keyBackup.isNullOrBlank()) {
             warnings += "A crypto wallet was skipped because it had no secret"
             return null
         }
@@ -337,6 +340,7 @@ object BackupParser {
             label = label,
             kind = obj.stringOf("kind", "type"),
             secret = secret,
+            keyBackup = keyBackup,
             balancesJson = obj.get("balancesJson")?.asJsonStringValue()
                 ?: obj.get("balances")?.toString(),
             totalUsd = obj.doubleOf("totalUsd", "total_usd", "balanceUsd"),

@@ -30,10 +30,13 @@ enum class SecureKeyKind {
     SHUFFLE,
 }
 
-/** Which half of the board is showing. */
+/** Which page of the board is showing. */
 enum class SecureKeyLayer {
     LETTERS,
     NUMBERS,
+
+    /** The three-column pad a PIN or an amount is typed on — no letters, no space. */
+    NUMERIC,
 }
 
 /**

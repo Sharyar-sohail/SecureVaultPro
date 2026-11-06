@@ -5,6 +5,10 @@ import android.util.Base64
 import com.securevault.pro.security.CryptoManager
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -132,6 +136,9 @@ class FileVaultRepository @Inject constructor(
         const val IN_MEMORY_MAX_BYTES = 100L * 1024L * 1024L
         private const val COPY_CHUNK_BYTES = 128 * 1024
 
+        /** How often a sealing pass is measured for the upload overlay. */
+        private const val SEAL_POLL_MILLIS = 150L
+
         /**
          * One safe path segment of a chat module: it must start with a letter or digit, so `..`,
          * a hidden dot-file and a separator can never be expressed inside it.
@@ -146,15 +153,20 @@ class FileVaultRepository @Inject constructor(
     private val indexFile: File by lazy { File(vaultDir, INDEX_FILE) }
 
     @Volatile
-    private var mutationListener: (() -> Unit)? = null
+    private var mutationListener: ((id: String, deleted: Boolean) -> Unit)? = null
 
-    /** Wired to [com.securevault.pro.data.repository.VaultRepository] so file writes reach live sync. */
-    fun setMutationListener(listener: (() -> Unit)?) {
+    /**
+     * Wired to [com.securevault.pro.data.repository.VaultRepository] so file writes reach live
+     * sync. The callback names the file that just changed and whether it was deleted, so the
+     * realtime engine can push that single `files` node instead of re-scanning every module;
+     * a blank id degrades to the identity-free sweep.
+     */
+    fun setMutationListener(listener: ((id: String, deleted: Boolean) -> Unit)?) {
         mutationListener = listener
     }
 
-    private fun notifyMutation() {
-        mutationListener?.invoke()
+    private fun notifyMutation(id: String = "", deleted: Boolean = false) {
+        mutationListener?.invoke(id, deleted)
     }
 
     suspend fun listFiles(): List<VaultFile> = withContext(Dispatchers.IO) {
@@ -237,7 +249,7 @@ class FileVaultRepository @Inject constructor(
                 saveIndex(loadIndex() + entry)
                 entry
             }
-        }.also { if (it.isSuccess) notifyMutation() }
+        }.onSuccess { notifyMutation(it.id) }
     }
 
     /** Streams a staged plaintext file into the vault without ever holding it in memory. */
@@ -248,6 +260,25 @@ class FileVaultRepository @Inject constructor(
         category: String = "Docs",
         noteId: String? = null,
         folder: String? = null
+    ): Result<VaultFile> = saveStreamWithProgress(source, displayName, mimeType, category, noteId, folder) { }
+
+    /**
+     * The same sealing pass as [saveStream], reporting how many bytes have actually moved.
+     *
+     * The sealed container grows while the cipher runs and the published container grows again while
+     * the magic header is prepended, so polling those two files gives a real fraction without touching
+     * the sealing method itself: [com.securevault.pro.security.CryptoManager] is untouched and the
+     * on-disk container is byte-for-byte what [saveStream] would have written. The fraction stops at
+     * 0.99 — only a written index row is 100%.
+     */
+    suspend fun saveStreamWithProgress(
+        source: File,
+        displayName: String,
+        mimeType: String,
+        category: String = "Docs",
+        noteId: String? = null,
+        folder: String? = null,
+        onProgress: (Float) -> Unit
     ): Result<VaultFile> = withContext(Dispatchers.IO) {
         if (!source.exists()) return@withContext Result.failure(IllegalArgumentException("The selected file could not be read"))
         if (source.length() == 0L) return@withContext Result.failure(IllegalArgumentException("Empty file"))
@@ -262,13 +293,16 @@ class FileVaultRepository @Inject constructor(
                 val sealed = File(vaultDir, "$id.sealed.tmp")
                 ensureFolder(folder)
                 val container = containerOf(id, folder)
-                val plainBytes = try {
-                    val plain = crypto.encryptFileToStream(source, sealed)
-                    prependMagic(sealed, container)
-                    plain
-                } finally {
-                    sealed.delete()
+                val plainBytes = trackSealProgress(sealed, container, source.length(), onProgress) {
+                    try {
+                        val plain = crypto.encryptFileToStream(source, sealed)
+                        prependMagic(sealed, container)
+                        plain
+                    } finally {
+                        sealed.delete()
+                    }
                 }
+                onProgress(1f)
                 val entry = VaultFile(
                     id = id,
                     name = safeName,
@@ -283,24 +317,81 @@ class FileVaultRepository @Inject constructor(
                 saveIndex(loadIndex() + entry)
                 entry
             }
-        }.also { if (it.isSuccess) notifyMutation() }
+        }.onSuccess { notifyMutation(it.id) }
     }
 
     /** Decrypts straight to a cache file so multi-gigabyte originals can still be shared or viewed. */
     suspend fun exportStreamToCache(id: String): File? = withContext(Dispatchers.IO) {
         val meta = mutex.withLock { loadIndex().firstOrNull { it.id == id } } ?: return@withContext null
-        val container = containerOf(meta.id, meta.folder)
-        if (!container.exists() || container.length() < 5) return@withContext null
         val shareDir = File(context.cacheDir, "secure_share").apply { mkdirs() }
         shareDir.listFiles()?.forEach { it.delete() }
+        // The plaintext is published under the name the owner gave the file, not the container's
+        // uuid, so the receiving app's download list reads "Invoice March.pdf" and not "a7f3c1…".
         val out = File(shareDir, sanitizeName(meta.name))
+        if (exportStreamToFile(id, out)) out else null
+    }
+
+    /**
+     * Decrypts one vault file straight into [target], a chunk at a time.
+     *
+     * [readFile] is the convenience path for documents that genuinely fit in RAM; a viewer or an
+     * export that pulled a 2 GB original through it would allocate 2 GB of heap, get the process
+     * killed by the low-memory killer and leave the owner with a screen that simply went blank.
+     * Nothing is ever published from a half-written file here: a failed pass deletes its own output,
+     * so the caller sees false and the original container stays exactly as it was.
+     */
+    suspend fun exportStreamToFile(id: String, target: File): Boolean = withContext(Dispatchers.IO) {
+        val meta = mutex.withLock { loadIndex().firstOrNull { it.id == id } } ?: return@withContext false
+        val container = containerOf(meta.id, meta.folder)
+        if (!container.exists() || container.length() < MAGIC.length + 1L) return@withContext false
         val body = File(vaultDir, "$id.plain.tmp")
-        runCatching {
+        val sealed = runCatching {
             copyWithoutMagic(container, body)
-            if (!crypto.decryptFileToStream(body, out)) throw IllegalStateException("The file could not be decrypted")
-        }.getOrNull()
+            if (!crypto.decryptFileToStream(body, target)) throw IllegalStateException("The file could not be decrypted")
+        }.isSuccess
         body.delete()
-        if (out.exists()) out else null
+        if (!sealed) runCatching { target.delete() }
+        sealed && target.isFile && target.length() > 0L
+    }
+
+    /**
+     * Runs [work] while a second coroutine watches the two files it grows.
+     *
+     * Encryption fills the sealed temp (weighted 0.6 of the pass), the magic-header copy fills the
+     * published container (the last 0.4), so the fraction the caller reports is bytes actually
+     * moved rather than a timer dressed up as progress.
+     */
+    private suspend fun trackSealProgress(
+        sealed: File,
+        container: File,
+        totalBytes: Long,
+        onProgress: (Float) -> Unit,
+        work: () -> Long
+    ): Long = coroutineScope {
+        val poller = launch(Dispatchers.IO) {
+            val total = totalBytes.coerceAtLeast(1L)
+            var last = -1
+            while (isActive) {
+                val sealedBytes = runCatching { if (sealed.isFile) sealed.length() else 0L }.getOrDefault(0L)
+                val containerBytes = runCatching { if (container.isFile) container.length() else 0L }.getOrDefault(0L)
+                val fraction = if (containerBytes > 0L) {
+                    0.6f + 0.4f * (containerBytes.toFloat() / total).coerceIn(0f, 1f)
+                } else {
+                    0.6f * (sealedBytes.toFloat() / total).coerceIn(0f, 1f)
+                }
+                val percent = (fraction * 100f).toInt().coerceIn(0, 99)
+                if (percent != last) {
+                    last = percent
+                    runCatching { onProgress(percent / 100f) }
+                }
+                delay(SEAL_POLL_MILLIS)
+            }
+        }
+        try {
+            work()
+        } finally {
+            poller.cancel()
+        }
     }
 
     private fun prependMagic(sealed: File, container: File) {
@@ -364,7 +455,7 @@ class FileVaultRepository @Inject constructor(
                 saveIndex(loadIndex().filterNot { it.id == fileId } + entry)
                 entry
             }
-        }.also { if (it.isSuccess) notifyMutation() }
+        }.onSuccess { notifyMutation(it.id) }
     }
 
     suspend fun readFile(id: String): ByteArray? = withContext(Dispatchers.IO) {
@@ -432,7 +523,7 @@ class FileVaultRepository @Inject constructor(
             }
             existed || next.size != current.size
         }
-        if (removed) notifyMutation()
+        if (removed) notifyMutation(id, deleted = true)
         removed
     }
 

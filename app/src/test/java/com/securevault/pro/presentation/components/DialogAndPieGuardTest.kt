@@ -1,5 +1,6 @@
 package com.securevault.pro.presentation.components
 
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.unit.dp
 import com.securevault.pro.presentation.theme.PieForm
 import com.securevault.pro.presentation.theme.VaultColor
@@ -11,6 +12,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import kotlin.math.cos
+import kotlin.math.sin
 import kotlin.math.sqrt
 
 /**
@@ -230,6 +233,118 @@ class DialogAndPieGuardTest {
                                 radius - edgeSafety - lift >= 1f
                             )
                         }
+                        PieForm.WEDGE_3D -> {
+                            val frame = pie3dGeometry(
+                                side = diameter,
+                                liftEnabled = liftOn,
+                                safety = edgeSafety
+                            )
+                            // The face keeps the flat pie's own radius budget, so it cannot reach
+                            // past the box the dial is measured against.
+                            assertTrue(
+                                "${palette.id}: 3d face ${frame.rx} over $radius",
+                                frame.rx <= radius + 0.001f
+                            )
+                            // The squash is what buys the wall its room: the whole object - face on
+                            // top of depth - still stands inside the square.
+                            assertTrue(
+                                "${palette.id}: 3d face leaves the top edge",
+                                frame.topCentreY - frame.ry >= -0.001f
+                            )
+                            assertTrue(
+                                "${palette.id}: 3d wall leaves the bottom edge ${frame.topCentreY + frame.ry + frame.depth}",
+                                frame.topCentreY + frame.ry + frame.depth <= diameter + 0.001f
+                            )
+                            // A lifted wedge slides along its own bisector, and the slide is paid
+                            // for out of the face's radius, never out of the canvas.
+                            val slide = if (liftOn) frame.rx * SELECTED_LIFT_OF_RADIUS else 0f
+                            assertTrue(
+                                "${palette.id}: slid wedge leaves the box",
+                                frame.rx + slide <= radius + 0.001f
+                            )
+                            // The readout's bed is a similar ellipse strictly inside the face, so
+                            // the caption can never sit on the shaded wall under it.
+                            assertTrue("${palette.id}: 3d bed overruns the face", frame.bedRx < frame.rx)
+                            assertTrue("${palette.id}: 3d bed reaches the wall", frame.bedRy < frame.ry)
+                        }
+                        PieForm.SEGMENTED -> {
+                            val rail = railGeometry(
+                                side = diameter,
+                                requestedThickness = 17f,
+                                safety = edgeSafety
+                            )
+                            assertTrue(
+                                "${palette.id}: rail ${rail.left} + ${rail.width} of $diameter",
+                                rail.left >= 0f && rail.left + rail.width <= diameter + 0.001f
+                            )
+                            assertTrue(
+                                "${palette.id}: rail thickness ${rail.thickness}",
+                                rail.thickness >= 1f &&
+                                    rail.thickness <= diameter * RAIL_MAX_THICKNESS_OF_SIDE + 0.001f
+                            )
+                            val slots = segmentedSlots(
+                                side = diameter,
+                                strokeWidthPx = 17f,
+                                gapDegrees = palette.pieGapDegrees,
+                                separatorPx = palette.pieSeparator.value,
+                                values = List(count) { 10 },
+                                safety = edgeSafety
+                            )
+                            assertEquals(count, slots.size)
+                            slots.forEachIndexed { index, slot ->
+                                assertTrue(
+                                    "${palette.id} x$count: segment $index leaves the rail",
+                                    slot.start >= rail.left - 0.001f &&
+                                        slot.start + slot.slotWidth <= rail.left + rail.width + 0.001f
+                                )
+                                assertTrue(
+                                    "${palette.id} x$count: segment $index inks past its slot",
+                                    slot.inkWidth >= 0f && slot.inkWidth <= slot.slotWidth + 0.001f
+                                )
+                            }
+                            // The theme's lift raises the selected segment, and the box holds it.
+                            val raised = raisedSegmentThickness(
+                                thickness = rail.thickness,
+                                liftEnabled = liftOn,
+                                halfSide = radius,
+                                safety = edgeSafety
+                            )
+                            assertTrue(
+                                "${palette.id}: raised segment $raised leaves the box",
+                                raised >= rail.thickness && raised / 2f <= radius + 0.001f
+                            )
+                        }
+                        PieForm.BARS -> {
+                            val rows = barRows(
+                                side = diameter,
+                                rowCount = count,
+                                gapPx = barRowGapPx(diameter, count, palette.pieGapDegrees, BAR_ROW_GAP_DP),
+                                requestedThickness = railGeometry(diameter, 17f, edgeSafety).thickness,
+                                swollenPosition = 0
+                            )
+                            assertEquals(count, rows.size)
+                            rows.forEachIndexed { position, row ->
+                                assertTrue(
+                                    "${palette.id} x$count: row $position leaves the box",
+                                    row.centreY - row.thickness / 2f >= -0.001f &&
+                                        row.centreY + row.thickness / 2f <= diameter + 0.001f
+                                )
+                                // A row never crosses its own slot, so no bar can touch a neighbour.
+                                assertTrue(
+                                    "${palette.id} x$count: row $position crosses its slot",
+                                    row.thickness <= row.slotHeight + 0.001f && row.thickness > 0f
+                                )
+                            }
+                            for (position in 1 until rows.size) {
+                                val below = rows[position - 1]
+                                val above = rows[position]
+                                assertTrue(
+                                    "${palette.id} x$count: rows ${position - 1}/$position overlap",
+                                    below.centreY + below.thickness / 2f <=
+                                        above.centreY - above.thickness / 2f + 0.001f
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -313,6 +428,292 @@ class DialogAndPieGuardTest {
         assertTrue(chartLegendSitsBeside(split, chart))
         assertFalse(chartLegendSitsBeside(split - 1.dp, chart))
     }
+
+
+    // -----------------------------------------------------------------------------------------
+    // The three non-circular forms: projection, tiling and the taps each one answers.
+    // -----------------------------------------------------------------------------------------
+
+    @Test
+    fun `the 3d pie keeps its proportions, its wall and its bed inside the box`() {
+        for (side in listOf(96f, 110f, 126f, 150f)) {
+            for (liftEnabled in listOf(false, true)) {
+                val frame = pie3dGeometry(side, liftEnabled, edgeSafety)
+                val radius = side / 2f
+                // The documented projection, checked rather than assumed.
+                assertEquals(frame.rx * PIE_3D_SQUASH, frame.ry, 0.001f)
+                assertEquals(frame.rx * PIE_3D_DEPTH_OF_RX, frame.depth, 0.001f)
+                assertEquals(frame.rx * PIE_3D_BED_OF_FACE, frame.bedRx, 0.001f)
+                assertEquals(frame.ry * PIE_3D_BED_OF_FACE, frame.bedRy, 0.001f)
+                // Nothing reaches past the square: the face up top, the wall at the bottom.
+                assertTrue("$side: face radius ${frame.rx} of $radius", frame.rx <= radius)
+                assertTrue("$side: top edge", frame.topCentreY - frame.ry >= 0f)
+                assertTrue("$side: bottom edge", frame.topCentreY + frame.ry + frame.depth <= side + 0.001f)
+                // The lift is reserved out of the face's own radius, so it has nowhere to spill.
+                val slide = if (liftEnabled) frame.rx * SELECTED_LIFT_OF_RADIUS else 0f
+                assertTrue("$side: slid face ${frame.rx + slide} of $radius", frame.rx + slide <= radius + 0.001f)
+                if (!liftEnabled) assertEquals(radius - edgeSafety, frame.rx, 0.001f)
+                // The bed the readout stands on is strictly smaller than the face it is cut into.
+                assertTrue("$side: bed overruns the face", frame.bedRx < frame.rx && frame.bedRy < frame.ry)
+                // ...and the caption is measured against the bed's smaller semi-axis, so its
+                // inscribed square cannot reach the shaded wall or the rim.
+                val hole = pieHoleRadius(
+                    radius = radius,
+                    form = PieForm.WEDGE_3D,
+                    innerRatio = 0.62f,
+                    strokeWidth = 17f,
+                    bandCount = 4,
+                    liftEnabled = liftEnabled,
+                    safety = edgeSafety
+                )
+                assertEquals(frame.bedRy, hole, 0.001f)
+                assertTrue("$side: caption past the bed", (captionWidth(hole) / 2f) * sqrt(2f) <= hole + 0.001f)
+            }
+        }
+    }
+
+    @Test
+    fun `a tap on the 3d pie is un-projected before the dial answers it`() {
+        val values = listOf(3, 1, 0, 2)
+        val frame = pie3dGeometry(side = 126f, liftEnabled = true, safety = edgeSafety)
+        val spans = pieSpans(values)
+        for (index in spans.indices) {
+            val span = spans[index]
+            if (span.shareDegrees <= 0f) continue
+            val mid = Math.toRadians((span.startDegrees + span.shareDegrees / 2f).toDouble())
+            // Halfway out the face's own radius, at the projected position the eye actually sees.
+            val tap = Offset(
+                frame.centreX + (cos(mid) * frame.rx * 0.5f).toFloat(),
+                frame.topCentreY + (sin(mid) * frame.ry * 0.5f).toFloat()
+            )
+            assertEquals("slice $index", index, pie3dSliceAtTap(tap, frame, values))
+            // And the same point on the flat dial resolves to the same slice: the squash did not
+            // move the geometry, only the picture of it.
+            val flat = Offset(
+                frame.centreX + (cos(mid) * frame.rx * 0.5f).toFloat(),
+                frame.topCentreY + (sin(mid) * frame.rx * 0.5f).toFloat()
+            )
+            assertEquals(index, pieSliceAtTap(angleOf(flat, frame.centreX, frame.topCentreY), values))
+        }
+        // A dead category owns no degrees, so no point anywhere on the face resolves to it: walking
+        // the whole dial answers either a live slice or nothing at all.
+        for (step in 0 until 360) {
+            val radians = Math.toRadians(step.toDouble())
+            val tap = Offset(
+                frame.centreX + (cos(radians) * frame.rx * 0.6f).toFloat(),
+                frame.topCentreY + (sin(radians) * frame.ry * 0.6f).toFloat()
+            )
+            val answer = pie3dSliceAtTap(tap, frame, values)
+            assertTrue("angle $step answered dead slice $answer", answer < 0 || values[answer] > 0)
+        }
+        // Outside the squashed dial is outside the un-projected circle: refused, not guessed at.
+        assertEquals(-1, pie3dSliceAtTap(Offset(frame.centreX, 0f), frame, values))
+        assertEquals(-1, pie3dSliceAtTap(Offset(0f, frame.topCentreY), frame, values))
+        assertEquals(-1, pie3dSliceAtTap(Offset(126f, 126f), frame, values))
+        // An empty vault answers nothing whatever the tap.
+        assertEquals(-1, pie3dSliceAtTap(Offset(frame.centreX, frame.topCentreY), frame, listOf(0, 0, 0)))
+    }
+
+    @Test
+    fun `the segmented rail tiles its track and every segment answers its own tap`() {
+        val values = listOf(4, 1, 0, 5)
+        val rail = railGeometry(side = 126f, requestedThickness = 17f, safety = edgeSafety)
+        for (side in listOf(96f, 126f, 150f)) {
+            for (gapDegrees in listOf(0f, 1.5f, 3.5f, 30f, 120f)) {
+                val slots = segmentedSlots(side, 17f, gapDegrees, 0f, values, edgeSafety)
+                assertEquals(values.size, slots.size)
+                // The slots tile the rail: first starts at the inset, contiguous, last ends flush.
+                assertEquals(railGeometry(side, 17f, edgeSafety).left, slots.first().start, 0.001f)
+                for (index in 1 until slots.size) {
+                    val previous = slots[index - 1]
+                    assertEquals(previous.start + previous.slotWidth, slots[index].start, 0.001f)
+                }
+                val run = railGeometry(side, 17f, edgeSafety)
+                val last = slots.last()
+                assertEquals(run.left + run.width, last.start + last.slotWidth, 0.001f)
+                // No ink outside the rail, no ink past its own slot, no negative ink.
+                slots.forEach { slot ->
+                    assertTrue(slot.inkWidth >= 0f && slot.inkWidth <= slot.slotWidth + 0.001f)
+                    assertTrue(slot.start + slot.inkWidth <= run.left + run.width + 0.001f)
+                }
+            }
+        }
+        // A tap is x across those very slots, and a dead category's zero-width slot is not tappable.
+        val slots = segmentedSlots(126f, 17f, 2f, 0f, values, edgeSafety)
+        slots.forEachIndexed { index, slot ->
+            if (slot.slotWidth <= 0f) {
+                // A dead category owns no width, so the x where it would have started belongs to
+                // whichever live segment is inked there - never to the dead one.
+                assertTrue(sliceAtLinearTap(slot.start, slots) != index)
+            } else {
+                assertEquals(index, sliceAtLinearTap(slot.start + slot.slotWidth / 2f, slots))
+            }
+        }
+        assertEquals(-1, sliceAtLinearTap(-1f, slots))
+        assertEquals(-1, sliceAtLinearTap(1e6f, slots))
+        // One category owns the rail and pays no gap, exactly as one wedge owns the whole dial.
+        val loneRail = railGeometry(126f, 17f, edgeSafety)
+        val single = segmentedSlots(126f, 17f, 9f, 0f, listOf(3), edgeSafety).single()
+        assertEquals(loneRail.width, single.slotWidth, 0.001f)
+        assertEquals(loneRail.width, single.inkWidth, 0.001f)
+        assertEquals(0f, linearGapFor(9f, loneRail.width, 1), 0f)
+        assertEquals(9f / 360f * loneRail.width, linearGapFor(9f, loneRail.width, 3), 0.001f)
+        // A brand that rules separators spends the gap token on the hairline instead: edge to edge.
+        val ruled = segmentedSlots(126f, 17f, 9f, 1f, values, edgeSafety)
+        assertEquals(loneRail.width, ruled.sumOf { it.slotWidth.toDouble() }.toFloat(), 0.001f)
+        ruled.forEach { slot -> assertEquals(slot.slotWidth, slot.inkWidth, 0.001f) }
+        // A thin category never vanishes: what a slot pays as gap is capped by its own width.
+        val tight = segmentedSlots(126f, 17f, 30f, 0f, listOf(100, 1), edgeSafety)
+        assertTrue("thin segment inked ${tight[1].inkWidth}", tight[1].inkWidth > 0f)
+        // Nothing sealed yet: every slot is zero-width, so nothing is inked and nothing is tappable.
+        val empty = segmentedSlots(126f, 17f, 2f, 0f, listOf(0, 0, 0), edgeSafety)
+        empty.forEach { slot -> assertEquals(0f, slot.slotWidth, 0f) }
+        assertEquals(-1, sliceAtLinearTap(60f, empty))
+        // A raised segment grows, a calm one is the rail, and neither leaves the box.
+        assertEquals(17f, raisedSegmentThickness(17f, false, 63f, edgeSafety), 0.001f)
+        val raised = raisedSegmentThickness(17f, true, 63f, edgeSafety)
+        assertTrue("raised $raised", raised > 17f && raised / 2f <= 63f)
+        // However fat the ask, a rail never claims more than its share of the canvas.
+        val fat = railGeometry(126f, 900f, edgeSafety)
+        assertTrue("fat rail ${fat.thickness}", fat.thickness <= 126f * RAIL_MAX_THICKNESS_OF_SIDE + 0.001f)
+        assertTrue("no ask, a default thickness", railGeometry(126f, 0f, edgeSafety).thickness > 0f)
+    }
+
+    @Test
+    fun `every bar row fits its slot, fills its share and answers the tap on it`() {
+        val values = listOf(6, 0, 3, 1)
+        val live = values.indices.filter { values[it] > 0 }
+        val total = values.sumOf { if (it > 0) it else 0 }
+        for (side in listOf(96f, 126f, 150f)) {
+            for (count in 1..12) {
+                val gap = barRowGapPx(side, count, 3.5f, BAR_ROW_GAP_DP)
+                val rows = barRows(side, count, gap, 17f, swollenPosition = 0)
+                assertEquals(count, rows.size)
+                assertEquals(side / count.toFloat(), rows.first().slotHeight, 0.001f)
+                rows.forEachIndexed { position, row ->
+                    assertTrue("row $position leaves the box", row.centreY - row.thickness / 2f >= -0.001f)
+                    assertTrue("row $position leaves the box", row.centreY + row.thickness / 2f <= side + 0.001f)
+                    assertTrue("row $position crosses its slot", row.thickness <= row.slotHeight + 0.001f)
+                    assertEquals(side / count.toFloat() * (position + 0.5f), row.centreY, 0.001f)
+                }
+                for (position in 1 until rows.size) {
+                    val below = rows[position - 1]
+                    val above = rows[position]
+                    assertTrue(
+                        "rows ${position - 1}/$position touch",
+                        below.centreY + below.thickness / 2f <= above.centreY - above.thickness / 2f + 0.001f
+                    )
+                }
+                if (count == 1) assertEquals(0f, gap, 0f)
+            }
+        }
+        // The token is honoured: more gap degrees is more air, and the floor keeps rows apart.
+        assertTrue(barRowGapPx(126f, 4, 30f, BAR_ROW_GAP_DP) > barRowGapPx(126f, 4, 1f, BAR_ROW_GAP_DP))
+        assertEquals(BAR_ROW_GAP_DP, barRowGapPx(126f, 4, 0f, BAR_ROW_GAP_DP), 0.001f)
+        assertTrue(barRowGapPx(126f, 4, 360f, BAR_ROW_GAP_DP) <= 126f / 4f * 0.5f + 0.001f)
+        // Only the selected row swells, and the rest do not move.
+        val calm = barRows(126f, 5, barRowGapPx(126f, 5, 3.5f, BAR_ROW_GAP_DP), 17f)
+        val lifted = barRows(126f, 5, barRowGapPx(126f, 5, 3.5f, BAR_ROW_GAP_DP), 17f, swollenPosition = 2)
+        calm.zip(lifted).forEachIndexed { position, (before, after) ->
+            if (position == 2) assertTrue("row 2 did not swell", after.thickness >= before.thickness)
+            else assertEquals("row $position moved", before, after)
+            assertTrue(after.thickness <= after.slotHeight + 0.001f)
+        }
+        // The fill is the category's share of the rail, so it can never overrun the track.
+        val rail = railGeometry(126f, 17f, edgeSafety)
+        live.forEach { index ->
+            val share = values[index].toFloat() / total.toFloat()
+            val fill = rail.width * share
+            assertTrue("row $index fills $fill of ${rail.width}", fill > 0f && fill <= rail.width + 0.001f)
+            assertEquals(
+                "row $index share",
+                pieSpans(values)[index].shareDegrees / 360f,
+                share,
+                0.001f
+            )
+        }
+        assertEquals(rail.width.toDouble(), live.sumOf { values[it].toDouble() / total.toDouble() } * rail.width.toDouble(), 0.01)
+        // A tap walks the rows in the order they are drawn: first category at the BOTTOM, so the
+        // y axis reads the live list reversed, exactly like `drawBars`.
+        val slot = 126f / live.size.toFloat()
+        live.reversed().forEachIndexed { position, index ->
+            assertEquals(
+                "position $position is index $index",
+                index,
+                rowsByLinearTap(slot * (position + 0.5f), values, 0f, 126f, reverse = true)
+            )
+        }
+        live.forEachIndexed { position, index ->
+            assertEquals(index, rowsByLinearTap(slot * (position + 0.5f), values, 0f, 126f))
+        }
+        // The bands are equal-height, because a bar chart encodes a category's share in the LENGTH
+        // of its fill and never in the height of its row: any point inside a band answers it.
+        live.reversed().forEachIndexed { position, index ->
+            assertEquals(index, rowsByLinearTap(slot * position + slot * 0.1f, values, 0f, 126f, reverse = true))
+            assertEquals(index, rowsByLinearTap(slot * (position + 1f) - slot * 0.1f, values, 0f, 126f, reverse = true))
+        }
+        // Past the last row there is no row, and an empty chart answers nothing.
+        assertEquals(-1, rowsByLinearTap(126f, values, 0f, 126f, reverse = true))
+        assertEquals(-1, rowsByLinearTap(10f, listOf(0, 0, 0), 0f, 126f))
+        assertEquals(-1, rowsByLinearTap(10f, values, 0f, 0f))
+        assertTrue(barRows(126f, 0, 3f, 17f).isEmpty())
+        // The reveal is staggered, but every row lands on full when the animation does.
+        for (rowCount in 1..8) {
+            for (position in 0 until rowCount) {
+                assertEquals("row $position of $rowCount", 1f, barRowProgress(1f, position, rowCount), 0.001f)
+                assertTrue(barRowProgress(0f, position, rowCount) >= 0f)
+                val half = barRowProgress(0.5f, position, rowCount)
+                assertTrue("row $position at half is $half", half >= 0f && half <= 1f)
+                if (position > 0) {
+                    assertTrue(
+                        barRowProgress(0.5f, position, rowCount) <= barRowProgress(0.5f, position - 1, rowCount) + 0.001f
+                    )
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `a rail and a stack of bars report no circular bed, the dial forms still do`() {
+        val radius = 63f
+        val budget = radius - edgeSafety
+        for (form in PieForm.entries) {
+            for (palette in VaultPalettes.all) {
+                val hole = pieHoleRadius(
+                    radius = radius,
+                    form = form,
+                    innerRatio = palette.pieInnerRatio,
+                    strokeWidth = 17f,
+                    bandCount = 4,
+                    liftEnabled = palette.pieSelectedLift,
+                    safety = edgeSafety
+                )
+                // The hole maths stays ordinary whatever the form - never zero, never past the dial.
+                assertTrue("$form on ${palette.id}: hole $hole", hole > 0f && hole <= budget)
+                val caption = captionWidth(hole)
+                assertEquals(hole * 2f * HOLE_INSCRIPTION, caption, 0.001f)
+                assertTrue(
+                    "$form on ${palette.id}: caption corner outside hole",
+                    (caption / 2f) * sqrt(2f) <= hole + 0.001f
+                )
+                when (form) {
+                    // These two ink straight through the middle of their box, so there is no bed to
+                    // report and `VaultPieChart` draws their readout above the canvas instead.
+                    PieForm.SEGMENTED, PieForm.BARS -> assertEquals(LINEAR_CLEAR_RADIUS_FLOOR, hole, 0.001f)
+                    PieForm.WEDGE_3D -> assertEquals(pie3dGeometry(radius * 2f, palette.pieSelectedLift, edgeSafety).bedRy, hole, 0.001f)
+                    PieForm.WEDGE -> assertEquals(radius * WEDGE_MEDALLION_OF_RADIUS, hole, 0.001f)
+                    PieForm.RING -> assertTrue(hole >= budget * MIN_HOLE_OF_RADIUS - 0.001f)
+                    PieForm.STACKED_RING -> assertTrue(hole > LINEAR_CLEAR_RADIUS_FLOOR)
+                }
+            }
+        }
+    }
+
+    /** The raw atan2 angle the chart's own gesture maths would read at [tap]. */
+    private fun angleOf(tap: Offset, centreX: Float, centreY: Float): Float =
+        Math.toDegrees(
+            kotlin.math.atan2((tap.y - centreY).toDouble(), (tap.x - centreX).toDouble())
+        ).toFloat()
 
     // -----------------------------------------------------------------------------------------
     // Defect 1 — how much of the screen a dialog may claim.

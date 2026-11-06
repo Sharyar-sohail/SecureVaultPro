@@ -292,17 +292,6 @@ data class MailAttachment(
     val inline: Boolean
 )
 
-/** What one "Check mail" run did, in the words the screen shows. */
-data class MailFetchOutcome(
-    val accountId: String,
-    val folder: String,
-    val newMessages: Int,
-    val updatedMessages: Int,
-    val folders: Int,
-    val message: String,
-    val failed: Boolean = false
-)
-
 /** The outcome of the bounded validation attempt on the setup screen. */
 data class MailValidationResult(
     val ok: Boolean,

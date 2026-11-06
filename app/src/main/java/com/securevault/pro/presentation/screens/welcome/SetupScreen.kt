@@ -21,6 +21,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -38,7 +40,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -57,6 +59,7 @@ import com.securevault.pro.presentation.components.vaultGutter
 import com.securevault.pro.presentation.theme.VaultPaletteController
 import com.securevault.pro.presentation.theme.VaultColor
 import com.securevault.pro.presentation.theme.VaultShapes
+import com.securevault.pro.presentation.theme.VaultType
 import com.securevault.pro.presentation.components.Glyph
 import com.securevault.pro.security.keyboard.SecureKeyboardHost
 import com.securevault.pro.security.keyboard.SecurePasswordField
@@ -66,6 +69,153 @@ import com.securevault.pro.security.keyboard.SecurePasswordField
 // the compact form by itself. Nothing here is a device guess.
 private val SETUP_COMPACT_BELOW = 720.dp
 private val SETUP_DENSE_BELOW = 520.dp
+
+// ---------------------------------------------------------------------------------------------
+// Scroll-vs-fit maths. Pure dp, no device guess, no Compose runtime: the same question the
+// unlock screen asks, so it lives here and [com.securevault.pro.presentation.screens.lock]
+// reads it. app/src/test/.../AuthFormFitTest.kt pins every boundary below.
+//
+// The tiers above decide how *roomy* the form is; they cannot decide whether it *fits*. A tier
+// that mis-reads a ColorOS window used to clip the action button below the fold, because the
+// weighted spacers collapse and the column has no way to give the leftover height back. So the
+// screens keep the tiers for their spacing and ask this separately: does the content this tier
+// draws need more height than the window has? If it does, that column scrolls.
+//
+// The numbers are honest because nothing here inflates: `MAX_FONT_SCALE` is 1.0 (theme/Type.kt),
+// so the type ramp the app declares is what renders, and every block height below is the height
+// the shared component itself documents.
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * The docked secure board's own height: four dialer-sized rows with the gaps between them, the
+ * layer header, the board's chrome and border. Constant across every layer by design, which is
+ * what lets the form above it be measured rather than guessed.
+ */
+internal val SECURE_BOARD_HEIGHT: Dp = 62.dp * 4 + 5.dp * 3 + 26.dp + 5.dp + 6.dp * 2 + 1.dp * 2
+
+/**
+ * [SECURE_BOARD_HEIGHT] taken off the height a window has after its system bars. The screens read
+ * the measured height instead, so this is the dp-side statement of the keyboard-docked case — the
+ * number the fit boundary is tested against in
+ * `app/src/test/java/com/securevault/pro/presentation/screens/welcome/AuthFormFitTest.kt`.
+ * Never negative: a window shorter than the board still gets the whole viewport back.
+ */
+internal fun viewportAboveBoard(afterBars: Dp, board: Dp = SECURE_BOARD_HEIGHT): Dp =
+    (afterBars - board).coerceAtLeast(0.dp)
+
+/**
+ * True when [content] asks for more height than [available] holds, so the auth column is given a
+ * scroll container. Equal heights count as a fit — a scroll container that cannot scroll is a
+ * silent re-layout for nothing.
+ */
+internal fun authFormNeedsScroll(available: Dp, content: Dp): Boolean = content > available
+
+/** Line heights the app's own type ramp renders (theme/Type.kt), so the estimates use them. */
+private val TITLE_LINE_DENSE: Dp = 22.dp
+private val TITLE_LINE_COMPACT: Dp = 26.dp
+private val TITLE_LINE: Dp = 30.dp
+private val BODY_LINE: Dp = 21.dp
+private val CAPTION_LINE: Dp = 17.dp
+private val LABEL_LINE: Dp = 13.dp
+private val FOOTNOTE_LINE: Dp = 14.dp
+
+/** The blocks the forms place, at the height the shared component documents. */
+private val SECURE_FIELD_HEIGHT: Dp = 86.dp
+private val PIN_FIELD_HEIGHT: Dp = 64.dp
+private val STRENGTH_METER_HEIGHT: Dp = 5.dp
+private val ACTION_BUTTON_HEIGHT: Dp = 54.dp
+private val TAG_CHIP_HEIGHT: Dp = 21.dp
+private val BACK_ROW_HEIGHT: Dp = 48.dp
+private val RESTORED_BANNER_HEIGHT: Dp = 109.dp
+private val SETUP_HEADER_HEIGHT: Dp = 55.dp
+private val SETUP_HEADER_COMPACT_HEIGHT: Dp = 44.dp
+
+/** Slack for word wrap the line counts cannot predict (a long OEM name, a warning list). */
+private val SETUP_FIT_MARGIN: Dp = 12.dp
+
+/**
+ * The height [MasterStep] and [PinStep] draw at the tier they were handed, plus the header, the
+ * banner, the error line and the action button around them. [longCopy] is the Drive-restore
+ * explanation, [mismatch] the "do not match" line, [biometric] the switch row.
+ */
+internal fun setupFormHeight(
+    step: Int,
+    compact: Boolean = false,
+    dense: Boolean = false,
+    notice: Boolean = false,
+    error: Boolean = false,
+    mismatch: Boolean = false,
+    longCopy: Boolean = false,
+    biometric: Boolean = false
+): Dp {
+    val pad = if (dense) 6.dp else if (compact) 8.dp else 12.dp
+    var total = pad * 2
+    total += if (compact) SETUP_HEADER_COMPACT_HEIGHT else SETUP_HEADER_HEIGHT
+    if (notice) total += (if (compact) 8.dp else 14.dp) + RESTORED_BANNER_HEIGHT
+    total += if (step <= 1) {
+        masterFormBody(compact = compact, dense = dense, mismatch = mismatch, longCopy = longCopy)
+    } else {
+        pinFormBody(compact = compact, dense = dense, mismatch = mismatch, biometric = biometric)
+    }
+    if (error) total += (if (compact) 8.dp else 12.dp) + CAPTION_LINE * 3
+    total += ACTION_BUTTON_HEIGHT
+    if (!compact) {
+        total += if (step <= 1) {
+            10.dp + FOOTNOTE_LINE * 2
+        } else {
+            4.dp + BACK_ROW_HEIGHT + FOOTNOTE_LINE * 2 + 24.dp
+        }
+    }
+    return total + SETUP_FIT_MARGIN
+}
+
+private fun masterFormBody(
+    compact: Boolean,
+    dense: Boolean,
+    mismatch: Boolean,
+    longCopy: Boolean
+): Dp {
+    val title = if (dense) TITLE_LINE_DENSE else if (compact) TITLE_LINE_COMPACT * 2 else TITLE_LINE * 2
+    val body = if (dense) 0.dp else {
+        val gap = if (compact) 6.dp else 8.dp
+        val lines = if (longCopy) 6 else 3
+        gap + (if (compact) CAPTION_LINE else BODY_LINE) * lines
+    }
+    val cardPadding = (if (dense) 11.dp else if (compact) 14.dp else 18.dp) * 2 + 2.dp
+    val cardHead = if (dense) 0.dp else 24.dp + (if (compact) 10.dp else 14.dp)
+    val strengthLabels = if (dense) 0.dp else 7.dp + LABEL_LINE
+    val chips = if (compact) 0.dp else 10.dp + TAG_CHIP_HEIGHT
+    return title + body +
+        (if (dense) 8.dp else if (compact) 12.dp else 22.dp) +
+        cardPadding + cardHead + SECURE_FIELD_HEIGHT +
+        (if (compact) 8.dp else 10.dp) + STRENGTH_METER_HEIGHT + strengthLabels + chips +
+        (if (compact) 8.dp else 14.dp) + SECURE_FIELD_HEIGHT +
+        (if (mismatch) 6.dp + CAPTION_LINE else 0.dp)
+}
+
+private fun pinFormBody(
+    compact: Boolean,
+    dense: Boolean,
+    mismatch: Boolean,
+    biometric: Boolean
+): Dp {
+    val title = if (dense) TITLE_LINE_DENSE else if (compact) TITLE_LINE_COMPACT * 2 else TITLE_LINE * 2
+    val body = if (dense) 0.dp else {
+        (if (compact) 6.dp else 8.dp) + (if (compact) CAPTION_LINE else BODY_LINE) * 3
+    }
+    val cardPadding = (if (dense) 11.dp else if (compact) 14.dp else 18.dp) * 2 + 2.dp
+    val cardHead = if (dense) 0.dp else 32.dp + (if (compact) 10.dp else 14.dp)
+    val supporting = if (mismatch) CAPTION_LINE else 0.dp
+    val switchRow = if (biometric) {
+        (if (compact) 8.dp else 12.dp) + 32.dp + (if (compact) 6.dp else 8.dp) * 2
+    } else {
+        0.dp
+    }
+    return title + body +
+        (if (dense) 8.dp else if (compact) 12.dp else 22.dp) +
+        cardPadding + cardHead + PIN_FIELD_HEIGHT * 2 + (if (compact) 8.dp else 10.dp) +
+        supporting + switchRow
+}
 
 @Composable
 fun SetupScreen(viewModel: SetupViewModel = hiltViewModel()) {
@@ -89,10 +239,33 @@ fun SetupScreen(viewModel: SetupViewModel = hiltViewModel()) {
                 val available = maxHeight
                 val compact = available < SETUP_COMPACT_BELOW
                 val dense = available < SETUP_DENSE_BELOW
+                // The tier decides the spacing; this decides whether the pieces fit at all. When
+                // they do not, the column below scrolls instead of pushing the action button out
+                // of the window, and the scroll sits inside the content area that already clears
+                // the docked board — so the board stays a constant-height sibling and nothing in
+                // the inset chain changes.
+                val formHeight = setupFormHeight(
+                    step = state.step,
+                    compact = compact,
+                    dense = dense,
+                    notice = state.notice != null,
+                    error = state.error != null,
+                    mismatch = state.confirmPassword.isNotEmpty() &&
+                        state.confirmPassword != state.masterPassword,
+                    longCopy = state.driveRestoreQueued,
+                    biometric = state.biometricAvailable
+                )
+                val scrollable = authFormNeedsScroll(available, formHeight)
 
                 Column(
                     modifier = Modifier
-                        .fillMaxSize()
+                        .then(
+                            if (scrollable) {
+                                Modifier.fillMaxWidth().verticalScroll(rememberScrollState())
+                            } else {
+                                Modifier.fillMaxSize()
+                            }
+                        )
                         .padding(
                             horizontal = vaultGutter(),
                             vertical = if (dense) 6.dp else if (compact) 8.dp else 12.dp
@@ -115,12 +288,15 @@ fun SetupScreen(viewModel: SetupViewModel = hiltViewModel()) {
                     }
 
                     // Both steps share one fillMaxSize container, and the crossfade only fades the
-                    // outgoing form: the region keeps its height for the whole transition.
+                    // outgoing form: the region keeps its height for the whole transition. When the
+                    // form scrolls there is no region to keep, so the step simply takes its own height.
                     Crossfade(
                         targetState = state.step,
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxWidth(),
+                        modifier = if (scrollable) {
+                            Modifier.fillMaxWidth()
+                        } else {
+                            Modifier.weight(1f).fillMaxWidth()
+                        },
                         animationSpec = tween(durationMillis = 220),
                         label = "setup-step"
                     ) { step ->
@@ -131,7 +307,8 @@ fun SetupScreen(viewModel: SetupViewModel = hiltViewModel()) {
                                 viewModel = viewModel,
                                 onContinue = viewModel::nextStep,
                                 compact = compact,
-                                dense = dense
+                                dense = dense,
+                                scrollable = scrollable
                             )
                         } else {
                             PinStep(
@@ -141,7 +318,8 @@ fun SetupScreen(viewModel: SetupViewModel = hiltViewModel()) {
                                 onCreate = viewModel::createVault,
                                 onBack = viewModel::previousStep,
                                 compact = compact,
-                                dense = dense
+                                dense = dense,
+                                scrollable = scrollable
                             )
                         }
                     }
@@ -305,41 +483,41 @@ private fun MasterStep(
     viewModel: SetupViewModel,
     onContinue: () -> Unit,
     compact: Boolean,
-    dense: Boolean
+    dense: Boolean,
+    scrollable: Boolean
 ) {
-    // Slack lives in weighted spacers. In a short window they collapse to zero instead of
-    // pushing the action button below the fold, and there is no scroll container anywhere.
-    Column(modifier = Modifier.fillMaxSize()) {
-        Spacer(Modifier.weight(if (dense) 0.4f else 1f))
+    // Slack lives in weighted spacers while the form fits, so it spreads at any height and there is
+    // no scroll container. When it cannot fit, the same slack becomes fixed air and the column
+    // scrolls: the button moves into reach instead of out of the window.
+    Column(modifier = if (scrollable) Modifier.fillMaxWidth() else Modifier.fillMaxSize()) {
+        if (scrollable) {
+            Spacer(Modifier.height(if (dense) 4.dp else 14.dp))
+        } else {
+            Spacer(Modifier.weight(if (dense) 0.4f else 1f))
+        }
 
         Text(
-            text = if (dense) "Forge your master key." else "Forge your\nmaster key.",
+            text = if (dense) "Master password" else "Choose your\nmaster password.",
             style = when {
-                dense -> MaterialTheme.typography.titleMedium
-                compact -> MaterialTheme.typography.headlineMedium
-                else -> MaterialTheme.typography.displaySmall
+                dense -> VaultType.sectionTitle()
+                compact -> MaterialTheme.typography.headlineSmall
+                else -> VaultType.screenTitle()
             },
             color = VaultColor.textStrong,
-            lineHeight = when {
-                dense -> 26.sp
-                compact -> 32.sp
-                else -> 40.sp
-            },
             maxLines = 2
         )
         if (!dense) {
             Spacer(Modifier.height(if (compact) 6.dp else 8.dp))
             Text(
-                text = "This password unlocks the vault. It is stretched locally with 600,000 PBKDF2 rounds and never leaves this device.",
-                style = if (compact) {
-                    MaterialTheme.typography.bodySmall
+                text = if (state.driveRestoreQueued) {
+                    "This password unlocks the vault on this phone and never leaves it. Your Google " +
+                        "backups download on their own the moment setup finishes - nothing is asked " +
+                        "here for the Drive files."
                 } else {
-                    MaterialTheme.typography.bodyMedium
+                    "This password unlocks the vault. It is stretched on this device and never leaves it."
                 },
-                color = VaultColor.textBody,
-                lineHeight = if (compact) 18.sp else 21.sp,
-                maxLines = if (compact) 2 else Int.MAX_VALUE,
-                overflow = TextOverflow.Ellipsis
+                style = if (compact) VaultType.caption() else VaultType.body(),
+                color = VaultColor.textBody
             )
         }
 
@@ -420,14 +598,16 @@ private fun MasterStep(
             Spacer(Modifier.height(if (compact) 8.dp else 12.dp))
             Text(
                 text = error,
-                style = MaterialTheme.typography.bodySmall,
-                color = VaultColor.debit,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
+                style = VaultType.caption(),
+                color = VaultColor.debit
             )
         }
 
-        Spacer(Modifier.weight(1f))
+        if (scrollable) {
+            Spacer(Modifier.height(18.dp))
+        } else {
+            Spacer(Modifier.weight(1f))
+        }
         GradientButton(
             text = "Continue · quick access",
             icon = Glyph.chevronRight,
@@ -455,40 +635,33 @@ private fun PinStep(
     onCreate: () -> Unit,
     onBack: () -> Unit,
     compact: Boolean,
-    dense: Boolean
+    dense: Boolean,
+    scrollable: Boolean
 ) {
     val palette = VaultPaletteController.current
-    Column(modifier = Modifier.fillMaxSize()) {
-        Spacer(Modifier.weight(if (dense) 0.4f else 1f))
+    Column(modifier = if (scrollable) Modifier.fillMaxWidth() else Modifier.fillMaxSize()) {
+        if (scrollable) {
+            Spacer(Modifier.height(if (dense) 4.dp else 14.dp))
+        } else {
+            Spacer(Modifier.weight(if (dense) 0.4f else 1f))
+        }
 
         Text(
             text = if (dense) "Daily access PIN." else "Daily access,\nwithout friction.",
             style = when {
-                dense -> MaterialTheme.typography.titleMedium
-                compact -> MaterialTheme.typography.headlineMedium
-                else -> MaterialTheme.typography.displaySmall
+                dense -> VaultType.sectionTitle()
+                compact -> MaterialTheme.typography.headlineSmall
+                else -> VaultType.screenTitle()
             },
             color = VaultColor.textStrong,
-            lineHeight = when {
-                dense -> 26.sp
-                compact -> 32.sp
-                else -> 40.sp
-            },
             maxLines = 2
         )
         if (!dense) {
             Spacer(Modifier.height(if (compact) 6.dp else 8.dp))
             Text(
                 text = "Choose a short PIN for everyday unlocks, then enable face or fingerprint for instant entry.",
-                style = if (compact) {
-                    MaterialTheme.typography.bodySmall
-                } else {
-                    MaterialTheme.typography.bodyMedium
-                },
-                color = VaultColor.textBody,
-                lineHeight = if (compact) 18.sp else 21.sp,
-                maxLines = if (compact) 2 else Int.MAX_VALUE,
-                overflow = TextOverflow.Ellipsis
+                style = if (compact) VaultType.caption() else VaultType.body(),
+                color = VaultColor.textBody
             )
         }
 
@@ -515,7 +688,7 @@ private fun PinStep(
                         )
                         if (!compact) {
                             Text(
-                                text = "4–8 digits · PBKDF2 210,000 · randomizable pad",
+                                text = "4–8 digits · the number pad changes each time",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = VaultColor.textFaint
                             )
@@ -608,14 +781,16 @@ private fun PinStep(
             Spacer(Modifier.height(if (compact) 8.dp else 12.dp))
             Text(
                 text = error,
-                style = MaterialTheme.typography.bodySmall,
-                color = VaultColor.debit,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
+                style = VaultType.caption(),
+                color = VaultColor.debit
             )
         }
 
-        Spacer(Modifier.weight(1f))
+        if (scrollable) {
+            Spacer(Modifier.height(18.dp))
+        } else {
+            Spacer(Modifier.weight(1f))
+        }
         GradientButton(
             text = if (busy) "Sealing your vault…" else "Create secure vault",
             icon = Glyph.lock,

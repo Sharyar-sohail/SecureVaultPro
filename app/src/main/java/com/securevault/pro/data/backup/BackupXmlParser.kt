@@ -139,6 +139,7 @@ object BackupXmlParser {
         label = e.attr("label"),
         kind = e.attr("kind"),
         secret = e.text("secret"),
+        keyBackup = e.text("keyBackup"),
         balancesJson = e.text("balances"),
         totalUsd = e.attr("totalUsd")?.toDoubleOrNull(),
         lastSyncedAt = e.attr("lastSyncedAt")?.toLongOrNull(),

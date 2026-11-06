@@ -21,11 +21,39 @@ object StegoLimits {
     /** Below this the LL band cannot host even the sparsest lattice; such photos are refused. */
     const val MIN_WORKING_LONGEST = 240
 
+    /**
+     * The side every carrier is sealed on, in pixels, measured along the longer axis.
+     *
+     * A chat app rescales the photo it is given, and a rescale does not just attenuate the mark — it
+     * slides the receiver's cell grid past the writer's, by up to a fifth of a cell for every cell
+     * along the row. Measured on the JVM: an 8-wide mark written at 1280 and read back at the 0.8
+     * scale a send produces is gone, while the *same* mark resampled back to 1280 reads with zero
+     * drift, after requantisation and blur. The damage was never the compression; it was the grid
+     * disagreeing with itself.
+     *
+     * So sealing works at this one size, and a reader that cannot find a mark tries the photo again
+     * after rescaling it here. Every number that decides the cell count — the lattice's slots per
+     * band cell, and the coarse grid's alignment with the JPEG block — then belongs to one grid the
+     * encoder actually measured, not to whatever megapixel count a phone happened to hand over.
+     */
+    const val CANONICAL_LONGEST = 1280
+
     /** A secret larger than this is a document, not a message; the encoder refuses it outright. */
     const val MAX_SECRET_BYTES = 3_072
 
     /** QIM step in units of the band's own RMS. Small = invisible, large = print-survivable. */
     const val QIM_STEP = 0.36f
+
+    /**
+     * The coarse grid's cell side, in pixels. Eight because that is the block a JPEG encoder works
+     * on: it keeps a whole 8x8 average nearly intact and throws away the detail inside the block, so
+     * a mark sized to that block is the one quantity a messaging app's redraw preserves. See
+     * [StegoProfile.ROBUST].
+     */
+    const val ROBUST_CELL = 8
+
+    /** The coarse grid's comb, nearly twice the fine one: the price of riding a requantised block. */
+    const val ROBUST_QIM_STEP = 0.62f
 
     /** Correction passes, so splat interference between neighbouring lattice cells settles down. */
     const val EMBED_REFINEMENT_PASSES = 3
@@ -74,6 +102,6 @@ object StegoLimits {
     /** CameraX frames below this many samples are not worth attempting. */
     const val MIN_SCAN_LONGEST = 320
 
-    /** Decode is bounded by lattice candidates x orientations; this is the safety cap. */
-    const val MAX_ACQUISITION_TRIES = 8
+    /** Decode is bounded by profiles x lattice candidates x orientations; this is the safety cap. */
+    const val MAX_ACQUISITION_TRIES = 24
 }

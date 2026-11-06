@@ -2,11 +2,11 @@ package com.securevault.pro.presentation.screens.stego
 
 import com.securevault.pro.crypto.stego.CarrierGeometry
 import com.securevault.pro.crypto.stego.LatticeSide
-import com.securevault.pro.crypto.stego.LlBand
 import com.securevault.pro.crypto.stego.LumaPlane
 import com.securevault.pro.crypto.stego.ReedSolomon
 import com.securevault.pro.crypto.stego.StegoCapacityException
 import com.securevault.pro.crypto.stego.StegoLimits
+import com.securevault.pro.crypto.stego.StegoProfile
 
 /**
  * How much secret a given photo can actually carry, and what the mark will cost on the lattice.
@@ -25,7 +25,8 @@ data class StegoPlan(
     val frameBits: Int,
     val payloadSlots: Int,
     val cellsWide: Int,
-    val cellsHigh: Int
+    val cellsHigh: Int,
+    val profile: StegoProfile = StegoProfile.CLASSIC
 ) {
     /** Chip slots actually occupied by the frame, out of the interior slots the lattice offers. */
     val chipsUsed: Int get() = frameBits * chipRate
@@ -44,7 +45,7 @@ data class StegoPlan(
     val side: Int get() = lattice.side
 
     val marginSteps: Float
-        get() = (chipRate * StegoLimits.QIM_STEP * 0.5f)
+        get() = (chipRate * profile.step * 0.5f)
 }
 
 /** The frame a carrier will hold: sealed envelope blocks, their padding, and the header over them. */
@@ -78,9 +79,12 @@ object StegoCapacity {
     /** Interior slots of a lattice — the ring is reserved for the directory. */
     fun payloadSlotsOf(side: LatticeSide): Int = (side.side - 2) * (side.side - 2)
 
-    /** Band cells a working plane yields: two Haar stages, so four pixels per cell per axis. */
-    fun cellsOf(plane: LumaPlane): Pair<Int, Int> =
-        LlBand.cellsFor(plane.width) to LlBand.cellsFor(plane.height)
+    /**
+     * Band cells a working plane yields on this profile: one average of `cellSize x cellSize` pixels
+     * per cell, so the coarse grid has half as many cells along each axis.
+     */
+    fun cellsOf(plane: LumaPlane, profile: StegoProfile = StegoProfile.CLASSIC): Pair<Int, Int> =
+        profile.cellsFor(plane.width) to profile.cellsFor(plane.height)
 
     /**
      * The largest frame the wire format can even express. `frameBits` travels in fourteen bits of
@@ -93,13 +97,22 @@ object StegoCapacity {
     fun encodedBytesFor(payloadBytes: Int): Int = coder.encodedByteCount(payloadBytes)
 
     /**
-     * True when a lattice of this side is physically present in the band. More than two slots per
-     * band cell in either axis is refused: the bilinear taps would land on the same cells and the
-     * chips would fight each other.
+     * True when a lattice of this side is physically present in the band, and present *sparsely*.
+     *
+     * Two limits, both measured rather than styled:
+     *
+     *  - More than two slots per band cell in either axis is refused outright: the bilinear taps would
+     *    land on the same cells and the chips would fight each other.
+     *  - More lattice slots than band cells is refused as well. [MarkWriter] sweeps every slot through
+     *    the same cell, so once slots outnumber cells the Gauss–Seidel corrections have nowhere to go
+     *    but back into cells they already moved; on a coarse band over a 640x480 photo that turned a
+     *    12-grey-level mark into an 83-grey-level one and the payload stopped decoding. A sparse
+     *    lattice is the same mark, quietly written.
      */
     private fun admissible(side: LatticeSide, cellsWide: Int, cellsHigh: Int): Boolean {
         if (cellsWide <= 4 || cellsHigh <= 4) return false
-        return side.side <= 2 * minOf(cellsWide, cellsHigh)
+        if (side.side > 2 * minOf(cellsWide, cellsHigh)) return false
+        return side.side.toLong() * side.side <= cellsWide.toLong() * cellsHigh
     }
 
     /**
@@ -111,7 +124,12 @@ object StegoCapacity {
      * lattice with the highest available rate is returned with `comfortable = false` — the mark is
      * still real, but the screen has to say the margin is thin.
      */
-    fun planFor(frameBits: Int, cellsWide: Int, cellsHigh: Int): StegoPlan? {
+    fun planFor(
+        frameBits: Int,
+        cellsWide: Int,
+        cellsHigh: Int,
+        profile: StegoProfile = StegoProfile.CLASSIC
+    ): StegoPlan? {
         if (frameBits <= 0 || frameBits > maxFrameBits) return null
         var fallback: StegoPlan? = null
         for (side in LatticeSide.ordered) {
@@ -120,7 +138,7 @@ object StegoCapacity {
             val available = slots / frameBits
             if (available < StegoLimits.MIN_CHIP_RATE) continue
             val rate = available.coerceAtMost(StegoLimits.MAX_CHIP_RATE)
-            val candidate = StegoPlan(side, rate, frameBits, slots, cellsWide, cellsHigh)
+            val candidate = StegoPlan(side, rate, frameBits, slots, cellsWide, cellsHigh, profile)
             if (candidate.comfortable) return candidate
             if (fallback == null || rate > fallback.chipRate) fallback = candidate
         }
@@ -128,12 +146,17 @@ object StegoCapacity {
     }
 
     /** The plan for a whole frame shape, or null when the carrier cannot host it at all. */
-    fun planFor(shape: StegoFrameShape, cellsWide: Int, cellsHigh: Int): StegoPlan? {
+    fun planFor(
+        shape: StegoFrameShape,
+        cellsWide: Int,
+        cellsHigh: Int,
+        profile: StegoProfile = StegoProfile.CLASSIC
+    ): StegoPlan? {
         val payloadBytes = shape.payloadBytes
         if (payloadBytes <= 0) return null
         val frameBits = encodedBitsFor(payloadBytes)
         if (frameBits > maxFrameBits) return null
-        return planFor(frameBits, cellsWide, cellsHigh)
+        return planFor(frameBits, cellsWide, cellsHigh, profile)
     }
 
     /**
@@ -143,15 +166,15 @@ object StegoCapacity {
      * (RS chunking, padding, chip rate) is a step function and only a search reports it exactly.
      * Returns 0 when even a single byte will not fit.
      */
-    fun maxSecretBytes(plane: LumaPlane, envelopeCount: Int): Int {
+    fun maxSecretBytes(plane: LumaPlane, envelopeCount: Int, profile: StegoProfile = StegoProfile.CLASSIC): Int {
         if (envelopeCount <= 0) return 0
-        val cells = cellsOf(plane)
+        val cells = cellsOf(plane, profile)
         var low = 0
         var high = StegoLimits.MAX_SECRET_BYTES
         while (low < high) {
             val middle = (low + high + 1) / 2
             val shape = StegoFrameShape(List(envelopeCount) { middle })
-            if (planFor(shape, cells.first, cells.second) != null) low = middle else high = middle - 1
+            if (planFor(shape, cells.first, cells.second, profile) != null) low = middle else high = middle - 1
         }
         return low
     }
@@ -175,12 +198,16 @@ object StegoCapacity {
     }
 
     /** Rejects a secret that cannot be hidden before any key derivation is paid for. */
-    fun requireFits(plane: LumaPlane, shape: StegoFrameShape): StegoPlan {
-        val cells = cellsOf(plane)
+    fun requireFits(
+        plane: LumaPlane,
+        shape: StegoFrameShape,
+        profile: StegoProfile = StegoProfile.CLASSIC
+    ): StegoPlan {
+        val cells = cellsOf(plane, profile)
         val requested = shape.secretSizes.maxOrNull() ?: 0
-        val plan = planFor(shape, cells.first, cells.second)
+        val plan = planFor(shape, cells.first, cells.second, profile)
         if (plan != null) return plan
-        val limit = maxSecretBytes(plane, shape.envelopeCount)
+        val limit = maxSecretBytes(plane, shape.envelopeCount, profile)
         throw StegoCapacityException(
             "This photo can hide about $limit bytes per envelope at ${cells.first}x${cells.second} " +
                 "band cells; the secret is $requested bytes.",

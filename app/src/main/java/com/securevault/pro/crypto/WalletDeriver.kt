@@ -14,7 +14,16 @@ enum class CryptoNetwork(
     ETHEREUM("ETHEREUM", "Ethereum", "ETH", "m/44'/60'/0'/0/0", 18, "ERC-20"),
     BSC("BSC", "BNB Smart Chain", "BNB", "m/44'/60'/0'/0/0", 18, "BEP-20"),
     POLYGON("POLYGON", "Polygon", "POL", "m/44'/60'/0'/0/0", 18, "Polygon"),
-    TRON("TRON", "Tron", "TRX", "m/44'/195'/0'/0/0", 6, "TRC-20")
+    TRON("TRON", "Tron", "TRX", "m/44'/195'/0'/0/0", 6, "TRC-20"),
+
+    // The L2s and Alt L1s a phrase wallet already owns: every one of them takes the Ethereum
+    // address, because they all derive it from the same account path. What differs is the chain id
+    // they are read on, and that lives in ChainRegistry rather than here.
+    ARBITRUM("ARBITRUM", "Arbitrum One", "ETH", "m/44'/60'/0'/0/0", 18, "Arbitrum One"),
+    BASE("BASE", "Base", "ETH", "m/44'/60'/0'/0/0", 18, "Base"),
+    OPTIMISM("OPTIMISM", "Optimism", "ETH", "m/44'/60'/0'/0/0", 18, "OP Mainnet"),
+    AVALANCHE("AVALANCHE", "Avalanche C-Chain", "AVAX", "m/44'/60'/0'/0/0", 18, "C-Chain"),
+    FANTOM("FANTOM", "Fantom", "FTM", "m/44'/60'/0'/0/0", 18, "Opera");
 }
 
 data class WalletAddress(
@@ -32,22 +41,29 @@ object WalletDeriver {
         return derive(seed)
     }
 
+    /**
+     * One address per registered chain. The rule is the registry's own address *family*, so adding a
+     * chain to [ChainRegistry] needs no change here — and a chain in the enum that the registry does
+     * not know is a hard error rather than a silently wrong address.
+     */
     fun derive(seed: ByteArray): List<WalletAddress> = CryptoNetwork.entries.map { network ->
         val child = Bip32.derivePath(seed, network.derivationPath)
-        val address = when (network) {
-            CryptoNetwork.BITCOIN -> btcSegwit(child.publicPoint)
-            CryptoNetwork.ETHEREUM, CryptoNetwork.BSC, CryptoNetwork.POLYGON -> evm(child.publicPoint)
-            CryptoNetwork.TRON -> tron(child.publicPoint)
+        val address = when (ChainRegistry.require(network).family) {
+            AddressFamily.EVM -> evm(child.publicPoint)
+            AddressFamily.BITCOIN -> btcSegwit(child.publicPoint)
+            AddressFamily.TRON -> tron(child.publicPoint)
         }
         WalletAddress(network, address, network.derivationPath)
     }
 
     fun fromPrivateKey(privateKey: BigInteger): List<WalletAddress> = CryptoNetwork.entries.map { network ->
         val point = Secp256k1.multiply(privateKey)
-        val address = when (network) {
-            CryptoNetwork.BITCOIN -> btcLegacy(point)
-            CryptoNetwork.ETHEREUM, CryptoNetwork.BSC, CryptoNetwork.POLYGON -> evm(point)
-            CryptoNetwork.TRON -> tron(point)
+        val address = when (ChainRegistry.require(network).family) {
+            AddressFamily.EVM -> evm(point)
+            // A bare key has no derivation path to be SegWit-safe about, so Bitcoin shows the
+            // legacy address it always showed for an import.
+            AddressFamily.BITCOIN -> btcLegacy(point)
+            AddressFamily.TRON -> tron(point)
         }
         WalletAddress(network, address, "imported key")
     }

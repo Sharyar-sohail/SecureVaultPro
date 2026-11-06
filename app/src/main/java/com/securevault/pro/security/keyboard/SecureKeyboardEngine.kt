@@ -40,19 +40,28 @@ data class SecureKeyboardLayoutState(
  */
 object SecureKeyboardEngine {
 
-    /** The canonical QWERTY rows, in order, when shuffling is off. */
+    /** The canonical QWERTY rows, in order — this is what the letters page draws. */
     val LETTER_ROWS: List<String> = listOf("qwertyuiop", "asdfghjkl", "zxcvbnm")
+
+    /** The letters pool, in QWERTY order; shuffling permutes this and re-slices the rows. */
+    private val LETTER_POOL: List<String> = LETTER_ROWS.flatMap { it.map { c -> c.toString() } }
 
     val DIGIT_ROW: String = "1234567890"
 
-    /** The default symbols on the number layer. */
-    val SYMBOL_ROW: List<String> = listOf(".", ",", "?", "!", "'", "-", ":", ";", "(", ")")
+    /** The first symbol row on the number page. */
+    val SYMBOL_ROW: List<String> = listOf("-", "/", ":", ";", "(", ")", "$", "&", "@", "\"")
 
-    /** What those same keys become while shift is armed on the number layer. */
-    val ALT_SYMBOL_ROW: List<String> = listOf("[", "]", "{", "}", "\\", "|", "@", "#", "$", "%")
+    /** What those same keys become while shift is armed on the number page. */
+    val ALT_SYMBOL_ROW: List<String> = listOf("_", "+", "=", "<", ">", "[", "]", "{", "}", "|")
 
-    /** The last row of the number layer. */
-    val MISC_ROW: List<String> = listOf("_", "&", "*", "+", "=", "<", ">", "/")
+    /** The short row between shift and delete on the number page. */
+    val MISC_ROW: List<String> = listOf(".", ",", "?", "!", "'", "#", "%")
+
+    /** Its shifted counterpart, so the punctuation a password needs is two taps from any key. */
+    val ALT_MISC_ROW: List<String> = listOf("*", "`", "~", "\\", "^", "\"", "'")
+
+    /** A phone-style pad: three columns of digits, then delete, zero and done. */
+    val PIN_DIGITS: List<String> = listOf("1", "2", "3", "4", "5", "6", "7", "8", "9")
 
     /**
      * Deterministic seeded shuffle: the same (pool, seed) always gives the same order, on every
@@ -74,20 +83,19 @@ object SecureKeyboardEngine {
     fun rows(state: SecureKeyboardLayoutState): List<List<SecureKey>> = when (state.layer) {
         SecureKeyLayer.LETTERS -> letterRows(state)
         SecureKeyLayer.NUMBERS -> numberRows(state)
+        SecureKeyLayer.NUMERIC -> pinRows(state)
     }
 
     private fun letterRows(state: SecureKeyboardLayoutState): List<List<SecureKey>> {
-        val pool = ('a'..'z').map { it.toString() }
-        val ordered = if (state.shuffled) shuffle(pool, state.effectiveSeed) else pool
+        val ordered = if (state.shuffled) shuffle(LETTER_POOL, state.effectiveSeed) else LETTER_POOL
         val rows = ordered.chunkedRows(10, 9, 7)
         val caseOf = { symbol: String -> if (state.shifted) symbol.uppercase() else symbol }
-        val bottom = bottomRow(SecureKey.ToNumbers)
         return listOf(
             rows[0].map { SecureKey.char(caseOf(it)) },
             rows[1].map { SecureKey.char(caseOf(it)) },
             listOf(SecureKey.Shift) + rows[2].map { SecureKey.char(caseOf(it)) } +
                 listOf(SecureKey.Backspace),
-            bottom,
+            bottomRow(SecureKey.ToNumbers),
         )
     }
 
@@ -95,18 +103,31 @@ object SecureKeyboardEngine {
         val digits = DIGIT_ROW.map { it.toString() }
         val orderedDigits = if (state.shuffled) shuffle(digits, state.effectiveSeed) else digits
         val symbols = if (state.shifted) ALT_SYMBOL_ROW else SYMBOL_ROW
+        val misc = if (state.shifted) ALT_MISC_ROW else MISC_ROW
         val orderedSymbols = if (state.shuffled) shuffle(symbols, state.effectiveSeed + 1) else symbols
-        val misc = if (state.shuffled) shuffle(MISC_ROW, state.effectiveSeed + 2) else MISC_ROW
+        val orderedMisc = if (state.shuffled) shuffle(misc, state.effectiveSeed + 2) else misc
         return listOf(
             orderedDigits.map { SecureKey.char(it) },
             orderedSymbols.map { SecureKey.char(it) },
-            listOf(SecureKey.Shift) + misc.map { SecureKey.char(it) } + listOf(SecureKey.Backspace),
+            listOf(SecureKey.Shift) + orderedMisc.map { SecureKey.char(it) } +
+                listOf(SecureKey.Backspace),
             bottomRow(SecureKey.ToLetters),
         )
     }
 
+    /**
+     * The pad a PIN or an amount is typed on: the same three columns a phone dialer uses, with no
+     * letters anywhere. Shuffling still applies — it moves the digits between the nine cells while
+     * the shape of the pad stays, which is what keeps a shoulder-surfner from reading positions.
+     */
+    private fun pinRows(state: SecureKeyboardLayoutState): List<List<SecureKey>> {
+        val digits = if (state.shuffled) shuffle(PIN_DIGITS, state.effectiveSeed) else PIN_DIGITS
+        return digits.chunked(3).map { row -> row.map { SecureKey.char(it) } } +
+            listOf(listOf(SecureKey.Backspace, SecureKey.char("0"), SecureKey.Enter))
+    }
+
     private fun bottomRow(layerKey: SecureKey): List<SecureKey> =
-        listOf(layerKey, SecureKey.Shuffle, SecureKey.Space, SecureKey.Enter)
+        listOf(layerKey, SecureKey.Space, SecureKey.Enter)
 
     /**
      * Resolves [key] against [state].

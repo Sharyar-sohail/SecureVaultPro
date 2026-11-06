@@ -1,167 +1,83 @@
 package com.securevault.pro.security.backup
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 /**
- * Pins the keys a stored envelope is offered and, critically, the exact derivation counts.
+ * Pins the single key a stored copy is opened with.
  *
- * The reader 3.1.9 shipped derived every candidate at 600,000, 100,000, 10,000 and 1,000 rounds,
- * and at 210,000/120,000 as well for envelopes older than v3. Those numbers are the whole history,
- * so they are offered exactly and nothing more. The envelope's version also decides which
- * historical keys are plausible.
+ * A restore derives one key, chosen from the marker the writer left in the file (`kid`) plus one
+ * fact about the device (whether it already holds the account's vault key). There is no candidate
+ * list here to test, because there is no candidate list any more — which is the point of these
+ * cases: each shape resolves to exactly one secret at exactly one count, and a device that cannot
+ * name the key says so instead of hashing alternatives.
  */
 class LegacyKeyPlanTest {
 
-    @Test
-    fun `the universal v3 key leads a v3 envelope, followed by the vault key and the passphrase`() {
-        val plan = LegacyKeyPlan.ordered(
-            emails = listOf("owner@example.com"),
-            passphrase = "correct horse battery",
-            vaultSecret = "dmF1bHQta2V5",
-            accountIds = listOf("118273645091827364509"),
-            version = 3
-        )
-        assertEquals(
-            listOf(PRIMARY_CLOUD_KEY, "dmF1bHQta2V5", "correct horse battery", "118273645091827364509"),
-            plan.take(4).map { it.value }
-        )
-        assertEquals(OpeningSecretKind.RETIRED_UNIVERSAL_KEY, plan.first().kind)
-    }
+    private val vault = OpeningSecret("dmF1bHQta2V5", OpeningSecretKind.VAULT_KEY)
 
     @Test
-    fun `a v3 file carries the original reader's four counts`() {
-        val plan = LegacyKeyPlan.ordered(
-            emails = listOf("owner@example.com"),
+    fun `a copy marked as this account's is opened with the vault key the device holds`() {
+        val secret = LegacyKeyPlan.exactSecret(
+            keyId = LegacyKeyPlan.KEY_ID_VAULT,
             passphrase = "typed",
-            vaultSecret = "dmF1bHQta2V5",
-            accountIds = listOf("118273645091827364509"),
-            version = 3
+            vaultSecret = vault.value
         )
-        assertTrue(plan.isNotEmpty())
-        val original = listOf(600_000, 100_000, 10_000, 1_000)
-        for (secret in plan) {
-            assertEquals(
-                "${secret.value} must carry the old reader's counts",
-                original,
-                secret.iterationProfiles
+        assertEquals(vault.value, secret?.value)
+        assertEquals(OpeningSecretKind.VAULT_KEY, secret?.kind)
+    }
+
+    @Test
+    fun `a copy marked as this account's names no key on a device without the vault key`() {
+        assertNull(LegacyKeyPlan.exactSecret(keyId = LegacyKeyPlan.KEY_ID_VAULT, passphrase = "typed"))
+    }
+
+    @Test
+    fun `an export marked as passphrase-sealed is opened with the passphrase typed for it`() {
+        val secret = LegacyKeyPlan.exactSecret(
+            keyId = LegacyKeyPlan.KEY_ID_PASSPHRASE,
+            passphrase = "typed",
+            vaultSecret = vault.value
+        )
+        assertEquals("typed", secret?.value)
+        assertEquals(OpeningSecretKind.PASSPHRASE, secret?.kind)
+    }
+
+    @Test
+    fun `a copy written before the marker is opened with the account vault key when held`() {
+        val secret = LegacyKeyPlan.exactSecret(keyId = null, vaultSecret = vault.value)
+        assertEquals(vault.value, secret?.value)
+        assertEquals(OpeningSecretKind.VAULT_KEY, secret?.kind)
+    }
+
+    @Test
+    fun `a copy written before the marker is opened with the retired Drive key on a fresh device`() {
+        val secret = LegacyKeyPlan.exactSecret(keyId = null, vaultSecret = null)
+        assertEquals(PRIMARY_CLOUD_KEY, secret?.value)
+        assertEquals(OpeningSecretKind.RETIRED_UNIVERSAL_KEY, secret?.kind)
+    }
+
+    @Test
+    fun `whatever the shape, the key is stretched at the one count every writer used`() {
+        for (keyId in listOf(null, "vault", "passphrase", "unknown")) {
+            val secret = LegacyKeyPlan.exactSecret(
+                keyId = keyId,
+                passphrase = "typed",
+                vaultSecret = vault.value
             )
+            assertEquals(listOf(600_000), secret?.iterationProfiles)
         }
     }
 
     @Test
-    fun `an older envelope carries the counts the old reader used for it`() {
-        val plan = LegacyKeyPlan.ordered(
-            emails = listOf("owner@example.com"),
-            vaultSecret = null,
-            version = 2
-        )
-        val expected = listOf(600_000, 100_000, 10_000, 1_000, 210_000, 120_000)
-        for (secret in plan) {
-            assertEquals(expected, secret.iterationProfiles)
-        }
-    }
-
-    @Test
-    fun `a v3 file is still offered v2 and v1 but not the v0 strings`() {
-        val plan = LegacyKeyPlan.ordered(
-            emails = listOf("owner@example.com"),
-            vaultSecret = null,
-            version = 3
-        )
-        val values = plan.map { it.value }
-        for (key in listOf(LEGACY_CLOUD_KEY_V2, LEGACY_CLOUD_KEY_V1)) {
-            assertTrue("the old reader offered $key to every file", values.contains(key))
-        }
-        assertFalse("$LEGACY_CLOUD_KEY belongs to the pre-v3 reader", values.contains(LEGACY_CLOUD_KEY))
-        for (key in LegacyKeyPlan.SHARED_LEGACY_KEYS) {
-            assertFalse("$key belongs to the pre-v3 reader", values.contains(key))
-        }
-    }
-
-    @Test
-    fun `a v3 file still offers the addresses the original reader hard-coded`() {
-        val plan = LegacyKeyPlan.ordered(
-            emails = listOf("owner@example.com"),
-            vaultSecret = null,
-            version = 3
-        )
-        val values = plan.map { it.value }
-        for (address in LegacyKeyPlan.HISTORICAL_OWNER_ADDRESSES) {
-            assertTrue(
-                "the old reader offered $address to every file, whatever its version",
-                values.contains(address)
+    fun `blank secrets are not keys`() {
+        assertNull(
+            LegacyKeyPlan.exactSecret(
+                keyId = LegacyKeyPlan.KEY_ID_VAULT,
+                passphrase = "   ",
+                vaultSecret = "  "
             )
-        }
-    }
-
-    @Test
-    fun `an older envelope still carries every retired universal string and shared literal`() {
-        val plan = LegacyKeyPlan.ordered(emails = listOf("owner@example.com"), vaultSecret = null, version = 2)
-        val values = plan.map { it.value }
-        for (key in listOf(PRIMARY_CLOUD_KEY, LEGACY_CLOUD_KEY_V2, LEGACY_CLOUD_KEY_V1, LEGACY_CLOUD_KEY)) {
-            assertTrue("$key must remain an opening candidate", values.contains(key))
-        }
-        for (key in LegacyKeyPlan.SHARED_LEGACY_KEYS) {
-            assertTrue("$key must remain an opening candidate", values.contains(key))
-        }
-    }
-
-    @Test
-    fun `the vault key is offered only when the keyring already holds one`() {
-        val without = LegacyKeyPlan.ordered(emails = listOf("owner@example.com"), vaultSecret = null, version = 3)
-        assertFalse(without.any { it.kind == OpeningSecretKind.VAULT_KEY })
-
-        val with = LegacyKeyPlan.ordered(emails = listOf("owner@example.com"), vaultSecret = "dmF1bHQta2V5", version = 3)
-        assertTrue(with.any { it.kind == OpeningSecretKind.VAULT_KEY })
-    }
-
-    @Test
-    fun `the account address is offered exact, lowercase and as a local part`() {
-        val plan = LegacyKeyPlan.ordered(emails = listOf("Owner@Example.com"), vaultSecret = null, version = 3)
-        val addresses = plan.filter { it.kind == OpeningSecretKind.ACCOUNT_EMAIL }.map { it.value }
-        assertEquals(listOf("Owner@Example.com", "owner@example.com", "Owner"), addresses.take(3))
-    }
-
-    @Test
-    fun `the display name is offered as a legacy address candidate`() {
-        val plan = LegacyKeyPlan.ordered(
-            emails = listOf("owner@example.com"),
-            displayName = "Sharyar Sohail",
-            vaultSecret = null,
-            version = 3
-        )
-        assertTrue(plan.map { it.value }.contains("Sharyar Sohail"))
-    }
-
-    @Test
-    fun `nothing is duplicated`() {
-        val plan = LegacyKeyPlan.ordered(
-            emails = listOf("owner@example.com", "owner@example.com", " "),
-            vaultSecret = null,
-            version = 3
-        )
-        val values = plan.map { it.value }
-        assertEquals(values.distinct(), values)
-    }
-
-    @Test
-    fun `an empty email list still yields the universal key`() {
-        val plan = LegacyKeyPlan.ordered(emails = emptyList(), vaultSecret = null, version = 3)
-        assertFalse(plan.isEmpty())
-        assertEquals(PRIMARY_CLOUD_KEY, plan.first().value)
-    }
-
-    @Test
-    fun `the salt-less blob is treated as older than v3`() {
-        val plan = LegacyKeyPlan.ordered(emails = listOf("owner@example.com"), vaultSecret = null, version = null)
-        val values = plan.map { it.value }
-        assertTrue(values.contains(LEGACY_CLOUD_KEY))
-        assertEquals(
-            listOf(600_000, 100_000, 10_000, 1_000),
-            plan.first().iterationProfiles
         )
     }
 }

@@ -14,6 +14,15 @@ import androidx.core.content.FileProvider
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
+import com.securevault.pro.data.scanner.DetectionFailure
+import com.securevault.pro.data.scanner.DocumentDetector
+import com.securevault.pro.data.scanner.Filters
+import com.securevault.pro.data.scanner.LumaPlane
+import com.securevault.pro.data.scanner.QuadGeometry
+import com.securevault.pro.data.scanner.ScanBitmaps
+import com.securevault.pro.data.scanner.ScanLook
+import com.securevault.pro.data.scanner.ScanPageProvider
+import com.securevault.pro.data.scanner.ScanPdfWriter
 import kotlinx.coroutines.suspendCancellableCoroutine
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
@@ -80,6 +89,220 @@ internal fun applyScanFilter(source: Bitmap, filter: ScanFilter): Bitmap = when 
     ScanFilter.Greyscale -> greyscaleDocument(source)
 }
 
+/** The page finish the pure core uses for the same choice the chips show. */
+private fun lookOf(filter: ScanFilter): ScanLook = when (filter) {
+    ScanFilter.Enhanced -> ScanLook.ENHANCE
+    ScanFilter.Original -> ScanLook.ORIGINAL
+    ScanFilter.Greyscale -> ScanLook.BLACK_WHITE
+}
+
+/**
+ * What one viewfinder frame had to say about the sheet inside it.
+ *
+ * [quad] is in the frame's own pixels, corner order top-left, top-right, bottom-right, bottom-left,
+ * or null when the detector refused — in which case [failure] is the sentence the viewfinder shows
+ * instead of a box. [confidence] is measured (edge sharpness, corner squareness, region solidity),
+ * which is what lets "hold steady" mean *the outline stopped moving* rather than *a shape appeared*.
+ */
+internal class LiveDetection(
+    val quad: FloatArray?,
+    val confidence: Float,
+    val failure: DetectionFailure
+)
+
+/**
+ * The live detector: the same maths the saved page runs, on the camera's own luminance plane.
+ *
+ * Two masks are consulted — the paper/desk brightness split *and* the gradient closure — so a white
+ * sheet on a white desk (no brightness split, hard edges) and a shaded sheet on a dark desk (the
+ * opposite) are both findable. The old viewfinder path read brightness only, which is why it lost
+ * the outline under a ceiling light.
+ */
+internal fun detectLiveDocument(frame: LumaFrame): LiveDetection {
+    val longest = max(frame.width, frame.height)
+    if (longest < 48) return LiveDetection(null, 0f, DetectionFailure.TOO_SMALL)
+    val result = try {
+        DocumentDetector.detect(LumaPlane(frame.width, frame.height, frame.gray), longest)
+    } catch (_: Throwable) {
+        return LiveDetection(null, 0f, DetectionFailure.NO_CONTRAST)
+    }
+    val quad = result.quad.takeIf { it.size == 8 && result.accepted }
+    return LiveDetection(quad, result.confidence.toFloat(), if (quad == null) result.failure else DetectionFailure.NONE)
+}
+
+/**
+ * Glides the outline from one frame to the next instead of teleporting it.
+ *
+ * A raw per-frame quad moves 1-3 texels on a still page because the contour of a real edge is never
+ * identical twice, and the eye reads that as a live box that never settles — so the box the user was
+ * told to hold steady is the one that never looks steady. Small moves are damped, a big move is
+ * taken as a real change of position and adopted at once, and anything under the deadband is dropped
+ * so the box stops moving at all when the phone stops moving.
+ */
+internal class QuadSmoother {
+
+    private var smoothed: FloatArray? = null
+
+    /** The last value handed out, so a caller can skip a redundant state write. */
+    fun current(): FloatArray? = smoothed
+
+    fun reset() {
+        smoothed = null
+    }
+
+    /** Blends [next] (normalized corners) into the running outline and returns what to draw. */
+    fun blend(next: FloatArray): FloatArray {
+        val previous = smoothed
+        if (previous == null || previous.size != 8 || next.size != 8) {
+            smoothed = next.copyOf()
+            return smoothed!!
+        }
+        var drift = 0f
+        for (index in 0 until 8) drift = max(drift, abs(previous[index] - next[index]))
+        smoothed = when {
+            drift < DEADBAND -> previous
+            drift > TELEPORT -> next.copyOf()
+            else -> FloatArray(8).also { out ->
+                for (index in 0 until 8) {
+                    out[index] = previous[index] * (1f - ALPHA) + next[index] * ALPHA
+                }
+            }
+        }
+        return smoothed!!
+    }
+
+    /** True when the outline has sat still long enough to shutter on — the anti false-trigger gate. */
+    fun isSettledAgainst(sample: FloatArray): Boolean {
+        val previous = smoothed ?: return false
+        if (previous.size != 8 || sample.size != 8) return false
+        for (index in 0 until 8) if (abs(previous[index] - sample[index]) > SETTLE) return false
+        return true
+    }
+
+    private companion object {
+        const val ALPHA = 0.4f
+        const val DEADBAND = 0.004f
+        const val TELEPORT = 0.12f
+        const val SETTLE = 0.008f
+    }
+}
+
+/** Canonical corners of a normalized outline, so a rotated phone never yields a shifted start corner. */
+internal fun orderedNormalized(quad: FloatArray): FloatArray {
+    if (quad.size != 8) return quad
+    val ordered = try {
+        QuadGeometry.order(quad)
+    } catch (_: Throwable) {
+        FloatArray(0)
+    }
+    return if (ordered.size == 8) ordered else quad
+}
+
+/**
+ * Bytes of heap the runtime says this process can still take, used to size a page buffer.
+ *
+ * The scanner has killed the process before by insisting on a 2400 px page while three other
+ * buffers were live, so a page is now decoded to what the heap can actually hold.
+ */
+internal fun pageDimensionCap(requested: Int): Int {
+    val runtime = Runtime.getRuntime()
+    val available = runtime.maxMemory() - runtime.totalMemory() + runtime.freeMemory()
+    val budget = runCatching { ScanBitmaps.safeDimension(requested, max(8L * 1024L * 1024L, available)) }
+        .getOrDefault(requested)
+    return budget.coerceIn(minOf(640, requested), requested)
+}
+
+/**
+ * The page pass, in one place: rectify onto [overrideQuad] when the viewfinder or the review sheet
+ * already approved corners, otherwise let the core find its own outline, then finish with [filter].
+ *
+ * This runs on the pure core (bilinear homography, white page background beyond the sheet, measured
+ * white balance and level stretch) rather than a canvas colour matrix, because a colour matrix can
+ * neither undo perspective nor flatten a shadow. [overrideQuad] is trusted, so the page that comes
+ * out is the page the user was shown. Any page the core cannot afford or will not crop falls back
+ * to the canvas path, so a tight heap costs sharpness rather than the scan.
+ */
+internal fun finishPage(
+    source: Bitmap,
+    overrideQuad: FloatArray?,
+    crop: Boolean,
+    filter: ScanFilter,
+    maxDimension: Int
+): Bitmap? {
+    if (source.isRecycled) return null
+    val cap = pageDimensionCap(maxDimension)
+    val pixels = source.width.toLong() * source.height.toLong()
+    if (crop && pixels <= MAX_CORE_PIXELS) {
+        val trusted = overrideQuad?.takeIf { it.size == 8 }?.let {
+            normalizedToPixels(orderedNormalized(it), source.width.toFloat(), source.height.toFloat())
+        }
+        val outcome = runCatching {
+            ScanBitmaps.process(
+                source = source,
+                look = lookOf(filter),
+                autoCrop = true,
+                overrideQuad = trusted,
+                maxDimension = cap
+            )
+        }.getOrNull()
+        if (outcome != null) {
+            val result = outcome.first
+            // Identity means the core refused to crop: hand back the upright page, nothing re-run.
+            if (result === source) return withinCap(source, cap)
+            return result
+        }
+    }
+    return finishLegacy(source, overrideQuad, crop, filter, cap)
+}
+
+/** Returns the page resized to [cap], recycling the input, or the input itself when it already fits. */
+private fun withinCap(source: Bitmap, cap: Int): Bitmap {
+    if (max(source.width, source.height) <= cap) return source
+    val scaled = thumbnailOf(source, cap)
+    if (scaled !== source) source.recycle()
+    return scaled
+}
+
+/** The canvas path: the fallback when the pure core cannot run on this heap. */
+private fun finishLegacy(
+    source: Bitmap,
+    overrideQuad: FloatArray?,
+    crop: Boolean,
+    filter: ScanFilter,
+    maxDimension: Int
+): Bitmap? {
+    var cropped: Bitmap? = null
+    return try {
+        val quad = if (crop) {
+            overrideQuad?.takeIf { it.size == 8 && isTrustworthy(it, source) }
+                ?: detectDocumentQuad(source)
+        } else {
+            null
+        }
+        if (quad != null) cropped = perspectiveCrop(source, quad)
+        val base = cropped ?: source
+        val output = applyScanFilter(base, filter)
+        var result = if (output !== base) {
+            if (base !== source) base.recycle()
+            output
+        } else {
+            base
+        }
+        if (max(result.width, result.height) > maxDimension) {
+            val scaled = thumbnailOf(result, maxDimension)
+            if (scaled !== result && result !== source) result.recycle()
+            result = scaled
+        }
+        if (result !== source) source.recycle()
+        result
+    } catch (_: Throwable) {
+        cropped?.recycle()
+        if (source.isRecycled) null else source
+    }
+}
+
+private const val MAX_CORE_PIXELS = 6_000_000L
+
 /**
  * Decodes a capture, finds the sheet of paper, rectifies it with a perspective
  * transform and lifts contrast / white balance. Falls back to the upright
@@ -100,27 +323,29 @@ internal fun prepareDocument(
     filter: ScanFilter
 ): Bitmap? {
     val source = normalizedBitmap(bytes, maxDimension) ?: return null
-    var cropped: Bitmap? = null
-    return try {
-        val quad = overrideQuad?.takeIf { it.size == 8 && isTrustworthy(it, source) }
-            ?: detectDocumentQuad(source)
-        if (quad != null) cropped = perspectiveCrop(source, quad)
-        val base = cropped ?: source
-        val output = applyScanFilter(base, filter)
-        if (output !== base) {
-            if (base !== source) base.recycle()
-            source.recycle()
-            output
-        } else if (base !== source) {
-            source.recycle()
-            base
-        } else {
-            source
-        }
-    } catch (_: Throwable) {
-        cropped?.recycle()
-        if (source.isRecycled) null else source
-    }
+    return finishPage(source, overrideQuad, crop = true, filter = filter, maxDimension = maxDimension)
+}
+
+/**
+ * The page as text recognition wants it: upright, straightened, and no colour games in between —
+ * the model reads edges, and a stretched contrast curve moves them.
+ */
+internal fun prepareForText(bytes: ByteArray, maxDimension: Int = 2000): Bitmap? {
+    val source = normalizedBitmap(bytes, maxDimension) ?: return null
+    return finishPage(source, null, crop = true, filter = ScanFilter.Original, maxDimension = maxDimension)
+}
+
+/**
+ * A two-level copy of a page: ink black, paper white, with the threshold allowed to wander across
+ * the sheet so an uneven lamp or a curled corner still binarises. This is the image to hand the
+ * text model when the first read of a page came back empty.
+ */
+internal fun binarisedCopyForText(source: Bitmap): Bitmap? {
+    if (source.isRecycled) return null
+    return runCatching {
+        val plane = ScanBitmaps.argbOf(source)
+        ScanBitmaps.toBitmap(Filters.blackWhite(plane, adaptiveWhenSlopeAbove = 12.0))
+    }.getOrNull()
 }
 
 /** True when the quad really outlines a sheet inside this bitmap, so it may be cropped. */
@@ -558,45 +783,57 @@ internal suspend fun recognizeText(bitmap: Bitmap): String {
     }
 }
 
-internal fun buildPdf(pages: List<ByteArray>): ByteArray {
-    val document = android.graphics.pdf.PdfDocument()
-    try {
-        pages.forEachIndexed { index, jpeg ->
-            val bitmap = normalizedBitmap(jpeg, 1800)
-                ?: throw IllegalStateException("Page ${index + 1} could not be decoded.")
-            val pageInfo = android.graphics.pdf.PdfDocument.PageInfo.Builder(
-                595,
-                842,
-                index + 1
-            ).create()
-            val page = document.startPage(pageInfo)
-            val canvas = page.canvas
-            canvas.drawColor(android.graphics.Color.WHITE)
-            val availableWidth = 595f - 48f
-            val availableHeight = 842f - 48f
-            val scale = minOf(
-                availableWidth / bitmap.width,
-                availableHeight / bitmap.height
-            )
-            val drawWidth = bitmap.width * scale
-            val drawHeight = bitmap.height * scale
-            val left = (595f - drawWidth) / 2f
-            val top = (842f - drawHeight) / 2f
-            canvas.drawBitmap(
-                bitmap,
-                null,
-                android.graphics.RectF(left, top, left + drawWidth, top + drawHeight),
-                null
-            )
-            document.finishPage(page)
-            bitmap.recycle()
-        }
-        val out = ByteArrayOutputStream()
-        document.writeTo(out)
-        return out.toByteArray()
-    } finally {
-        document.close()
+/**
+ * Reads a page twice when the first read found hardly any letters: once as photographed, then again
+ * as a flat two-level copy with the threshold allowed to wander across the sheet.
+ *
+ * A page under a ceiling lamp has a bright half and a shadowed half, and one global contrast curve
+ * cannot serve both — the model then returns a handful of characters from the lit side and nothing
+ * from the rest. Binarising locally is what recovers those lines, so the better of the two reads
+ * wins. Whichever read produced more actual letters is the one kept.
+ */
+internal suspend fun recognizeTextWithRetry(page: Bitmap): String {
+    val first = runCatching { recognizeText(page) }.getOrDefault("")
+    if (readableChars(first) >= MIN_USEFUL_CHARS) return first
+    val flattened = binarisedCopyForText(page)
+    val second = if (flattened == null) {
+        ""
+    } else {
+        runCatching { recognizeText(flattened) }.getOrDefault("")
     }
+    if (flattened != null && flattened !== page) flattened.recycle()
+    return if (readableChars(second) > readableChars(first)) second else first
+}
+
+private fun readableChars(text: String): Int = text.count { it.isLetterOrDigit() }
+
+private const val MIN_USEFUL_CHARS = 12
+
+/**
+ * The sealed PDF: A4 in whichever orientation each page actually is, one page decoded at a time.
+ *
+ * Goes through [ScanPdfWriter] rather than drawing every page into one document at a fixed portrait
+ * sheet, so a landscape receipt stops arriving shrunk inside two grey bars and a long session never
+ * holds more than a single decoded page.
+ */
+internal fun buildPdf(pages: List<ByteArray>): ByteArray {
+    if (pages.isEmpty()) throw IllegalArgumentException("There are no pages to write.")
+    val provider = object : ScanPageProvider {
+        override val pageCount: Int = pages.size
+
+        override fun acquire(index: Int): Bitmap? = runCatching {
+            normalizedBitmap(pages[index], ScanPdfWriter.pagePixelCap())
+        }.getOrNull()
+
+        override fun release(index: Int, bitmap: Bitmap) {
+            runCatching { bitmap.recycle() }
+        }
+    }
+    val out = ByteArrayOutputStream()
+    val (written, failure) = ScanPdfWriter.compose(provider, out)
+    if (failure != null) throw IllegalStateException(failure.message)
+    if (written == 0) throw IllegalStateException("No pages could be read.")
+    return out.toByteArray()
 }
 
 private fun decodeDownsampled(bytes: ByteArray, targetMax: Int): Bitmap? {

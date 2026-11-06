@@ -12,6 +12,7 @@ import com.securevault.pro.security.TotpGenerator
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.security.SecureRandom
@@ -110,7 +111,18 @@ class EntryEditorViewModel @Inject constructor(
     fun setWebsite(value: String) = _state.update { it.copy(website = value) }
     fun setUrl(value: String) = _state.update { it.copy(url = value) }
     fun setNotes(value: String) = _state.update { it.copy(notes = value) }
-    fun setCategory(value: String) = _state.update { it.copy(category = value) }
+    fun setCategory(value: String) {
+        _state.update { current ->
+            val next = value.takeIf { it in EntryCategoryOptions } ?: current.category
+            // A brand-new record inherits the fields its type actually needs; editing an
+            // existing record never rewrites the owner's own field list.
+            current.copy(
+                category = next,
+                customFields = if (current.isNew) current.customFields + missingTemplateFields(next, current.customFields)
+                else current.customFields
+            )
+        }
+    }
     fun setTags(value: String) = _state.update { it.copy(tagsInput = value) }
     fun setFavorite(value: Boolean) = _state.update { it.copy(isFavorite = value) }
     fun setHiddenInTravel(value: Boolean) = _state.update { it.copy(hiddenInTravel = value) }
@@ -255,6 +267,12 @@ class EntryEditorViewModel @Inject constructor(
         )
         _state.update { it.copy(saving = true, error = null) }
         viewModelScope.launch {
+            val clash = duplicateWarningFor(current)
+            if (clash != null && current.error != clash) {
+                // One warning press, then the owner's second press is taken as consent.
+                _state.update { it.copy(saving = false, error = clash) }
+                return@launch
+            }
             val ok = repository.saveEntry(entry)
             _state.update {
                 it.copy(
@@ -270,5 +288,81 @@ class EntryEditorViewModel @Inject constructor(
         val EntryCategoryOptions = listOf(
             "LOGINS", "BANKING", "IDENTITY", "VEHICLE", "WEBSITES", "APPS", "FINANCE", "OTHERS"
         )
+
+        /**
+         * Fields each item type actually needs. The room stores custom fields as plain
+         * label/value/concealed JSON, so a category template is expressed as labelled fields
+         * rather than as a new schema type.
+         */
+        private val CategoryFieldTemplates: Map<String, List<Pair<String, Boolean>>> = mapOf(
+            "BANKING" to listOf(
+                "Bank name" to false,
+                "Account number" to true,
+                "Sort code / BSB" to true,
+                "Card number" to true,
+                "Card PIN" to true
+            ),
+            "IDENTITY" to listOf(
+                "Document type" to false,
+                "Document number" to true,
+                "Issued by" to false,
+                "Nationality" to false
+            ),
+            "VEHICLE" to listOf(
+                "Plate number" to false,
+                "VIN / chassis number" to true,
+                "Licence number" to true,
+                "Insurance provider" to false
+            ),
+            "FINANCE" to listOf(
+                "Institution" to false,
+                "Account number" to true,
+                "Routing / IBAN" to true,
+                "Tax ID" to true
+            ),
+            "APPS" to listOf(
+                "Plan or package" to false,
+                "Recovery code" to true
+            )
+        )
     }
+
+    private fun missingTemplateFields(category: String, existing: List<CustomField>): List<CustomField> {
+        val template = CategoryFieldTemplates[category].orEmpty()
+        val taken = existing.map { it.label.trim().lowercase() }.toSet()
+        val room = (12 - existing.size).coerceAtLeast(0)
+        return template
+            .filter { it.first.lowercase() !in taken }
+            .take(room)
+            .map { (label, concealed) -> CustomField(label = label, concealed = concealed) }
+    }
+
+    /**
+     * Bitwarden/1Password both warn before a second copy of the same login is created.
+     * Returns the wording for the collision, or null when nothing else in the vault matches.
+     */
+    private suspend fun duplicateWarningFor(current: EntryEditorUiState): String? {
+        val identities = listOf(current.username.trim().lowercase(), current.email.trim().lowercase())
+            .filter { it.isNotBlank() }
+        val title = current.title.trim().lowercase()
+        if (identities.isEmpty() && title.isBlank()) return null
+        val host = hostOf(current.website.ifBlank { current.url })
+        val rows = runCatching { repository.observeEntries().first() }.getOrDefault(emptyList())
+        val clash = rows.firstOrNull { other ->
+            if (other.id == draftId) return@firstOrNull false
+            val others = listOf(other.username.trim().lowercase(), other.email.trim().lowercase())
+            val samePerson = identities.isNotEmpty() && others.any { it.isNotBlank() && it in identities }
+            val sameSite = host.isNotBlank() && hostOf(other.displayUrl) == host
+            val sameName = title.isNotBlank() && other.title.trim().lowercase() == title
+            (samePerson && (sameSite || other.category.equals(current.category, ignoreCase = true))) ||
+                (sameName && other.category.equals(current.category, ignoreCase = true))
+        } ?: return null
+        val named = clash.title.ifBlank { clash.domain.ifBlank { "an entry without a name" } }
+        return "You already have \"$named\" in ${clash.category.lowercase()}. " +
+            "Press save again to keep both, or edit the existing entry instead."
+    }
+
+    private fun hostOf(value: String): String = value.trim().lowercase()
+        .removePrefix("https://").removePrefix("http://").removePrefix("www.")
+        .substringBefore('/').substringBefore('?').substringBefore(':')
 }

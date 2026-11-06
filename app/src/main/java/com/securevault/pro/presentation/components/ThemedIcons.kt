@@ -19,8 +19,9 @@ import com.securevault.pro.presentation.theme.VaultPaletteController
  *
  * A theme still has an [IconStyle], but it now selects a *treatment* of the same geometry rather
  * than one of four Material languages: the family keeps one consistent silhouette across all
- * fifteen palettes (that is the point), while weight and ink follow the style so a switch still
- * reads as a change of drawing.
+ * fifteen palettes (that is the point), while the optical size follows the style so a switch still
+ * reads as a change of drawing. The ink never follows it — the tint the caller asked for is drawn
+ * at full strength, always.
  */
 @Composable
 fun ThemedIcon(
@@ -35,17 +36,29 @@ fun ThemedIcon(
     VaultGlyph(
         glyph = glyph,
         size = size * style.scale,
-        tint = if (style == IconStyle.OUTLINED) tint.copy(alpha = 0.86f) else tint,
+        tint = tint,
         contentDescription = contentDescription,
         modifier = modifier,
         animate = animate
     )
 }
 
+/**
+ * Optical size per treatment, as a fraction of the requested box.
+ *
+ * This used to be paired with an `alpha = 0.86f` on [IconStyle.OUTLINED], because a thin mark reads
+ * as lighter than a solid one. That reasoning is wrong on this phone and the owner has said so:
+ * faded ink is a *dim icon*, which is the one thing he banned along with dark plates. Alpha also
+ * breaks WCAG 1.4.11, which wants at least 3:1 for a graphic that carries meaning, and five of the
+ * fifteen palettes are outlined, so it was dimming the majority of the app's iconography.
+ *
+ * The weight difference is now carried by geometry alone, and every style sits on its own value so
+ * switching icon treatment is visible.
+ */
 private val IconStyle.scale: Float
     get() = when (this) {
         IconStyle.OUTLINED -> 1.04f
         IconStyle.SHARP -> 1.00f
         IconStyle.FILLED -> 0.96f
-        IconStyle.ROUNDED -> 1.00f
+        IconStyle.ROUNDED -> 0.98f
     }

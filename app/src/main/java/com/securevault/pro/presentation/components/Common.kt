@@ -67,6 +67,7 @@ import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.BlurredEdgeTreatment
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.focus.onFocusEvent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
@@ -81,13 +82,17 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -95,7 +100,13 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.securevault.pro.diagnostics.CrashLogger
+import com.securevault.pro.security.keyboard.LocalSecureKeyboardTyping
+import com.securevault.pro.security.keyboard.SecureBoardEntry
 import com.securevault.pro.security.keyboard.SecureIme
+import com.securevault.pro.security.keyboard.SecureKey
+import com.securevault.pro.security.keyboard.SecureKeyboardPanel
+import com.securevault.pro.security.keyboard.rememberSecureBoard
+import com.securevault.pro.security.keyboard.reachableSecureKeyboardDock
 import com.securevault.pro.presentation.theme.HeaderStyle
 import com.securevault.pro.presentation.theme.ThemeDesign
 import com.securevault.pro.presentation.theme.VaultBackdrop
@@ -1617,71 +1628,98 @@ fun VaultTextField(
     // A submit handler turns the key into "Done" and fires on Enter/Done/Go, so the
     // keyboard can always complete the action the on-screen button would.
     val effectiveImeAction = if (onImeSubmit != null) ImeAction.Done else imeAction
-    val effectiveKeyboardActions = if (onImeSubmit != null) {
-        KeyboardActions(
-            onDone = { onImeSubmit() },
-            onGo = { onImeSubmit() },
-            onSearch = { onImeSubmit() }
-        )
-    } else {
-        keyboardActions
+    // Kept off the hot typing path: a board-driven field recomposes its whole scope on every
+    // keystroke (it paints the new value), so anything allocated here would be rebuilt once per
+    // character. These depend only on real input changes, so they are remembered and reused between
+    // keystrokes — the per-keystroke work collapses to repainting the value alone.
+    val effectiveKeyboardActions = remember(onImeSubmit, keyboardActions) {
+        if (onImeSubmit != null) {
+            KeyboardActions(
+                onDone = { onImeSubmit() },
+                onGo = { onImeSubmit() },
+                onSearch = { onImeSubmit() }
+            )
+        } else {
+            keyboardActions
+        }
     }
     // A hardware Enter never raises an IME action, so consume the key event here;
     // swallowing it also keeps the field from submitting twice.
-    val submitKeyModifier = if (onImeSubmit != null) {
-        Modifier.onPreviewKeyEvent { event ->
-            if (event.type == KeyEventType.KeyDown &&
-                (event.key == Key.Enter || event.key == Key.NumPadEnter)
-            ) {
-                onImeSubmit()
-                true
-            } else {
-                false
+    val submitKeyModifier = remember(onImeSubmit) {
+        if (onImeSubmit != null) {
+            Modifier.onPreviewKeyEvent { event ->
+                if (event.type == KeyEventType.KeyDown &&
+                    (event.key == Key.Enter || event.key == Key.NumPadEnter)
+                ) {
+                    onImeSubmit()
+                    true
+                } else {
+                    false
+                }
             }
+        } else {
+            Modifier
         }
-    } else {
-        Modifier
     }
     var visible by remember { mutableStateOf(false) }
     val palette = VaultPaletteController.current
-    val effectiveTransformation = if (isPassword && !visible) {
-        PasswordVisualTransformation()
-    } else {
-        VisualTransformation.None
-    }
-    val effectiveTrailing = if (isPassword) {
-        {
-            IconButton(onClick = { visible = !visible }) {
-                ThemedIcon(
-                    glyph = if (visible) Glyph.visibilityOff else Glyph.visibility,
-                    contentDescription = if (visible) "Hide password" else "Show password",
-                    tint = VaultColor.textBody,
-                    modifier = Modifier.size(20.dp)
-                )
-            }
+    val effectiveTransformation: VisualTransformation = remember(isPassword, visible) {
+        if (isPassword && !visible) {
+            PasswordVisualTransformation()
+        } else {
+            VisualTransformation.None
         }
-    } else {
-        trailingIcon
     }
-    OutlinedTextField(
-        value = value,
-        onValueChange = onValueChange,
-        modifier = modifier.fillMaxWidth().then(submitKeyModifier),
-        label = { Text(label) },
-        placeholder = placeholder?.let { { Text(it, color = VaultColor.textFaint) } },
-        leadingIcon = leadingIcon?.let {
-            {
-                ThemedIcon(
-                    glyph = it,
-                    contentDescription = null,
-                    tint = if (isError) VaultColor.debit else VaultColor.textBody,
-                    modifier = Modifier.size(20.dp)
-                )
+    val effectiveTrailing: (@Composable () -> Unit)? = remember(isPassword, visible, trailingIcon) {
+        if (isPassword) {
+            val toggledVisible = visible
+            @Composable {
+                IconButton(onClick = { visible = !visible }) {
+                    ThemedIcon(
+                        glyph = if (toggledVisible) Glyph.visibilityOff else Glyph.visibility,
+                        contentDescription = if (toggledVisible) "Hide password" else "Show password",
+                        tint = VaultColor.textBody,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             }
-        },
-        trailingIcon = effectiveTrailing,
-        visualTransformation = effectiveTransformation,
-        keyboardOptions = if (isPassword && keyboardType == KeyboardType.Text) {
+        } else {
+            trailingIcon
+        }
+    }
+    val labelSlot: @Composable () -> Unit = @Composable { Text(label) }
+    // A slot is either absent or a composable lambda: the null case has to stay null, because a
+    // field that is handed an empty slot still reserves the space for one.
+    val hint = placeholder
+    val placeholderBody: @Composable () -> Unit = {
+        if (hint != null) Text(hint, color = VaultColor.textFaint)
+    }
+    val placeholderSlot: @Composable (() -> Unit)? = if (hint == null) null else placeholderBody
+    val leadingGlyph = leadingIcon
+    val leadingBody: @Composable () -> Unit = {
+        if (leadingGlyph != null) {
+            ThemedIcon(
+                glyph = leadingGlyph,
+                contentDescription = null,
+                tint = if (isError) VaultColor.debit else VaultColor.textBody,
+                modifier = Modifier.size(20.dp)
+            )
+        }
+    }
+    val leadingSlot: @Composable (() -> Unit)? = if (leadingGlyph == null) null else leadingBody
+    val support = supportingText
+    val supportingBody: @Composable () -> Unit = {
+        if (support != null) {
+            Text(
+                support,
+                color = if (isError) VaultColor.debit else VaultColor.textFaint,
+                style = MaterialTheme.typography.bodySmall
+            )
+        }
+    }
+    val supportingSlot: @Composable (() -> Unit)? = if (support == null) null else supportingBody
+    val fieldOptions = remember(isPassword, keyboardType, effectiveImeAction, singleLine) {
+        if (isPassword && keyboardType == KeyboardType.Text) {
             // Secrets get the hardened password options: no autocorrect, no candidate dictionary,
             // and the platform's password variation (which is also not-learned and not-suggested).
             SecureIme.secureKeyboardOptions(
@@ -1696,37 +1734,122 @@ fun VaultTextField(
                 // A secret must not reach the keyboard dictionary or candidate bar.
                 autoCorrectEnabled = if (isPassword) false else true
             )
-        },
-        keyboardActions = effectiveKeyboardActions,
-        singleLine = singleLine,
-        minLines = minLines,
-        enabled = enabled,
-        isError = isError,
-        supportingText = supportingText?.let {
-            { Text(it, color = if (isError) VaultColor.debit else VaultColor.textFaint, style = MaterialTheme.typography.bodySmall) }
-        },
-        textStyle = textStyle ?: MaterialTheme.typography.bodyLarge,
-        shape = palette.inputShape,
-        colors = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = VaultColor.accent.copy(alpha = 0.7f),
-            unfocusedBorderColor = VaultColor.hairline,
-            disabledBorderColor = VaultColor.hairline.copy(alpha = 0.35f),
-            errorBorderColor = VaultColor.debit,
-            focusedContainerColor = VaultColor.elevated.copy(alpha = 0.8f),
-            unfocusedContainerColor = VaultColor.elevated.copy(alpha = 0.45f),
-            disabledContainerColor = VaultColor.surface.copy(alpha = 0.4f),
-            cursorColor = VaultColor.accent,
-            focusedLabelColor = VaultColor.accent,
-            unfocusedLabelColor = VaultColor.textBody,
-            errorLabelColor = VaultColor.debit,
-            focusedTextColor = VaultColor.textStrong,
-            unfocusedTextColor = VaultColor.textStrong,
-            disabledTextColor = VaultColor.textFaint,
-            focusedLeadingIconColor = VaultColor.accent,
-            unfocusedLeadingIconColor = VaultColor.textBody,
-            focusedTrailingIconColor = VaultColor.accent,
-            unfocusedTrailingIconColor = VaultColor.textBody
+        }
+    }
+    // Read from the live palette on each recomposition: VaultColor is a controller-backed object,
+    // so there is nothing to cache here, and a remember() block cannot call a @Composable factory.
+    val fieldColors = OutlinedTextFieldDefaults.colors(
+        focusedBorderColor = VaultColor.accent.copy(alpha = 0.7f),
+        unfocusedBorderColor = VaultColor.hairline,
+        disabledBorderColor = VaultColor.hairline.copy(alpha = 0.35f),
+        errorBorderColor = VaultColor.debit,
+        focusedContainerColor = VaultColor.elevated.copy(alpha = 0.8f),
+        unfocusedContainerColor = VaultColor.elevated.copy(alpha = 0.45f),
+        disabledContainerColor = VaultColor.surface.copy(alpha = 0.4f),
+        cursorColor = VaultColor.accent,
+        focusedLabelColor = VaultColor.accent,
+        unfocusedLabelColor = VaultColor.textBody,
+        errorLabelColor = VaultColor.debit,
+        focusedTextColor = VaultColor.textStrong,
+        unfocusedTextColor = VaultColor.textStrong,
+        disabledTextColor = VaultColor.textFaint,
+        focusedLeadingIconColor = VaultColor.accent,
+        unfocusedLeadingIconColor = VaultColor.textBody,
+        focusedTrailingIconColor = VaultColor.accent,
+        unfocusedTrailingIconColor = VaultColor.textBody
+    )
+    // Every field in the app is board-backed unless the owner switched private typing off, so a
+    // third-party keyboard never gets a caret to read. The editor goes inert while boarded: only a
+    // tap may move the caret, and the board is the sole writer. A digits-only field gets the pad.
+    val wantsNumericBoard = keyboardType == KeyboardType.Number ||
+        keyboardType == KeyboardType.NumberPassword ||
+        keyboardType == KeyboardType.Phone
+    val board: SecureBoardEntry? =
+        if (enabled && LocalSecureKeyboardTyping.current) {
+            rememberSecureBoard(
+                value = value,
+                onValueChange = onValueChange,
+                singleLine = singleLine,
+                onSubmit = onImeSubmit,
+                numeric = wantsNumericBoard,
+            )
+        } else {
+            null
+        }
+    val dockedBoard = reachableSecureKeyboardDock() != null
+    if (board == null) {
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            modifier = modifier.fillMaxWidth().then(submitKeyModifier),
+            label = labelSlot,
+            placeholder = placeholderSlot,
+            leadingIcon = leadingSlot,
+            trailingIcon = effectiveTrailing,
+            visualTransformation = effectiveTransformation,
+            keyboardOptions = fieldOptions,
+            keyboardActions = effectiveKeyboardActions,
+            singleLine = singleLine,
+            minLines = minLines,
+            enabled = enabled,
+            isError = isError,
+            supportingText = supportingSlot,
+            textStyle = textStyle ?: MaterialTheme.typography.bodyLarge,
+            shape = palette.inputShape,
+            colors = fieldColors
         )
+    } else {
+        Column(modifier = modifier.fillMaxWidth().then(submitKeyModifier)) {
+            OutlinedTextField(
+                value = TextFieldValue(board.text, TextRange(board.caret)),
+                onValueChange = { next: TextFieldValue ->
+                    if (next.text == board.text) board.moveCaretTo(next.selection.end)
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .onGloballyPositioned { coords -> board.bounds = coords.boundsInRoot() }
+                    .onFocusEvent { state -> if (state.hasFocus) board.engage() else board.dismiss() },
+                label = labelSlot,
+                placeholder = placeholderSlot,
+                leadingIcon = leadingSlot,
+                trailingIcon = effectiveTrailing,
+                visualTransformation = effectiveTransformation,
+                keyboardOptions = fieldOptions,
+                keyboardActions = effectiveKeyboardActions,
+                singleLine = singleLine,
+                minLines = minLines,
+                enabled = enabled,
+                isError = isError,
+                readOnly = true,
+                supportingText = supportingSlot,
+                textStyle = textStyle ?: MaterialTheme.typography.bodyLarge,
+                shape = palette.inputShape,
+                colors = fieldColors
+            )
+            if (board.isEngaged && !dockedBoard) {
+                InlineSecureBoard(board)
+            }
+        }
+    }
+}
+
+/**
+ * The board drawn under a field when this part of the tree has no dock to publish to.
+ *
+ * It is a composable of its own on purpose: its only parameter is the stable entry, so a keystroke
+ * recomposes the field above and never re-runs the key grid. Handing [SecureKeyboardPanel] a fresh
+ * `onKeyPress` lambda per character would do the opposite — the grid is forty composables, and
+ * rebuilding it on every keypress is what makes a long recovery phrase feel like it is lagging
+ * behind the finger.
+ */
+@Composable
+private fun InlineSecureBoard(board: SecureBoardEntry) {
+    val press: (SecureKey) -> Unit = remember(board) { { key -> board.press(key) } }
+    val close: () -> Unit = remember(board) { { board.dismiss() } }
+    SecureKeyboardPanel(
+        layout = board.layout,
+        onKeyPress = press,
+        onDismiss = close
     )
 }
 
@@ -1738,50 +1861,91 @@ fun VaultSearchField(
     placeholder: String = "Search your vault"
 ) {
     val palette = VaultPaletteController.current
-    OutlinedTextField(
-        value = query,
-        onValueChange = onQueryChange,
-        modifier = modifier.fillMaxWidth(),
-        placeholder = {
-            Text(
-                text = placeholder,
-                color = VaultColor.textFaint,
-                style = MaterialTheme.typography.bodyMedium
-            )
-        },
-        leadingIcon = {
-            ThemedIcon(
-                glyph = Glyph.search,
-                contentDescription = null,
-                tint = if (query.isNotEmpty()) VaultColor.accent else VaultColor.textBody,
-                modifier = Modifier.size(20.dp)
-            )
-        },
-        trailingIcon = {
-            if (query.isNotEmpty()) {
-                IconButton(onClick = { onQueryChange("") }) {
-                    ThemedIcon(
-                        glyph = Glyph.close,
-                        contentDescription = "Clear search",
-                        tint = VaultColor.textBody,
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
-            }
-        },
-        singleLine = true,
-        textStyle = MaterialTheme.typography.bodyLarge,
-        shape = palette.inputShape,
-        colors = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = VaultColor.accent.copy(alpha = 0.6f),
-            unfocusedBorderColor = VaultColor.hairline,
-            focusedContainerColor = VaultColor.elevated.copy(alpha = 0.75f),
-            unfocusedContainerColor = VaultColor.elevated.copy(alpha = 0.45f),
-            cursorColor = VaultColor.accent,
-            focusedTextColor = VaultColor.textStrong,
-            unfocusedTextColor = VaultColor.textStrong
+    // A board-driven search box recomposes on every character (it paints the new query), so the tint
+    // and visibility are read once per recomposition rather than per slot. The slots themselves are
+    // plain composable lambdas: wrapping them in remember() would put a @Composable call outside a
+    // composable context, which is what made the icon flicker instead of the box slow down.
+    val filled = query.isNotEmpty()
+    val placeholderSlot: @Composable () -> Unit = {
+        Text(
+            text = placeholder,
+            color = VaultColor.textFaint,
+            style = MaterialTheme.typography.bodyMedium
         )
+    }
+    val leadingSlot: @Composable () -> Unit = {
+        ThemedIcon(
+            glyph = Glyph.search,
+            contentDescription = null,
+            tint = if (filled) VaultColor.accent else VaultColor.textBody,
+            modifier = Modifier.size(20.dp)
+        )
+    }
+    val trailingSlot: @Composable () -> Unit = {
+        if (filled) {
+            IconButton(onClick = { onQueryChange("") }) {
+                ThemedIcon(
+                    glyph = Glyph.close,
+                    contentDescription = "Clear search",
+                    tint = VaultColor.textBody,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+        }
+    }
+    val fieldColors = OutlinedTextFieldDefaults.colors(
+        focusedBorderColor = VaultColor.accent.copy(alpha = 0.6f),
+        unfocusedBorderColor = VaultColor.hairline,
+        focusedContainerColor = VaultColor.elevated.copy(alpha = 0.75f),
+        unfocusedContainerColor = VaultColor.elevated.copy(alpha = 0.45f),
+        cursorColor = VaultColor.accent,
+        focusedTextColor = VaultColor.textStrong,
+        unfocusedTextColor = VaultColor.textStrong
     )
+    val board: SecureBoardEntry? = if (LocalSecureKeyboardTyping.current) {
+        rememberSecureBoard(query, onQueryChange)
+    } else {
+        null
+    }
+    val dockedSearch = reachableSecureKeyboardDock() != null
+    if (board == null) {
+        OutlinedTextField(
+            value = query,
+            onValueChange = onQueryChange,
+            modifier = modifier.fillMaxWidth(),
+            placeholder = placeholderSlot,
+            leadingIcon = leadingSlot,
+            trailingIcon = trailingSlot,
+            singleLine = true,
+            textStyle = MaterialTheme.typography.bodyLarge,
+            shape = palette.inputShape,
+            colors = fieldColors
+        )
+    } else {
+        Column(modifier = modifier.fillMaxWidth()) {
+            OutlinedTextField(
+                value = TextFieldValue(board.text, TextRange(board.caret)),
+                onValueChange = { next: TextFieldValue ->
+                    if (next.text == board.text) board.moveCaretTo(next.selection.end)
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .onGloballyPositioned { coords -> board.bounds = coords.boundsInRoot() }
+                    .onFocusEvent { state -> if (state.hasFocus) board.engage() else board.dismiss() },
+                placeholder = placeholderSlot,
+                leadingIcon = leadingSlot,
+                trailingIcon = trailingSlot,
+                singleLine = true,
+                readOnly = true,
+                textStyle = MaterialTheme.typography.bodyLarge,
+                shape = palette.inputShape,
+                colors = fieldColors
+            )
+            if (board.isEngaged && !dockedSearch) {
+                InlineSecureBoard(board)
+            }
+        }
+    }
 }
 
 @Composable

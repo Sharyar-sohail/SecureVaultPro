@@ -77,7 +77,10 @@ class LegacyEnvelopeOpenerTest {
     @Test
     fun `every universal key release still opens its own backups`() {
         val (plaintext, vectors) = loadVectors()
-        val universal = vectors.filter { it.secret.startsWith("SecureVaultPro_Universal_Cloud_Key") }
+        val universal = vectors.filter {
+            it.secret.startsWith("SecureVaultPro_Universal_Cloud_Key") &&
+                it.iterations == LegacyEnvelopeOpener.CURRENT_ITERATIONS
+        }
         assertEquals("the vector set must cover every retired key", 4, universal.map { it.secret }.distinct().size)
         for (v in universal) {
             val envelope = BackupEnvelopeFormat.parse(v.envelope)!!
@@ -88,30 +91,6 @@ class LegacyEnvelopeOpenerTest {
             )
             assertEquals("${v.name} must open with ${v.secret}", plaintext, opened?.json)
         }
-    }
-
-    @Test
-    fun `a pre-v3 210k backup opens with the exact counts the old reader used for it`() {
-        val (plaintext, v) = vector("B-universal-v2-210k")
-        val opened = open(
-            v,
-            listOf(OpeningSecret(v.secret, OpeningSecretKind.RETIRED_UNIVERSAL_KEY)),
-            LegacyEnvelopeOpener.exactProfiles(2)
-        )
-        assertEquals(plaintext, opened?.json)
-        assertEquals(210_000, opened?.iterations)
-    }
-
-    @Test
-    fun `a pre-v3 120k backup opens with the exact counts the old reader used for it`() {
-        val (plaintext, v) = vector("C-universal-v2-120k")
-        val opened = open(
-            v,
-            listOf(OpeningSecret(v.secret, OpeningSecretKind.RETIRED_UNIVERSAL_KEY)),
-            LegacyEnvelopeOpener.exactProfiles(2)
-        )
-        assertEquals(plaintext, opened?.json)
-        assertEquals(120_000, opened?.iterations)
     }
 
     @Test
@@ -174,29 +153,23 @@ class LegacyEnvelopeOpenerTest {
 
     @Test
     fun `opensWith answers per secret and per count`() {
-        val (_, v) = vector("B-universal-v2-210k")
+        val (_, v) = vector("A-universal-v3-600k")
         val envelope = BackupEnvelopeFormat.parse(v.envelope)!!
-        assertTrue(opener.opensWith(envelope.salt, envelope.data, v.secret, 210_000))
-        assertFalse(opener.opensWith(envelope.salt, envelope.data, v.secret, 600_000))
-        assertFalse(opener.opensWith(envelope.salt, envelope.data, "wrong", 210_000))
+        assertTrue(opener.opensWith(envelope.salt, envelope.data, v.secret, 600_000))
+        assertFalse(opener.opensWith(envelope.salt, envelope.data, v.secret, 100_000))
+        assertFalse(opener.opensWith(envelope.salt, envelope.data, "wrong", 600_000))
     }
 
     @Test
     fun `the derivation counts are the old reader's own list, never a sweep`() {
-        // Copied verbatim from the shipped restore loop:
-        // for (iter in listOf(600_000, 100_000, 10_000, 1_000)).
-        val original = listOf(600_000, 100_000, 10_000, 1_000)
-        assertEquals(original, LegacyEnvelopeOpener.exactProfiles(3))
-        assertEquals(original, LegacyEnvelopeOpener.exactProfiles(4))
-        assertEquals(original, LegacyEnvelopeOpener.exactProfiles(null))
-        assertEquals(
-            original + listOf(210_000, 120_000),
-            LegacyEnvelopeOpener.exactProfiles(2)
-        )
+        // Read off the 3.1.9 APK (versionCode 328): every PBKDF2 call site in it loads 600,000
+        // and no other count appears anywhere, at any envelope version.
+        val original = listOf(600_000)
+        for (version in listOf(1, 2, 3, 4, null)) {
+            assertEquals("v$version", original, LegacyEnvelopeOpener.exactProfiles(version))
+        }
         assertEquals(original, LegacyEnvelopeOpener.ORIGINAL_READER_PROFILES)
         assertEquals(600_000, LegacyEnvelopeOpener.CURRENT_ITERATIONS)
-        assertEquals(210_000, LegacyEnvelopeOpener.LEGACY_V2_ITERATIONS_210K)
-        assertEquals(120_000, LegacyEnvelopeOpener.LEGACY_V2_ITERATIONS_120K)
     }
 
     @Test
@@ -305,43 +278,14 @@ class LegacyEnvelopeOpenerTest {
         assertEquals(3, attempt.candidatesTried)
     }
 
-    @Test
-    fun `the restore chain is the exact writers, 3 point 1 point 9 first among them`() {
-        val alone = LegacyKeyPlan.restoreChain()
-        assertEquals(
-            "a device with no vault key opens the backup with the exact key 3.1.9 wrote it with",
-            listOf(PRIMARY_CLOUD_KEY),
-            alone.map { it.value }
-        )
-        assertEquals(OpeningSecretKind.RETIRED_UNIVERSAL_KEY, alone.first().kind)
-        assertEquals(listOf(600_000), alone.first().iterationProfiles)
-
-        val withVault = LegacyKeyPlan.restoreChain(vaultSecret = "account-vault-key")
-        assertEquals("account-vault-key", withVault.first().value)
-        assertEquals(OpeningSecretKind.VAULT_KEY, withVault.first().kind)
-        assertEquals(
-            "a 3.1.9-era copy still opens on a newer install that holds a vault key",
-            PRIMARY_CLOUD_KEY,
-            withVault[1].value
-        )
-        assertEquals("no sweep: only the exact writers", 2, withVault.size)
-
-        val export = LegacyKeyPlan.restoreChain(
-            passphrase = "typed-export-passphrase",
-            preferPassphrase = true
-        )
-        assertEquals("typed-export-passphrase", export.first().value)
-        assertEquals(OpeningSecretKind.PASSPHRASE, export.first().kind)
-    }
-
     /**
      * The exact shape the owner's Drive copies have: sealed with the account's random 256-bit vault
-     * key (the keyring secret, base64), not with any literal or address. The promise on screen is
-     * one exact attempt, so this asserts exactly that — and that the key the keyring returns after
-     * the master password unwraps it is the one that opens the file.
+     * key (the keyring secret, base64) and stamped with the marker that says so. The promise on
+     * screen is one exact attempt, so this asserts exactly that — and that a device which does not
+     * hold the key spends nothing instead of hashing what it cannot have.
      */
     @Test
-    fun `a keyring-sealed backup costs one attempt and opens with the account vault key`() {
+    fun `a backup marked as the account's costs one attempt with the vault key and none without it`() {
         val json = """{"entries":[{"id":"e-vault-key"}]}"""
         val salt = derivation.generateSalt()
         val vaultKey = ByteArray(32).also { java.security.SecureRandom().nextBytes(it) }
@@ -351,30 +295,33 @@ class LegacyEnvelopeOpenerTest {
         val without = opener.openWithSalts(
             salts = listOf(salt),
             data = data,
-            secrets = LegacyKeyPlan.restoreChain(vaultSecret = null),
-            iterationProfiles = listOf(600_000)
+            secrets = listOfNotNull(
+                LegacyKeyPlan.exactSecret(keyId = LegacyKeyPlan.KEY_ID_VAULT, vaultSecret = null)
+            )
         )
         assertNull("no literal or address can open a keyring-sealed file", without.opened)
-        assertEquals("a device without the key spends one exact derivation, never a sweep", 1, without.candidatesTried)
+        assertEquals("a device without the key names no secret at all", 0, without.candidatesTried)
 
         val with = opener.openWithSalts(
             salts = listOf(salt),
             data = data,
-            secrets = LegacyKeyPlan.restoreChain(vaultSecret = vaultKey),
-            iterationProfiles = listOf(600_000)
+            secrets = listOfNotNull(
+                LegacyKeyPlan.exactSecret(keyId = LegacyKeyPlan.KEY_ID_VAULT, vaultSecret = vaultKey)
+            )
         )
         assertEquals(json, with.opened?.json)
         assertEquals(OpeningSecretKind.VAULT_KEY, with.opened?.kind)
         assertEquals(600_000, with.opened?.iterations)
-        assertEquals("the vault key is offered first, so the file opens on attempt one", 1, with.candidatesTried)
+        assertEquals("the named key is the only one tried", 1, with.candidatesTried)
     }
 
     /**
-     * The 3.1.9 writer's own shape, run through the chain a newer install uses: the vault key is
-     * wrong for it, then the exact literal opens it. Two derivations, never a sweep.
+     * The pre-keyring Drive copy, opened by the device that has no account keyring yet — the exact
+     * shape of a fresh install signing in with Google. One marker-less file, one retired literal,
+     * one derivation.
      */
     @Test
-    fun `a 3 point 1 point 9 drive copy opens on a device that already holds a newer vault key`() {
+    fun `a pre-keyring drive copy opens on a fresh install in one derivation`() {
         val json = """{"entries":[{"id":"e-legacy"}]}"""
         val salt = derivation.generateSalt()
         val data = seal(json, PRIMARY_CLOUD_KEY, salt, 600_000)
@@ -382,12 +329,11 @@ class LegacyEnvelopeOpenerTest {
         val attempt = opener.openWithSalts(
             salts = listOf(salt),
             data = data,
-            secrets = LegacyKeyPlan.restoreChain(vaultSecret = "a-newer-account-vault-key"),
-            iterationProfiles = listOf(600_000)
+            secrets = listOfNotNull(LegacyKeyPlan.exactSecret(keyId = null, vaultSecret = null))
         )
         assertEquals(json, attempt.opened?.json)
         assertEquals(OpeningSecretKind.RETIRED_UNIVERSAL_KEY, attempt.opened?.kind)
-        assertEquals(2, attempt.candidatesTried)
+        assertEquals(1, attempt.candidatesTried)
     }
 
     private fun seal(json: String, secret: String, salt: ByteArray, iterations: Int): String {

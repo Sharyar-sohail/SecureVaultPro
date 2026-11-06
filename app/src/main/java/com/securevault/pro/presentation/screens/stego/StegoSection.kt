@@ -1,6 +1,8 @@
 package com.securevault.pro.presentation.screens.stego
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
@@ -38,6 +40,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -45,8 +48,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.core.content.ContextCompat
 import com.securevault.pro.crypto.stego.LumaPlane
 import com.securevault.pro.crypto.stego.StegoLimits
 import com.securevault.pro.platform.print.VaultPrint
@@ -103,10 +109,62 @@ fun StegoSection(onBack: () -> Unit, viewModel: StegoViewModel = hiltViewModel()
         viewModel.addRead(uri)
     }
 
+    var showScan by remember { mutableStateOf(false) }
+    var scanProblem by remember { mutableStateOf<String?>(null) }
+    val openScan: () -> Unit = {
+        if (!context.packageManager.hasSystemFeature(PackageManager.FEATURE_CAMERA_ANY)) {
+            scanProblem = "This device has no camera, so the print cannot be scanned. " +
+                "Photograph it and add the photo instead."
+        } else {
+            showScan = true
+        }
+    }
+    val askCamera = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) openScan() else {
+            scanProblem = "Camera access was refused, so a print cannot be scanned here. " +
+                "Allow it in Settings, or add the photo instead."
+        }
+    }
+    val launchScan: () -> Unit = {
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            openScan()
+        } else {
+            askCamera.launch(Manifest.permission.CAMERA)
+        }
+    }
+
+    if (showScan) {
+        Dialog(
+            onDismissRequest = { showScan = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            StegoScanSheet(
+                onDismiss = { showScan = false },
+                onPickPhoto = {
+                    showScan = false
+                    pickRead.launch(arrayOf("image/*"))
+                },
+                onCapture = { plane ->
+                    showScan = false
+                    viewModel.addScanned(plane)
+                }
+            )
+        }
+    }
+
     LaunchedEffect(state.message) {
         val message = state.message ?: return@LaunchedEffect
         snackbar.showSnackbar(message)
         viewModel.dismissMessage()
+    }
+    LaunchedEffect(scanProblem) {
+        val problem = scanProblem ?: return@LaunchedEffect
+        snackbar.showSnackbar(problem)
+        scanProblem = null
     }
     LaunchedEffect(printProblem) {
         val problem = printProblem ?: return@LaunchedEffect
@@ -120,9 +178,9 @@ fun StegoSection(onBack: () -> Unit, viewModel: StegoViewModel = hiltViewModel()
         StegoFlow.REVEAL -> "Read a photo"
     }
     val subtitle = when (state.flow) {
-        StegoFlow.HUB -> "Luminance stego · survives a black-and-white print"
+        StegoFlow.HUB -> "Keeps the photo's own colours · survives a black-and-white print"
         StegoFlow.HIDE -> "Sealed into the photo's own grain, named like a camera file"
-        StegoFlow.REVEAL -> "One carrier, or the shares of a dispersed secret"
+        StegoFlow.REVEAL -> "From a file or straight off the printed page"
     }
 
     GlassScaffold(
@@ -174,7 +232,8 @@ fun StegoSection(onBack: () -> Unit, viewModel: StegoViewModel = hiltViewModel()
                 StegoFlow.REVEAL -> revealItems(
                     state = state,
                     viewModel = viewModel,
-                    onPickCarrier = { pickRead.launch(arrayOf("image/*")) }
+                    onPickCarrier = { pickRead.launch(arrayOf("image/*")) },
+                    onScanCarrier = launchScan
                 )
             }
         }
@@ -206,8 +265,9 @@ private fun androidx.compose.foundation.lazy.LazyListScope.hubItems(
                         color = VaultColor.textStrong
                     )
                     Text(
-                        text = "The secret rides in the photo's luminance, never in a QR block or " +
-                            "a visible mark, so a scanner app finds nothing to read.",
+                        text = "The secret rides in the photo's own shades, never in a QR block or " +
+                            "a visible mark, so a scanner app finds nothing to read. The picture " +
+                            "keeps the colours it came with.",
                         style = MaterialTheme.typography.bodySmall,
                         color = VaultColor.textBody
                     )
@@ -220,8 +280,8 @@ private fun androidx.compose.foundation.lazy.LazyListScope.hubItems(
             icon = Glyph.visibilityOff,
             accent = VaultColor.accent,
             title = "Hide a message",
-            body = "Choose a photo, type the secret, and save a grey JPEG that still prints in " +
-                "black and white.",
+            body = "Choose a photo, type the secret, and save an ordinary-looking picture that " +
+                "still reads after a black-and-white photocopy.",
             onClick = viewModel::openHide
         )
     }
@@ -230,8 +290,8 @@ private fun androidx.compose.foundation.lazy.LazyListScope.hubItems(
             icon = Glyph.visibility,
             accent = VaultColor.decorative,
             title = "Read a photo",
-            body = "Open one carrier, or all three of a dispersed set, and read the verdict the " +
-                "engine returns.",
+            body = "Open one picture, or all three of a split set, and read back what is hidden — " +
+                "with the reason whenever there is nothing to read.",
             onClick = viewModel::openReveal
         )
     }
@@ -239,8 +299,8 @@ private fun androidx.compose.foundation.lazy.LazyListScope.hubItems(
         GlassCard {
             SectionHeader("What the app actually promises")
             Spacer(Modifier.height(8.dp))
-            FactLine(Glyph.image, "Grey luminance only — the mark stays a few levels off the original picture.")
-            FactLine(Glyph.pictureAsPdf, "Built for paper: a black-and-white photocopy at 16 grey levels still reads.")
+            FactLine(Glyph.image, "Your photo keeps its colours — the change never goes past a few shades.")
+            FactLine(Glyph.pictureAsPdf, "Built for paper: a black-and-white photocopy of it still reads.")
             FactLine(Glyph.qrCodeScanner, "No QR, no barcode, no side channel — a lens app finds nothing to decode.")
             FactLine(Glyph.shuffle, "Deniability: two passphrases, two messages, and the file looks the same either way.")
             FactLine(
@@ -333,6 +393,13 @@ private fun androidx.compose.foundation.lazy.LazyListScope.hideItems(
                     onClick = viewModel::generateCarrier
                 )
             }
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = "A photo you pick comes back with its own colours. A generated cover has no " +
+                    "colours of its own, so it is written as a plain black-and-white picture.",
+                style = MaterialTheme.typography.labelSmall,
+                color = VaultColor.textFaint
+            )
         }
     }
     if (state.carriers.isEmpty()) {
@@ -376,8 +443,8 @@ private fun androidx.compose.foundation.lazy.LazyListScope.hideItems(
                 leadingIcon = Glyph.lock,
                 isPassword = true,
                 enabled = !state.busy,
-                supportingText = "Without it the carrier reads as locked; the bytes are sealed " +
-                    "with AES-GCM under a PBKDF2 key."
+                supportingText = "Without it the message stays sealed; the photo still looks like " +
+                    "just a photo."
             )
         }
     }
@@ -394,8 +461,8 @@ private fun androidx.compose.foundation.lazy.LazyListScope.hideItems(
             Spacer(Modifier.height(12.dp))
             ToggleLine(
                 title = "Two passphrases (deniable)",
-                body = "A decoy message opens with its own passphrase. The carrier shows no role bit, " +
-                    "so the file is the same shape whichever story is being told.",
+                body = "A decoy message opens with its own passphrase. The file gives no sign of " +
+                    "which passphrase is the real one — it is the same picture either way.",
                 checked = state.deniable,
                 enabled = !state.busy,
                 onCheckedChange = viewModel::setDeniable
@@ -471,6 +538,12 @@ private fun androidx.compose.foundation.lazy.LazyListScope.hideItems(
                 }
             )
         }
+        item {
+            SendAsPhotoCard(
+                survivesSend = state.report?.survivesSend == true,
+                sendTested = state.report?.sendTested == true
+            )
+        }
     }
 }
 
@@ -481,7 +554,8 @@ private fun androidx.compose.foundation.lazy.LazyListScope.hideItems(
 private fun androidx.compose.foundation.lazy.LazyListScope.revealItems(
     state: StegoUiState,
     viewModel: StegoViewModel,
-    onPickCarrier: () -> Unit
+    onPickCarrier: () -> Unit,
+    onScanCarrier: () -> Unit
 ) {
     item {
         GlassCard {
@@ -499,12 +573,31 @@ private fun androidx.compose.foundation.lazy.LazyListScope.revealItems(
                 color = VaultColor.textBody
             )
             Spacer(Modifier.height(12.dp))
-            GhostButton(
-                text = "Add a photo",
-                icon = Glyph.photoLibrary,
-                enabled = !state.busy && state.reads.size < SecretShares.MAX_SHARES,
-                accent = VaultColor.decorative,
-                onClick = onPickCarrier
+            val roomForAnother = !state.busy && state.reads.size < SecretShares.MAX_SHARES
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                GhostButton(
+                    text = "Add a photo",
+                    icon = Glyph.photoLibrary,
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = roomForAnother,
+                    accent = VaultColor.decorative,
+                    onClick = onPickCarrier
+                )
+                GhostButton(
+                    text = "Scan a printed photo",
+                    icon = Glyph.documentScanner,
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = roomForAnother,
+                    accent = VaultColor.accent,
+                    onClick = onScanCarrier
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = "Scanning reads the page through the camera and adds it as one more carrier; " +
+                    "nothing is decoded until you press read.",
+                style = MaterialTheme.typography.labelSmall,
+                color = VaultColor.textFaint
             )
         }
     }
@@ -726,7 +819,7 @@ private fun CarrierCard(
 ) {
     GlassCard {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            CarrierThumb(plane = carrier.plane, modifier = Modifier.size(56.dp))
+            CarrierThumb(carrier = carrier, modifier = Modifier.size(56.dp))
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Text(
@@ -758,14 +851,48 @@ private fun CarrierCard(
 }
 
 @Composable
-private fun CarrierThumb(plane: LumaPlane, modifier: Modifier = Modifier) {
-    val bitmap = remember(plane) { StegoImages.previewOf(plane).asImageBitmap() }
+private fun CarrierThumb(carrier: StegoCarrier, modifier: Modifier = Modifier) {
+    val bitmap = remember(carrier) { thumbnailOf(carrier.plane, carrier.color) }
+    Thumbnail(bitmap, modifier)
+}
+
+@Composable
+private fun ArtifactThumb(artifact: StegoArtifact, modifier: Modifier = Modifier) {
+    val bitmap = remember(artifact.previewPixels, artifact.preview) {
+        val pixels = artifact.previewPixels
+        if (pixels != null && artifact.previewWidth > 0 && artifact.previewHeight > 0) {
+            StegoImages.bitmapOfArgb(artifact.previewWidth, artifact.previewHeight, pixels)
+        } else {
+            StegoImages.bitmapOf(artifact.preview)
+        }.asImageBitmap()
+    }
+    Thumbnail(bitmap, modifier)
+}
+
+@Composable
+private fun Thumbnail(bitmap: ImageBitmap, modifier: Modifier = Modifier) {
     Image(
         bitmap = bitmap,
         contentDescription = null,
         modifier = modifier.clip(RoundedCornerShape(10.dp)),
         contentScale = ContentScale.Crop
     )
+}
+
+/**
+ * A carrier's thumbnail, in the photo's own colours when it has them.
+ *
+ * The colour grid is averaged down to the thumbnail's size and tinted there, never tinted at working
+ * size: the screen shows what the owner picked, and the carrier's colour array stays the one and only
+ * full-size buffer it holds. A generated cover has no colours to wear, so it previews grey — which is
+ * honest, because that is exactly the file it writes.
+ */
+private fun thumbnailOf(plane: LumaPlane, colors: IntArray?): ImageBitmap {
+    if (colors == null || colors.isEmpty()) return StegoImages.previewOf(plane).asImageBitmap()
+    val grid = StegoImages.previewGridOf(plane)
+    val small = StegoPlanes.resampledArgb(plane.width, plane.height, colors, grid.width, grid.height)
+    return StegoImages.bitmapOfArgb(grid.width, grid.height, StegoImages.tinted(grid, small))
+        .asImageBitmap()
 }
 
 @Composable
@@ -825,15 +952,33 @@ private fun SealReportCard(report: StegoSealReport) {
                 peakGreyLevel = report.peakGreyLevel.toFloat(),
                 envelopeCount = report.envelopeCount,
                 fileName = report.fileName,
-                grain = report.grainLabel
+                grain = report.grainLabel,
+                keepsColor = report.keepsColor
             ),
             style = MaterialTheme.typography.bodySmall,
             color = VaultColor.textBody
         )
         Spacer(Modifier.height(8.dp))
+        Text(
+            text = report.sendLine,
+            style = MaterialTheme.typography.bodySmall,
+            color = if (report.survivesSend) VaultColor.credit else VaultColor.warning
+        )
+        Spacer(Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            TagChip(text = "${report.envelopeCount} envelope" + if (report.envelopeCount == 1) "" else "s")
-            TagChip(text = "peak ${report.peakGreyLevel} levels", accent = VaultColor.decorative)
+            TagChip(
+                text = report.envelopeCount.toString() + if (report.envelopeCount == 1) {
+                    " hidden message"
+                } else {
+                    " hidden messages"
+                }
+            )
+            TagChip(text = "at most ${report.peakGreyLevel} shades off", accent = VaultColor.decorative)
+            if (report.survivesSend) {
+                TagChip(text = "read back after a photo send", accent = VaultColor.credit)
+            } else if (report.sendTested) {
+                TagChip(text = "did not pass the photo send", accent = VaultColor.warning)
+            }
             if (report.readOnce) TagChip(text = "read once", accent = VaultColor.warning)
         }
     }
@@ -850,7 +995,7 @@ private fun ArtifactCard(
 ) {
     GlassCard {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            CarrierThumb(plane = artifact.preview, modifier = Modifier.size(64.dp))
+            ArtifactThumb(artifact = artifact, modifier = Modifier.size(64.dp))
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Text(
@@ -906,6 +1051,53 @@ private fun ArtifactCard(
                 style = MaterialTheme.typography.labelSmall,
                 color = VaultColor.textFaint
             )
+        }
+    }
+}
+
+/**
+ * The one step an owner can silently lose the message on, stated next to the buttons that hand the
+ * file out: a chat app that is told to send a photo repaints that photo. The mark is now sized to
+ * survive that repaint, and the seal says out loud whether it measured this picture coming back.
+ */
+@Composable
+private fun SendAsPhotoCard(survivesSend: Boolean, sendTested: Boolean) {
+    GlassCard(accent = if (survivesSend) VaultColor.credit else VaultColor.warning) {
+        Row {
+            ThemedIcon(
+                glyph = Glyph.image,
+                contentDescription = null,
+                tint = if (survivesSend) VaultColor.credit else VaultColor.warning,
+                size = 20.dp
+            )
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    text = when {
+                        survivesSend -> "Send it as a photo"
+                        sendTested -> "Send it as a photo — this one did not pass"
+                        else -> "Send it as a photo — untested on this phone"
+                    },
+                    style = MaterialTheme.typography.titleSmall,
+                    color = VaultColor.textStrong
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = when {
+                        survivesSend ->
+                            "Share it the ordinary way, as a photo — no special setting. The mark is " +
+                                "written to ride the redraw a chat app performs on the way out."
+                        sendTested ->
+                            "Share it the ordinary way, as a photo, but this copy may lose the text. A " +
+                                "bigger photo or a shorter message does better."
+                        else ->
+                            "Share it the ordinary way, as a photo. The send test could not run here, so " +
+                                "treat this copy as untested rather than broken."
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = VaultColor.textBody
+                )
+            }
         }
     }
 }
@@ -1060,6 +1252,14 @@ private fun OutcomeCard(state: StegoUiState, outcome: StegoRevealOutcome, viewMo
                 accent = VaultColor.accent,
                 enabled = !state.busy,
                 onClick = viewModel::retryReveal
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = "If this picture is a copy of the one this app saved — sent as a photo, or " +
+                    "re-saved by another app — open the file exactly as this app saved it, and read " +
+                    "that one instead.",
+                style = MaterialTheme.typography.labelSmall,
+                color = VaultColor.textFaint
             )
         }
     }

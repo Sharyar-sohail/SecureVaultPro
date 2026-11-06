@@ -102,15 +102,25 @@ object RecoverySeedLogic {
      * and not "invalid mnemonic", and the checksum is reported apart from the wordlist so a
      * hand-made phrase can still be used with a visible warning instead of a silent lie.
      */
-    fun validatePhrase(phrase: String, wordlist: List<String>): PhraseValidation {
+    fun validatePhrase(phrase: String, wordlist: List<String>): PhraseValidation =
+        validatePhrase(phrase) { word -> wordlist.indexOf(word).takeIf { it >= 0 } }
+
+    /**
+     * Same rule, but through whatever word → position lookup the caller already has.
+     *
+     * The screen passes a pre-built map: on a 24-word phrase being typed one letter at a time, a
+     * list scan costs roughly 2048 comparisons per word per keystroke, which is what made the
+     * keyboard feel like it was dropping characters.
+     */
+    fun validatePhrase(phrase: String, positionOf: (String) -> Int?): PhraseValidation {
         val parts = wordsOf(phrase)
         val countAccepted = parts.size in ACCEPTED_WORD_COUNTS
         val unknown = ArrayList<UnknownWord>()
         parts.forEachIndexed { index, word ->
-            if (wordlist.indexOf(word) < 0) unknown += UnknownWord(index, word)
+            if (positionOf(word) == null) unknown += UnknownWord(index, word)
         }
         val checksumValid = countAccepted && unknown.isEmpty() &&
-            Bip39.validate(Bip39.normalize(phrase), wordlist)
+            Bip39.validate(Bip39.normalize(phrase), positionOf)
         return PhraseValidation(
             words = parts,
             countAccepted = countAccepted,

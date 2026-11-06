@@ -3,6 +3,7 @@ package com.securevault.pro.security.backup
 import com.securevault.pro.security.KeyDerivation
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.util.Base64
@@ -13,20 +14,18 @@ import javax.crypto.spec.PBEKeySpec
 import javax.crypto.spec.SecretKeySpec
 
 /**
- * Files sealed by the original app's own writer, opened by the restore pipeline.
+ * Files sealed by the app's own writers, opened by the restore pipeline exactly the way the
+ * pipeline opens them: one marker read off the file, one key, one derivation.
  *
  * The sealing code here is a transcription of the shipped `CloudSyncManager.writeBackup` +
- * `KeyDerivation.deriveKey` + `CryptoManager.encryptWithDerivedKey`: PBKDF2-HMAC-SHA256 at the
- * count under test, a 32-byte salt, a 12-byte IV, AES-256-GCM, `base64(iv).base64(ciphertext+tag)`.
+ * `KeyDerivation.deriveKey` + `CryptoManager.encryptWithDerivedKey`: PBKDF2-HMAC-SHA256 at 600,000,
+ * a 32-byte salt, a 12-byte IV, AES-256-GCM, `base64(iv).base64(ciphertext+tag)`.
  *
- * The counts are the ones the original restore loop iterated over — 600,000, 100,000, 10,000,
- * 1,000 — and the keys are the strings that loop offered. A restore must open each one; the cases
- * below are the ones the old reader could open, so anything failing here is a file an owner can no
- * longer get back.
+ * The last two cases are the ones that matter most: a copy this device cannot open must cost one
+ * derivation and no more. Anything that makes them cost two is the loop the owner told us to stop
+ * running.
  */
 class OriginalReaderParityTest {
-
-    private val opener = LegacyEnvelopeOpener(KeyDerivation())
 
     private companion object {
         const val PAYLOAD =
@@ -34,13 +33,14 @@ class OriginalReaderParityTest {
                 "\"username\":\"owner@example.com\",\"password\":\"S3cret-Passw0rd!\"}]," +
                 "\"notes\":[],\"cards\":[],\"totps\":[],\"contacts\":[],\"files\":[]}"
 
+        const val VAULT_SECRET = "dmF1bHQta2V5LXRoaXMtYWNjb3VudC1vbmx5"
         const val IV_HEX = "0a1b2c3d4e5f60718293a4b5"
         const val SALT_HEX =
             "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff"
 
         fun hex(value: String) = value.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
 
-        /** The original `KeyDerivation.deriveKey` line for line, including its empty-input fallbacks. */
+        /** The shipped `KeyDerivation.deriveKey`, including its empty-input fallbacks. */
         fun derive(password: String, salt: ByteArray, iterations: Int): ByteArray {
             val safeSalt = if (salt.isNotEmpty()) salt else ByteArray(32)
             val safePassword = if (password.isNotEmpty()) password else "SecureVaultProDefaultKey"
@@ -53,7 +53,7 @@ class OriginalReaderParityTest {
             }
         }
 
-        /** The original `CryptoManager.encryptWithKey`: 12-byte IV, tag appended, dotted base64. */
+        /** The shipped `CryptoManager.encryptWithKey`: 12-byte IV, tag appended, dotted base64. */
         fun seal(plaintext: String, key: ByteArray, iv: ByteArray): String {
             val cipher = Cipher.getInstance("AES/GCM/NoPadding")
             cipher.init(Cipher.ENCRYPT_MODE, SecretKeySpec(key, "AES"), GCMParameterSpec(128, iv))
@@ -62,82 +62,79 @@ class OriginalReaderParityTest {
                 Base64.getEncoder().encodeToString(body)
         }
 
-        /** What `CloudSyncManager` wrote to Drive: `{"v":3,"salt":...,"data":...}`. */
-        fun envelope(secret: String, salt: ByteArray, iv: ByteArray, iterations: Int): String {
+        /** What `CloudSyncManager` writes to Drive, with the key marker the current writer stamps. */
+        fun envelope(
+            secret: String,
+            salt: ByteArray,
+            iv: ByteArray,
+            iterations: Int = 600_000,
+            keyId: String? = null
+        ): String {
             val data = seal(PAYLOAD, derive(secret, salt, iterations), iv)
-            return "{\"v\":3,\"salt\":\"${Base64.getEncoder().encodeToString(salt)}\"," +
+            val marker = keyId?.let { "\"kid\":\"$it\"," }.orEmpty()
+            return "{\"v\":3,$marker\"salt\":\"${Base64.getEncoder().encodeToString(salt)}\"," +
                 "\"data\":\"$data\"}"
-        }
-
-        /** The exact decision chain `CloudSyncManager.decryptBackup` runs for a stored envelope. */
-        fun restore(envelopeJson: String, emails: List<String> = listOf("owner@example.com")): LegacyEnvelopeOpener.OpenAttempt {
-            val parsed = BackupEnvelopeFormat.parse(envelopeJson.toByteArray())
-                ?: error("envelope did not parse")
-            assertTrue("envelope must be recognised", parsed.recognised)
-            return LegacyEnvelopeOpener(KeyDerivation()).openWithSalts(
-                salts = LegacySaltPlan.variants(parsed.salt),
-                data = parsed.data,
-                secrets = LegacyKeyPlan.ordered(emails = emails, version = parsed.version),
-                iterationProfiles = LegacyEnvelopeOpener.exactProfiles(parsed.version)
-            )
         }
     }
 
+    /**
+     * What `CloudSyncManager.decryptBackup` now runs for a stored envelope: parse the file, ask the
+     * plan for the one key its marker names, derive it at the one count, and stop there.
+     */
+    private fun restore(envelopeJson: String, vaultSecret: String? = null): LegacyEnvelopeOpener.OpenAttempt {
+        val parsed = BackupEnvelopeFormat.parse(envelopeJson.toByteArray())
+            ?: error("envelope did not parse")
+        assertTrue("envelope must be recognised", parsed.recognised)
+        val secret = LegacyKeyPlan.exactSecret(keyId = parsed.keyId, vaultSecret = vaultSecret)
+            ?: return LegacyEnvelopeOpener.OpenAttempt(null, 0, false)
+        return LegacyEnvelopeOpener(KeyDerivation()).openWithSalts(
+            salts = listOf(parsed.salt),
+            data = parsed.data,
+            secrets = listOf(secret)
+        )
+    }
+
     @Test
-    fun `the writer's own 600000-round slot opens`() {
-        val salt = hex(SALT_HEX)
-        val attempt = restore(envelope(PRIMARY_CLOUD_KEY, salt, hex(IV_HEX), 600_000))
+    fun `a Drive copy from the pre-keyring writer opens with its one key`() {
+        val attempt = restore(envelope(PRIMARY_CLOUD_KEY, hex(SALT_HEX), hex(IV_HEX)))
         assertEquals(PAYLOAD, attempt.opened?.json)
         assertEquals(OpeningSecretKind.RETIRED_UNIVERSAL_KEY, attempt.opened?.kind)
         assertEquals(600_000, attempt.opened?.iterations)
+        assertEquals("one marker, one key, one derivation", 1, attempt.candidatesTried)
     }
 
     @Test
-    fun `a slot sealed at the reader's 100000 count opens`() {
-        val attempt = restore(envelope(PRIMARY_CLOUD_KEY, hex(SALT_HEX), hex(IV_HEX), 100_000))
+    fun `a copy marked as the account's opens with the vault key this device holds`() {
+        val attempt = restore(
+            envelope(VAULT_SECRET, hex(SALT_HEX), hex(IV_HEX), keyId = LegacyKeyPlan.KEY_ID_VAULT),
+            vaultSecret = VAULT_SECRET
+        )
         assertEquals(PAYLOAD, attempt.opened?.json)
-        assertEquals(100_000, attempt.opened?.iterations)
+        assertEquals(OpeningSecretKind.VAULT_KEY, attempt.opened?.kind)
+        assertEquals(1, attempt.candidatesTried)
     }
 
     @Test
-    fun `a slot sealed at the reader's 10000 count opens`() {
-        val attempt = restore(envelope(PRIMARY_CLOUD_KEY, hex(SALT_HEX), hex(IV_HEX), 10_000))
-        assertEquals(PAYLOAD, attempt.opened?.json)
-        assertEquals(10_000, attempt.opened?.iterations)
+    fun `a copy marked as the account's names no key on a device that lacks it`() {
+        val attempt = restore(
+            envelope(VAULT_SECRET, hex(SALT_HEX), hex(IV_HEX), keyId = LegacyKeyPlan.KEY_ID_VAULT)
+        )
+        assertNull(attempt.opened)
+        assertEquals("nothing is tried when the key is not on the device", 0, attempt.candidatesTried)
     }
 
     @Test
-    fun `a slot sealed at the reader's 1000 count opens`() {
-        val attempt = restore(envelope(PRIMARY_CLOUD_KEY, hex(SALT_HEX), hex(IV_HEX), 1_000))
-        assertEquals(PAYLOAD, attempt.opened?.json)
-        assertEquals(1_000, attempt.opened?.iterations)
+    fun `a copy this device cannot open costs one derivation, not a list`() {
+        val attempt = restore(envelope("not-a-shipped-secret", hex(SALT_HEX), hex(IV_HEX)))
+        assertNull(attempt.opened)
+        assertEquals(1, attempt.candidatesTried)
     }
 
     @Test
-    fun `a v3 envelope sealed with the v2 universal string still opens`() {
-        val attempt = restore(envelope(LEGACY_CLOUD_KEY_V2, hex(SALT_HEX), hex(IV_HEX), 600_000))
-        assertEquals(PAYLOAD, attempt.opened?.json)
-        assertEquals(OpeningSecretKind.RETIRED_UNIVERSAL_KEY, attempt.opened?.kind)
-    }
-
-    @Test
-    fun `a v3 envelope sealed with the v1 universal string still opens`() {
-        val attempt = restore(envelope(LEGACY_CLOUD_KEY_V1, hex(SALT_HEX), hex(IV_HEX), 600_000))
-        assertEquals(PAYLOAD, attempt.opened?.json)
-    }
-
-    @Test
-    fun `a file nobody's key opens reports a wrong key, not a hang`() {
-        val attempt = restore(envelope("not-a-shipped-secret", hex(SALT_HEX), hex(IV_HEX), 10_000))
-        assertEquals(null, attempt.opened)
-        assertTrue(attempt.candidatesTried > 0)
-    }
-
-    @Test
-    fun `the parity test payload is the shape the parser expects`() {
-        val opened = restore(envelope(PRIMARY_CLOUD_KEY, hex(SALT_HEX), hex(IV_HEX), 600_000))
-        assertNotNull(opened.opened)
-        val root = com.google.gson.JsonParser.parseString(opened.opened!!.json).asJsonObject
+    fun `the parity payload is the shape the parser expects`() {
+        val attempt = restore(envelope(PRIMARY_CLOUD_KEY, hex(SALT_HEX), hex(IV_HEX)))
+        assertNotNull(attempt.opened)
+        val root = com.google.gson.JsonParser.parseString(attempt.opened!!.json).asJsonObject
         assertEquals(1, root.getAsJsonArray("entries").size())
     }
 }

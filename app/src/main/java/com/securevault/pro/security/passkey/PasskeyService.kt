@@ -36,13 +36,27 @@ class PasskeyService @Inject constructor(
     private val crypto: CryptoManager
 ) {
 
-    /** The verdict for right now: transport, session, and whether this device's key opens at all. */
-    fun availability(): PasskeyAvailability = PasskeyAvailabilityJudge.verdict(
-        sdkInt = currentSdk(),
-        providerRegisteredInManifest = false,
-        sessionIsPrimary = isPrimarySession(),
-        vaultKeyOpens = runCatching { crypto.healthCheck() }.getOrDefault(true)
-    )
+    /**
+     * The verdict for right now: transport, session, and whether this device's key opens at all.
+     *
+     * The transport half comes from [PasskeyCredentialTransport.transportState] — the object that can
+     * actually look at the installed packages and the app's own manifest — rather than from a second
+     * copy of the SDK arithmetic here. The judge still decides the session and device-key gates, and
+     * still gets the SDK number, so a manifest entry added later cannot leave this screen claiming a
+     * passkey is impossible when the device has started answering.
+     */
+    fun availability(): PasskeyAvailability {
+        val deviceTransport = runCatching { transport.transportState() }
+            .getOrDefault(PasskeyTransportState.UNKNOWN)
+        val verdict = PasskeyAvailabilityJudge.verdict(
+            sdkInt = currentSdk(),
+            providerRegisteredInManifest = deviceTransport == PasskeyTransportState.READY,
+            sessionIsPrimary = isPrimarySession(),
+            vaultKeyOpens = runCatching { crypto.healthCheck() }.getOrDefault(true)
+        )
+        return if (verdict.transport == deviceTransport) verdict
+        else verdict.copy(transport = deviceTransport)
+    }
 
     /**
      * A device-only override for [availability]'s manifest question. The app declares no
@@ -114,13 +128,21 @@ class PasskeyService @Inject constructor(
         }
         val existing = store.records().filter { it.rpDomain == domain }
         val account = PasskeyRequestBuilder.accountFor(userName, domain)
+        // The handle is generated as text, then turned into the bytes actually sent, then sealed in
+        // exactly those bytes' encoding. The old order — seal the text, send a re-decode with a
+        // fallback to fresh random — could leave the record promising a account id the site never
+        // received, which is the kind of drift that only shows up a year later at a sign-in.
+        val handleBytes = PasskeyWire.decodeBase64UrlToBytes(account.userHandle)
+            ?: PasskeyRequestBuilder.newChallenge()
+        val sealedHandle = PasskeyWire.encodeBase64Url(handleBytes)
+        val challenge = PasskeyRequestBuilder.newChallenge()
         val requestJson = PasskeyRequestBuilder.registrationJson(
             rpDomain = domain,
             rpName = rpName.ifBlank { account.rpDomain },
             userName = account.userName,
             userDisplayName = account.userName,
-            userHandle = PasskeyWire.decodeBase64UrlToBytes(account.userHandle)
-                ?: PasskeyRequestBuilder.newChallenge(),
+            challenge = challenge,
+            userHandle = handleBytes,
             excludeCredentialIds = existing.map { it.credentialId }
         )
         val outcome = withContext(Dispatchers.Main) {
@@ -130,25 +152,35 @@ class PasskeyService @Inject constructor(
         )
         return when (outcome) {
             is PasskeyRegisterOutcome.Enrolled -> {
-                val enrolment = PasskeyEnrolment(
-                    rpDomain = domain,
-                    rpName = rpName.ifBlank { domain },
-                    userName = account.userName,
-                    userDisplayName = account.userName,
-                    credentialId = outcome.credentialId,
-                    registrationResponseJson = outcome.registrationResponseJson,
-                    userHandle = account.userHandle
+                // Before any of it is written: does the answer belong to the request this app sent?
+                val check = PasskeyResponseChecks.forEnrolment(
+                    responseJson = outcome.registrationResponseJson,
+                    requestJson = requestJson
                 )
-                val sealed = store.vault.recordFor(enrolment)
-                val record = sealed.record
-                if (!sealed.ok || record == null) {
-                    PasskeyEnrolmentResult.NotStored(sealed.message.orEmpty())
-                } else if (store.put(record)) {
-                    PasskeyEnrolmentResult.Enrolled(record)
+                val refusal = PasskeyResponseChecks.failureFor(check)
+                if (refusal != null) {
+                    PasskeyEnrolmentResult.Failed(refusal)
                 } else {
-                    // The key was created on the device and we cannot keep our copy of its receipt.
-                    // Say so, and say what it costs: the passkey still works, the list just misses it.
-                    PasskeyEnrolmentResult.StoredElsewhere(record)
+                    val enrolment = PasskeyEnrolment(
+                        rpDomain = domain,
+                        rpName = rpName.ifBlank { domain },
+                        userName = account.userName,
+                        userDisplayName = account.userName,
+                        credentialId = outcome.credentialId,
+                        registrationResponseJson = outcome.registrationResponseJson,
+                        userHandle = sealedHandle
+                    )
+                    val sealed = store.vault.recordFor(enrolment)
+                    val record = sealed.record
+                    if (!sealed.ok || record == null) {
+                        PasskeyEnrolmentResult.NotStored(sealed.message.orEmpty())
+                    } else if (store.put(record)) {
+                        PasskeyEnrolmentResult.Enrolled(record)
+                    } else {
+                        // The key was created on the device and we cannot keep our copy of its receipt.
+                        // Say so, and say what it costs: the passkey still works, the list just misses it.
+                        PasskeyEnrolmentResult.StoredElsewhere(record)
+                    }
                 }
             }
             PasskeyRegisterOutcome.Cancelled -> PasskeyEnrolmentResult.Cancelled
@@ -184,8 +216,10 @@ class PasskeyService @Inject constructor(
         if (candidates.isEmpty()) {
             return PasskeySignInResult.NoPasskeyForDomain(normalized)
         }
+        val challenge = PasskeyRequestBuilder.newChallenge()
         val requestJson = PasskeyRequestBuilder.authenticationJson(
             rpDomain = normalized,
+            challenge = challenge,
             allowCredentialIds = candidates.map { it.credentialId }
         )
         val outcome = withContext(Dispatchers.Main) {
@@ -195,15 +229,30 @@ class PasskeyService @Inject constructor(
         )
         return when (outcome) {
             is PasskeyAuthOutcome.Authenticated -> {
-                val matched = candidates.firstOrNull {
-                    it.credentialId == outcome.credentialId
-                } ?: candidates.firstOrNull()
-                if (matched == null) {
-                    PasskeySignInResult.SignedIn(outcome.assertionResponseJson, null)
+                val check = PasskeyResponseChecks.forSignIn(
+                    responseJson = outcome.assertionResponseJson,
+                    requestJson = requestJson
+                )
+                val refusal = PasskeyResponseChecks.failureFor(check)
+                if (refusal != null) {
+                    // Counters stay untouched: an answer this app cannot tie to its own request is
+                    // not evidence that this record was used.
+                    PasskeySignInResult.Failed(refusal)
                 } else {
-                    val updated = store.vault.markUsed(matched, System.currentTimeMillis())
-                    store.put(updated)
-                    PasskeySignInResult.SignedIn(outcome.assertionResponseJson, updated)
+                    // Only the record whose id the provider actually named. The old fallback to
+                    // "the first candidate" credited a sign-in to a passkey that was not used, which
+                    // then ranked that record first in every later list — a quiet wrong answer.
+                    val askedFor = PasskeyWire.normalizeBase64Url(outcome.credentialId)
+                    val matched = if (askedFor.isBlank()) null else candidates.firstOrNull {
+                        PasskeyWire.normalizeBase64Url(it.credentialId) == askedFor
+                    }
+                    if (matched == null) {
+                        PasskeySignInResult.SignedIn(outcome.assertionResponseJson, null)
+                    } else {
+                        val updated = store.vault.markUsed(matched, System.currentTimeMillis())
+                        store.put(updated)
+                        PasskeySignInResult.SignedIn(outcome.assertionResponseJson, updated)
+                    }
                 }
             }
             PasskeyAuthOutcome.NoPasskey -> PasskeySignInResult.NoPasskeyOnDevice
@@ -291,17 +340,7 @@ sealed class PasskeyEnrolmentResult {
                 "It will still work for signing in."
         is NotStored -> message
         is Failed -> PasskeyFailureClassifier.ownerMessage(failure)
-        is Refused -> PasskeyFailureClassifier.ownerMessage(
-            PasskeyFailure(
-                kind = if (availability.transport == PasskeyTransportState.READY) {
-                    PasskeyFailureKind.UNKNOWN
-                } else {
-                    PasskeyFailureKind.TRANSPORT_UNAVAILABLE
-                },
-                providerMessage = availability.reasonLabel(),
-                providerType = null
-            )
-        )
+        is Refused -> passkeyRefusalSentence(availability)
         Cancelled -> "Cancelled. Nothing was created."
     }
 }
@@ -325,7 +364,8 @@ sealed class PasskeySignInResult {
 
     fun ownerSentence(): String = when (this) {
         is SignedIn -> record?.let { "Signed in with your passkey for ${it.rpDomain}." }
-            ?: "Signed in with a passkey."
+            ?: "Your device signed in with a passkey this app has no record of. " +
+                "This list is not complete; nothing was changed."
         is NoPasskeyForDomain ->
             if (domain.isBlank()) "This app has no passkey records to sign in with."
             else "This app has no passkey for $domain. Add one first, or sign in with a password."
@@ -333,12 +373,28 @@ sealed class PasskeySignInResult {
             "Your device has no passkey for that site."
         Cancelled -> "Cancelled."
         is Failed -> PasskeyFailureClassifier.ownerMessage(failure)
-        is Refused -> PasskeyFailureClassifier.ownerMessage(
-            PasskeyFailure(
-                kind = PasskeyFailureKind.TRANSPORT_UNAVAILABLE,
-                providerMessage = availability.reasonLabel(),
-                providerType = null
-            )
-        )
+        is Refused -> passkeyRefusalSentence(availability)
     }
+}
+
+/**
+ * Why this app would not start a ceremony, in one plain sentence.
+ *
+ * The first version reached for a transport excuse whenever the provider had refused, even when the
+ * transport was fine and the real reason was a locked or decoy vault. Those are different problems
+ * with different fixes, and telling an owner their Android version is the issue when they simply need
+ * to unlock is how a vault loses somebody's trust. One function, because the enrolment screen and the
+ * sign-in screen must not tell two different stories about the same verdict.
+ */
+internal fun passkeyRefusalSentence(availability: PasskeyAvailability): String = when {
+    availability.transport != PasskeyTransportState.READY ->
+        PasskeyFailureClassifier.ownerMessage(
+            PasskeyFailure(PasskeyFailureKind.TRANSPORT_UNAVAILABLE, null, null)
+        )
+    !availability.vaultKeyOpens ->
+        "This device's security key would not open, so a passkey could not be saved. " +
+            "Close the app, unlock your vault, and try again."
+    !availability.sessionIsPrimary ->
+        "Unlock your real vault first — a passkey can only be added to, or used from it."
+    else -> "This app is not able to start a passkey right now. Nothing was saved."
 }

@@ -4,7 +4,7 @@ package com.securevault.pro.data.wallet
  * Pure half of the device key store: the field names, the masking rule and the seal/open
  * translation. No Android, no DataStore, no network — so it runs in a plain JVM test.
  *
- * The values are sealed through [SecretSealer] (on the device that is `CryptoManager`, i.e. the frozen
+ * The values are sealed through [BitgetSecretSealer] (on the device that is `CryptoManager`, i.e. the frozen
  * AES-256-GCM envelope `base64(iv).base64(ciphertext+tag)`, 12-byte IV, 128-bit tag, under the
  * non-exportable Keystore-wrapped data key). Nothing here changes an encryption parameter; it reuses
  * exactly the envelope [WalletRepository] has always used for a vault record.
@@ -15,16 +15,6 @@ package com.securevault.pro.data.wallet
  * the key material lives only in this file's fields, which are not a Room entity, not in the field
  * schema, and not readable by any DAO. `WalletKeyIsNeverSyncedTest` pins that claim.
  */
-
-/**
- * Abstraction over `CryptoManager.encrypt` / `decrypt`, so the vault runs off-device in a test.
- * Declared here because the wallet key store is its only remaining user: the Bitget credential
- * vault that used to own it is gone, and no product surface asks for an exchange API key any more.
- */
-interface SecretSealer {
-    fun seal(plaintext: String): String?
-    fun open(ciphertext: String?): String?
-}
 
 object WalletKeyFields {
     const val SEALED_KEY = "sealedKey"

@@ -30,12 +30,16 @@ import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/** Whether one backed-up wallet landed on this device, and the one plain sentence why it did not. */
+data class WalletRestoreResult(val restored: Boolean, val note: String? = null)
+
 @Singleton
 class WalletRepository @Inject constructor(
     private val dao: CryptoWalletDao,
     private val crypto: CryptoManager,
     private val balances: CryptoBalanceService,
     private val keyStore: WalletKeyStore,
+    private val keyBackupKeys: WalletKeyBackupKeySource,
     @ApplicationContext private val context: Context
 ) {
 
@@ -55,14 +59,14 @@ class WalletRepository @Inject constructor(
      * call's stack; callers must never persist or log it.
      *
      * Two shapes of stored secret: a seed phrase wallet keeps its sealed phrase in the Room row, and
-     * a key imported through the Violet path keeps only a reference there — the key itself is in
-     * [WalletKeyStore], a file no sync segment reads.
+     * a key imported through the Violet path keeps only a pointer there — the key itself is in
+     * [WalletKeyStore], a file no realtime segment reads. A wallet restored from a backup is stored
+     * the same way it was made, so signing needs to know nothing about where it came from.
      */
     suspend fun signingKey(id: String, network: CryptoNetwork): BigInteger? =
         withContext(Dispatchers.IO) {
             val entity = dao.getById(id) ?: return@withContext null
-            val payload = crypto.decrypt(entity.secret)?.let(::parseSecretPayload)
-                ?: return@withContext null
+            val payload = openSecretColumn(entity.secret) ?: return@withContext null
             if (payload.optString(SECRET_REF_FIELD).isNotBlank()) {
                 return@withContext keyStore.key(id)?.let { hex ->
                     EvmCrypto.parsePrivateKeyHex(hex)
@@ -171,18 +175,12 @@ class WalletRepository @Inject constructor(
             )
             if (!sealed.ok) error(sealed.message ?: "The key could not be sealed on this device.")
 
-            // The synced row carries a reference only: no key, no phrase, nothing spendable.
-            val referenceJson = JSONObject()
-                .put("kind", WalletImportKind.PRIVATE_KEY.name)
-                .put(SECRET_REF_FIELD, KEY_STORE_REFERENCE)
-                .put("secret", "")
-                .put("passphrase", "")
-                .toString()
+            // The synced row carries a pointer only: no key, no phrase, nothing spendable.
             val entity = buildEntity(
                 id = id,
                 label = label.trim().ifBlank { "Imported key" },
                 kind = WalletImportKind.PRIVATE_KEY,
-                secretJson = crypto.encrypt(referenceJson),
+                secretJson = referenceJson(),
                 addresses = addresses
             )
             dao.upsert(entity)
@@ -241,11 +239,15 @@ class WalletRepository @Inject constructor(
     companion object {
         /**
          * Field name that marks a row whose key lives in [WalletKeyStore] instead of in the row.
-         * A row carrying it holds no secret of any kind, so syncing or backing it up moves nothing
-         * spendable.
+         * A row carrying it holds no secret of any kind, so realtime syncing moves nothing
+         * spendable. A Drive backup does carry that wallet's key — never as this column, only as
+         * [BackupCryptoWalletDto.keyBackup], sealed with the account's own vault key.
          */
         const val SECRET_REF_FIELD = "keyRef"
         const val KEY_STORE_REFERENCE = "device_key_store"
+
+        /** What the key store says about a wallet it has no address for; never a real address. */
+        private const val MASKED_AS_ABSENT = "not shown"
 
         /** True when a decrypted secret payload is a reference rather than a phrase or key. */
         fun isReferencePayload(payload: JSONObject): Boolean =
@@ -269,19 +271,28 @@ class WalletRepository @Inject constructor(
     }
 
     /**
-     * Rows for the Drive document. A wallet whose key lives in [WalletKeyStore] is left out whole:
-     * the backup would carry an address list with no way to spend it, and saying "backed up" about
-     * that would be a lie. The panel tells the owner to re-import such a key after a restore.
+     * Rows for the Drive document, with the spending material of each one sealed alongside them.
+     *
+     * A wallet whose key lives in [WalletKeyStore] used to be left out whole, because the backup
+     * would have carried an address list with no way to spend it. It now travels: the key goes into
+     * [BackupCryptoWalletDto.keyBackup], sealed with this account's own vault key — the same master
+     * key the document itself is sealed with — so a phone that signs in to the same account gets a
+     * wallet it can actually spend from, with nothing for the owner to type in again. The row's
+     * `secret` stays the harmless pointer it already was.
+     *
+     * When this device holds no account key there is nothing to seal with, and the wallet is written
+     * without one: an address list whose key did not travel, never an open key.
      */
     suspend fun buildBackup(): List<BackupCryptoWalletDto> = withContext(Dispatchers.IO) {
+        val sealer = keyBackupKeys.sealer()
         dao.getAll().mapNotNull { entity ->
-            val secretJson = crypto.decrypt(entity.secret) ?: return@mapNotNull null
-            if (isReferencePayload(parseSecretPayload(secretJson))) return@mapNotNull null
+            val payload = openSecretColumn(entity.secret) ?: return@mapNotNull null
             BackupCryptoWalletDto(
                 id = entity.id,
                 label = entity.label,
                 kind = entity.kind,
-                secret = secretJson,
+                secret = payload.toString(),
+                keyBackup = sealedMaterialFor(entity.id, payload, sealer),
                 balancesJson = entity.balancesJson,
                 totalUsd = entity.totalUsd,
                 lastSyncedAt = entity.lastSyncedAt,
@@ -291,52 +302,174 @@ class WalletRepository @Inject constructor(
         }
     }
 
-    suspend fun restore(dto: BackupCryptoWalletDto): Boolean = withContext(Dispatchers.IO) {
-        runCatching {
-            val payload = dto.secret?.let { parseSecretPayload(it) } ?: error("Wallet has no secret")
-            if (isReferencePayload(payload)) {
-                error("Imported keys are never carried by a backup; re-import the key on this device.")
-            }
-            val kind = when {
-                payload.optString("kind").equals(WalletImportKind.PRIVATE_KEY.name, true) ->
-                    WalletImportKind.PRIVATE_KEY
-                payload.optString("kind").equals(WalletImportKind.SEED_PHRASE.name, true) ->
-                    WalletImportKind.SEED_PHRASE
-                payload.optString("secret").contains(' ') -> WalletImportKind.SEED_PHRASE
-                else -> WalletImportKind.PRIVATE_KEY
-            }
-            val secret = payload.optString("secret").trim()
-            if (secret.isBlank()) error("Wallet secret is empty")
-            val passphrase = payload.optString("passphrase")
-            val addresses = when (kind) {
-                WalletImportKind.SEED_PHRASE -> WalletDeriver.fromSeedPhrase(secret, passphrase)
-                WalletImportKind.PRIVATE_KEY -> {
-                    val bytes = Hash.bytesFromHex(secret) ?: error("Invalid stored key")
-                    WalletDeriver.fromPrivateKey(BigInteger(1, bytes))
-                }
-            }
-            val entity = buildEntity(
-                id = dto.id?.takeIf { it.isNotBlank() } ?: UUID.randomUUID().toString(),
-                label = dto.label?.trim().orEmpty().ifBlank {
-                    if (kind == WalletImportKind.SEED_PHRASE) "Seed wallet" else "Imported key"
-                },
-                kind = kind,
-                secretJson = JSONObject()
-                    .put("kind", kind.name)
-                    .put("secret", secret)
-                    .put("passphrase", passphrase)
-                    .toString(),
-                addresses = addresses
-            ).copy(
-                balancesJson = dto.balancesJson ?: "[]",
-                totalUsd = dto.totalUsd ?: 0.0,
-                lastSyncedAt = dto.lastSyncedAt ?: 0L,
-                createdAt = dto.createdAt ?: System.currentTimeMillis(),
-                updatedAt = dto.updatedAt ?: System.currentTimeMillis()
+    /**
+     * The sealed spending material for one row, or null when there is no account key to seal with,
+     * no key on this device, or a value no wallet can be rebuilt from. Sealing itself refuses to
+     * return anything that still shows the key, so an open key never reaches the document.
+     */
+    private suspend fun sealedMaterialFor(
+        walletId: String,
+        payload: JSONObject,
+        sealer: WalletKeyBackupSealer?
+    ): String? {
+        if (sealer == null) return null
+        if (isReferencePayload(payload)) {
+            return WalletKeyBackup.seal(
+                sealer,
+                WalletKeyBackupKind.PRIVATE_KEY,
+                keyStore.key(walletId).orEmpty()
             )
-            dao.upsert(entity)
-            true
-        }.getOrDefault(false)
+        }
+        val secret = payload.optString("secret").trim()
+        if (secret.isBlank()) return null
+        val kind = WalletKeyBackup.kindOf(payload.optString("kind"), secret) ?: return null
+        return WalletKeyBackup.seal(sealer, kind, secret, payload.optString("passphrase"))
+    }
+
+    /**
+     * Puts one backed-up wallet back on this device.
+     *
+     * The sealed blob is what the owner's key comes back as: an imported key is stored exactly the
+     * way a local import stores it — in [WalletKeyStore], with the row keeping its pointer — and a
+     * recovery phrase comes back the way a local phrase is kept, so nobody has to type anything
+     * again. Addresses are derived from the material rather than copied, and a wallet whose restored
+     * key owns a different address than the one on record is refused outright instead of quietly
+     * given someone else's funds. A document with no blob — every backup written before this —
+     * restores exactly as it always did.
+     */
+    suspend fun restore(dto: BackupCryptoWalletDto): WalletRestoreResult = withContext(Dispatchers.IO) {
+        runCatching { restoreWallet(dto) }.getOrElse {
+            WalletRestoreResult(false, "'${walletName(dto)}' could not be restored.")
+        }
+    }
+
+    private fun walletName(dto: BackupCryptoWalletDto): String =
+        dto.label?.trim().orEmpty().ifBlank { "Wallet" }
+
+    private suspend fun restoreWallet(dto: BackupCryptoWalletDto): WalletRestoreResult {
+        val name = walletName(dto)
+        val id = dto.id?.takeIf { it.isNotBlank() } ?: UUID.randomUUID().toString()
+        val payload = dto.secret?.let(::parseSecretPayload)
+        val sealed = openSealedMaterial(dto.keyBackup)
+        val material = sealed ?: materialOf(payload)
+            ?: return WalletRestoreResult(
+                restored = false,
+                note = if (payload != null && isReferencePayload(payload)) {
+                    "'$name' came back without its key, so it holds addresses only. " +
+                        "Add its private key again on this phone to spend from it."
+                } else {
+                    "'$name' had no key or recovery phrase in the backup."
+                }
+            )
+        val addresses = deriveAddresses(material)
+            ?: return WalletRestoreResult(false, "'$name' has a key this phone cannot use, so it was skipped.")
+        val primary = addresses.firstOrNull { it.network == CryptoNetwork.BSC }?.address
+            ?: addresses.first().address
+        WalletKeyBackup.addressMismatchReason(claimedAddressFor(id), primary)?.let {
+            return WalletRestoreResult(false, it)
+        }
+        val label = dto.label?.trim().orEmpty().ifBlank {
+            if (material.kind == WalletKeyBackupKind.SEED_PHRASE) "Seed wallet" else "Imported key"
+        }
+        // A key that arrived sealed belongs in the device store, not in a synced row; a phrase is
+        // kept the way a locally entered phrase is kept.
+        if (sealed != null && material.kind == WalletKeyBackupKind.PRIVATE_KEY) {
+            val stored = keyStore.store(
+                walletId = id,
+                canonicalKeyHex = canonicalKeyHex(material.secret),
+                primaryAddress = primary,
+                label = label,
+                source = WalletKeySource.IMPORTED_PRIVATE_KEY
+            )
+            if (!stored.ok) {
+                return WalletRestoreResult(
+                    false,
+                    stored.message ?: "'$name' could not keep its key on this phone, so it was skipped."
+                )
+            }
+        }
+        val kind = when (material.kind) {
+            WalletKeyBackupKind.SEED_PHRASE -> WalletImportKind.SEED_PHRASE
+            WalletKeyBackupKind.PRIVATE_KEY -> WalletImportKind.PRIVATE_KEY
+        }
+        val secretJson = when {
+            kind == WalletImportKind.SEED_PHRASE -> JSONObject()
+                .put("kind", kind.name)
+                .put("secret", material.secret)
+                .put("passphrase", material.passphrase)
+                .toString()
+            sealed != null -> referenceJson()
+            else -> JSONObject()
+                .put("kind", kind.name)
+                .put("secret", material.secret)
+                .put("passphrase", "")
+                .toString()
+        }
+        val entity = buildEntity(
+            id = id,
+            label = label,
+            kind = kind,
+            secretJson = secretJson,
+            addresses = addresses
+        ).copy(
+            balancesJson = dto.balancesJson ?: "[]",
+            totalUsd = dto.totalUsd ?: 0.0,
+            lastSyncedAt = dto.lastSyncedAt ?: 0L,
+            createdAt = dto.createdAt ?: System.currentTimeMillis(),
+            updatedAt = dto.updatedAt ?: System.currentTimeMillis()
+        )
+        dao.upsert(entity)
+        return WalletRestoreResult(true)
+    }
+
+    /** The blob opened with this account's key, or null when there is none or it will not open. */
+    private fun openSealedMaterial(blob: String?): WalletKeyMaterial? {
+        if (blob.isNullOrBlank()) return null
+        val sealer = keyBackupKeys.sealer() ?: return null
+        return WalletKeyBackup.open(sealer, blob)
+    }
+
+    /** The material a row carries in the clear of the document; null for a pointer or nothing. */
+    private fun materialOf(payload: JSONObject?): WalletKeyMaterial? {
+        if (payload == null || isReferencePayload(payload)) return null
+        val secret = payload.optString("secret").trim()
+        if (secret.isBlank()) return null
+        val kind = WalletKeyBackup.kindOf(payload.optString("kind"), secret) ?: return null
+        return WalletKeyMaterial(kind, secret, payload.optString("passphrase"))
+    }
+
+    private fun deriveAddresses(material: WalletKeyMaterial): List<WalletAddress>? = runCatching {
+        when (material.kind) {
+            WalletKeyBackupKind.SEED_PHRASE ->
+                WalletDeriver.fromSeedPhrase(material.secret, material.passphrase)
+
+            WalletKeyBackupKind.PRIVATE_KEY -> {
+                val bytes = Hash.bytesFromHex(material.secret) ?: return null
+                val scalar = BigInteger(1, bytes)
+                if (!Secp256k1.isValidPrivateKey(scalar)) return null
+                WalletDeriver.fromPrivateKey(scalar)
+            }
+        }.takeIf { it.isNotEmpty() }
+    }.getOrNull()
+
+    private fun canonicalKeyHex(secret: String): String {
+        val bytes = Hash.bytesFromHex(secret) ?: return secret.trim()
+        return "0x" + Hash.hex(bytes)
+    }
+
+    /**
+     * What this device already says the address of a wallet id is: the row's own address if a row
+     * with that id is here, otherwise the masked address the key store kept for it. Null when this
+     * phone has never seen the id, which is a fresh restore with nothing to contradict.
+     */
+    private suspend fun claimedAddressFor(walletId: String): String? {
+        dao.getById(walletId)?.let { entity ->
+            val addresses = decodeAddresses(entity.addressesJson)
+            val primary = addresses.firstOrNull { it.network == CryptoNetwork.BSC } ?: addresses.firstOrNull()
+            if (primary != null) return primary.address
+        }
+        return keyStore.record(walletId)?.maskedAddress
+            ?.takeIf { it.isNotBlank() && it != MASKED_AS_ABSENT }
     }
 
     private fun buildEntity(
@@ -358,28 +491,58 @@ class WalletRepository @Inject constructor(
         )
     }
 
-    private fun parseSecretPayload(raw: String): JSONObject {
+    private fun parseSecretPayload(raw: String): JSONObject? {
         val trimmed = raw.trim()
         if (trimmed.startsWith("{")) {
-            return runCatching { JSONObject(trimmed) }.getOrElse { error("Wallet secret is malformed") }
+            return runCatching { JSONObject(trimmed) }.getOrNull()
         }
         val kind = if (trimmed.contains(' ')) WalletImportKind.SEED_PHRASE else WalletImportKind.PRIVATE_KEY
         return JSONObject().put("kind", kind.name).put("secret", trimmed).put("passphrase", "")
     }
 
-    private fun merge(cached: List<TokenBalance>, scan: BalanceScan): List<TokenBalance> {
-        val fresh = scan.tokens.associateBy { it.networkId to it.symbol }
-        val merged = ArrayList<TokenBalance>(cached.size + scan.tokens.size)
-        cached.forEach { old ->
-            val updated = fresh[old.networkId to old.symbol]
-            merged += updated ?: old.copy(
-                available = false,
-                error = "Offline · showing last known balance"
-            )
+    /**
+     * The row's sealed secret column, opened.
+     *
+     * One build wrote that column sealed twice, so a value that is still an envelope after the first
+     * unwrap is opened once more. Without that those wallets would neither sign nor back up, and
+     * their keys are on the device and safe — only the pointer around them was misshapen.
+     */
+    private fun openSecretColumn(stored: String): JSONObject? {
+        var plain = crypto.decrypt(stored) ?: return null
+        if (!plain.trim().startsWith("{") && crypto.isEncryptedBlob(plain)) {
+            plain = crypto.decrypt(plain) ?: return null
         }
-        val known = cached.map { it.networkId to it.symbol }.toSet()
-        scan.tokens.filter { (it.networkId to it.symbol) !in known }.forEach { merged += it }
-        return merged
+        return parseSecretPayload(plain)
+    }
+
+    /** The pointer a Violet-imported row carries in place of a key. */
+    private fun referenceJson(): String = JSONObject()
+        .put("kind", WalletImportKind.PRIVATE_KEY.name)
+        .put(SECRET_REF_FIELD, KEY_STORE_REFERENCE)
+        .put("secret", "")
+        .put("passphrase", "")
+        .toString()
+
+    /**
+     * The stored rows plus this scan, in one list.
+     *
+     * A chain the scan walked is rebuilt from what the chain just answered — that is how a token the
+     * owner sold disappears, and how a token they just received appears, without a stale row surviving
+     * either way. A chain it did not walk is left exactly as it was: switching a chain off in Settings
+     * must not make its balances look stale, and a chain whose nodes were silent keeps its last known
+     * figures with the reason written on the row.
+     */
+    private fun merge(cached: List<TokenBalance>, scan: BalanceScan): List<TokenBalance> {
+        val out = ArrayList<TokenBalance>(cached.size + scan.tokens.size)
+        out += scan.tokens
+        out += cached.filter { it.networkId !in scan.scannedNetworkIds }.map { row ->
+            if (scan.errors.containsKey(row.networkId)) {
+                row.copy(available = false, error = "Offline · showing last known balance")
+            } else {
+                row
+            }
+        }
+        return out.distinctBy { it.networkId to it.symbol }
     }
 
     private fun CryptoWalletEntity.toDomain(): CryptoWallet = CryptoWallet(
@@ -437,6 +600,8 @@ class WalletRepository @Inject constructor(
                     .put("priceUsd", entry.priceUsd)
                     .put("available", entry.available)
                     .put("error", entry.error ?: JSONObject.NULL)
+                    .put("contract", entry.contract ?: JSONObject.NULL)
+                    .put("decimals", entry.decimals)
             )
         }
         return array.toString()
@@ -460,7 +625,13 @@ class WalletRepository @Inject constructor(
                             available = obj.optBoolean("available", true),
                             error = obj.optString("error").takeIf {
                                 it.isNotBlank() && it != "null"
-                            }
+                            },
+                            // Rows written before token discovery carry neither of these; a native
+                            // coin never had a contract, so its absence is the normal case.
+                            contract = obj.optString("contract").takeIf {
+                                it.isNotBlank() && it != "null"
+                            },
+                            decimals = obj.optInt("decimals", 0)
                         )
                     )
                 }

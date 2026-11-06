@@ -62,7 +62,6 @@ import com.securevault.pro.presentation.components.vaultGutter
 import com.securevault.pro.presentation.theme.VaultColor
 import com.securevault.pro.presentation.theme.VaultShapes
 import com.securevault.pro.presentation.components.Glyph
-import com.securevault.pro.security.keyboard.LocalSecureKeyboardDock
 import com.securevault.pro.security.keyboard.SecureKeyboardHost
 import com.securevault.pro.security.keyboard.SecurePasswordField
 import com.securevault.pro.security.keyboard.WindowSecurityFlags
@@ -140,7 +139,8 @@ fun RecoverySeedSection(
                         start = vaultGutter(),
                         end = vaultGutter(),
                         top = 6.dp,
-                        bottom = if (boardIsOpen()) 300.dp else 40.dp
+                        // The host above lays the board out as a sibling that takes its own height.
+                        bottom = 40.dp
                     ),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
@@ -199,10 +199,6 @@ fun RecoverySeedSection(
         }
     }
 }
-
-/** True while a secure board is docked at the bottom, so the scroll content can clear it. */
-@Composable
-private fun boardIsOpen(): Boolean = LocalSecureKeyboardDock.current?.isEngaged == true
 
 /**
  * Holds `FLAG_SECURE` for as long as the seed is on screen.

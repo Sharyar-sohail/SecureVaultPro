@@ -1,8 +1,10 @@
 package com.securevault.pro.presentation.screens.stego
 
 import com.securevault.pro.crypto.stego.LumaPlane
+import com.securevault.pro.crypto.stego.StegoLimits
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.roundToInt
 
 /**
  * Pixel-buffer operations the codec needs that the stego core deliberately leaves out.
@@ -92,6 +94,63 @@ object StegoPlanes {
         return LumaPlane(w, h, out)
     }
 
+    /**
+     * Area-average resample of a packed ARGB grid — the colour twin of [resampled], same box, same
+     * rounding, one channel at a time.
+     *
+     * It lives here rather than beside `StegoImages.bitmapOfArgb` because it is `resampled` with three
+     * accumulators, and this file has to stay free of `android.*` so a JVM test can hand it a grid.
+     * A colour preview is built from a carrier's own colour array at preview size, which keeps the
+     * full-size pixels the one copy of them the app holds.
+     */
+    fun resampledArgb(
+        width: Int,
+        height: Int,
+        pixels: IntArray,
+        targetWidth: Int,
+        targetHeight: Int
+    ): IntArray {
+        val w = max(1, targetWidth)
+        val h = max(1, targetHeight)
+        if (w == width && h == height) return pixels
+        val fallback = (0xFF shl 24) or (0x80 shl 16) or (0x80 shl 8) or 0x80
+        val out = IntArray(w * h)
+        val xRatio = width.toDouble() / w
+        val yRatio = height.toDouble() / h
+        for (y in 0 until h) {
+            val fromY = (y * yRatio).toInt().coerceAtMost(height - 1)
+            val toY = max(fromY + 1, ((y + 1) * yRatio).toInt()).coerceAtMost(height)
+            for (x in 0 until w) {
+                val fromX = (x * xRatio).toInt().coerceAtMost(width - 1)
+                val toX = max(fromX + 1, ((x + 1) * xRatio).toInt()).coerceAtMost(width)
+                var red = 0L
+                var green = 0L
+                var blue = 0L
+                var count = 0
+                for (sourceY in fromY until toY) {
+                    val row = sourceY * width
+                    for (sourceX in fromX until toX) {
+                        val color = pixels.getOrElse(row + sourceX) { fallback }
+                        red += (color shr 16) and 0xFF
+                        green += (color shr 8) and 0xFF
+                        blue += color and 0xFF
+                        count += 1
+                    }
+                }
+                if (count == 0) {
+                    out[y * w + x] = fallback
+                    continue
+                }
+                val half = count / 2
+                out[y * w + x] = (0xFF shl 24) or
+                    (((red + half) / count).toInt() shl 16) or
+                    (((green + half) / count).toInt() shl 8) or
+                    ((blue + half) / count).toInt()
+            }
+        }
+        return out
+    }
+
     /** Fitted into the encoder's pixel budget, aspect preserved, never upscaled. */
     fun fitted(plane: LumaPlane, maxPixels: Int = com.securevault.pro.crypto.stego.StegoLimits.MAX_WORKING_PIXELS): LumaPlane {
         val target = StegoGeometry.scaleToFit(plane.width, plane.height, maxPixels)
@@ -103,6 +162,37 @@ object StegoPlanes {
     /** Aspect ratio, guarded against a zero side. */
     fun aspect(plane: LumaPlane): Float =
         if (plane.height <= 0) 0f else plane.width.toFloat() / plane.height.toFloat()
+
+    /**
+     * The smallest copy worth putting back on the canonical grid.
+     *
+     * Half of [StegoLimits.CANONICAL_LONGEST]: a photo that came through a chat app is bigger than
+     * this, and a live camera preview frame is not — so the reader's second geometry costs nothing on
+     * the frames the viewfinder runs several times a second, and is still there for the file the
+     * receiver actually picked from their gallery.
+     */
+    val RESCUE_MIN_LONGEST: Int = StegoLimits.CANONICAL_LONGEST / 2
+
+    /**
+     * The same photo, measured on the one grid this app seals: [StegoLimits.CANONICAL_LONGEST] along
+     * its longer side, aspect preserved, box-filtered like every other resample here.
+     *
+     * Returns the plane untouched when it already is canonical, and when it is too small to be worth
+     * stretching — an upscaled blur carries no more mark than the original did, so there is nothing
+     * for the rescue to buy. The writer uses this before sealing; the reader uses it as a second
+     * guess when a mark will not answer at the size it arrived.
+     */
+    fun canonicalised(plane: LumaPlane): LumaPlane {
+        val longest = longestSide(plane)
+        if (longest < StegoLimits.MIN_WORKING_LONGEST) return plane
+        val target = StegoLimits.CANONICAL_LONGEST
+        if (longest == target) return plane
+        val scale = target.toFloat() / longest
+        val width = max(1, (plane.width * scale).roundToInt())
+        val height = max(1, (plane.height * scale).roundToInt())
+        if (width == plane.width && height == plane.height) return plane
+        return resampled(plane, width, height)
+    }
 
     /** Longest side, the number every minimum-size rule in the subsystem is phrased against. */
     fun longestSide(plane: LumaPlane): Int = max(plane.width, plane.height)

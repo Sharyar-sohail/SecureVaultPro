@@ -19,12 +19,16 @@ private val Context.walletKeyPreferences by preferencesDataStore(name = "svp_wal
  * The device-only home for spend-authorising private keys.
  *
  * Its own DataStore file, one record per wallet, holding exactly one sealed value plus a masked
- * address. It is not a Room entity, not in `RealtimeFieldSchema`, not reachable from any DAO and
- * not part of the Drive backup document, so a key stored here has no path out of the phone
- * (`WalletKeyIsNeverSyncedTest`). The sealing is `CryptoManager` — the existing envelope, unchanged.
+ * address. It is not a Room entity, not in `RealtimeFieldSchema` and not reachable from any DAO, so
+ * a key stored here has no path into a realtime record. Its one way off the phone is the Drive
+ * backup: [WalletRepository.buildBackup] hands one wallet's key to [WalletKeyBackup], which seals it
+ * with this account's own vault key before it joins the document, and [WalletRepository.restore]
+ * puts it back here on the receiving phone. Never in the clear, and never in either format's wallet
+ * row. The sealing is `CryptoManager` — the existing envelope, unchanged.
  *
  * Reading a key is a deliberate act: [key] returns the plaintext hex to the one caller that signs
- * with it or exports it behind a fresh authorisation. Nothing in this file logs, caches or echoes it.
+ * with it, exports it behind a fresh authorisation, or seals it for a backup. Nothing in this file
+ * logs, caches or echoes it.
  */
 @Singleton
 class WalletKeyStore @Inject constructor(
@@ -117,6 +121,19 @@ class WalletKeyStore @Inject constructor(
         val ids = LinkedHashSet<String>()
         readFields().keys.forEach { name -> WalletKeyFields.split(name)?.let { ids += it.second } }
         return ids
+    }
+
+    /**
+     * Removes every wallet's fields in one edit, and confirms the file reads back empty.
+     *
+     * "Erase all data" deletes the wallet rows, and this file is the only place their keys were kept,
+     * so it has to go with them: an id left here carries a label and a masked address with no wallet
+     * behind it, and the next restore of that same id would be checked against a record from a vault
+     * the owner already destroyed.
+     */
+    suspend fun wipeEverything(): Boolean {
+        editSafely { prefs -> prefs.clear() }
+        return readFields().isEmpty()
     }
 
     private suspend fun readFields(): Map<String, String> {

@@ -59,7 +59,15 @@ import com.securevault.pro.presentation.theme.VaultMotion
 import com.securevault.pro.presentation.theme.VaultPalette
 import com.securevault.pro.presentation.theme.VaultPaletteController
 import com.securevault.pro.presentation.theme.fitCell
-import com.securevault.pro.presentation.theme.revealForDesign
+import com.securevault.pro.presentation.theme.easingFor
+import com.securevault.pro.presentation.theme.motionFor
+import com.securevault.pro.presentation.theme.pressedLiftFor
+import com.securevault.pro.presentation.theme.pressedScaleFor
+import com.securevault.pro.presentation.theme.pressedSinkFor
+import com.securevault.pro.presentation.theme.pressSprings
+import com.securevault.pro.presentation.theme.revealForTheme
+import com.securevault.pro.presentation.theme.revealGlow
+import com.securevault.pro.presentation.theme.revealSweep
 import com.securevault.pro.presentation.theme.tileShape
 
 /* =====================================================================================
@@ -166,26 +174,49 @@ private fun Modifier.contentScale(scale: Float): Modifier =
     }
 
 /**
- * Press feedback, hoisted into one modifier so no tile carries its own magic number: a spring
- * scale and a shadow lift, both of which snap to their resting value under reduced motion.
+ * Press feedback, hoisted into one modifier so no tile carries its own magic number.
+ *
+ * The *shape* of the answer is the theme's: [PressResponse] says whether a held plate shrinks,
+ * loses its lift, sinks into the board or springs past its resting line, and only the shared
+ * ladder decides how fast. Reduced motion still snaps everything straight back to rest.
  */
 @Composable
-private fun Modifier.tilePress(source: MutableInteractionSource, rest: Dp): Modifier {
+private fun Modifier.tilePress(
+    source: MutableInteractionSource,
+    rest: Dp,
+    palette: VaultPalette
+): Modifier {
     val pressed = source.collectIsPressedAsState().value
+    val motion = motionFor(palette.id)
+    val spring = pressSprings(motion.press)
     val scale by animateFloatAsState(
-        targetValue = if (pressed) 0.962f else 1f,
-        animationSpec = VaultMotion.springSpec<Float>(),
+        targetValue = if (pressed) pressedScaleFor(motion.press) else 1f,
+        animationSpec = if (spring) {
+            VaultMotion.springSpec<Float>()
+        } else {
+            VaultMotion.tweenSpec<Float>(VaultMotion.QUICK, easingFor(motion.curve))
+        },
         label = "tilePressScale"
     )
     val lift by animateDpAsState(
-        targetValue = if (pressed) 0.dp else rest,
-        animationSpec = VaultMotion.springSpec<Dp>(),
+        targetValue = if (pressed) rest * pressedLiftFor(motion.press) else rest,
+        animationSpec = if (spring) {
+            VaultMotion.springSpec<Dp>()
+        } else {
+            VaultMotion.tweenSpec<Dp>(VaultMotion.QUICK, easingFor(motion.curve))
+        },
         label = "tilePressLift"
+    )
+    val sink by animateFloatAsState(
+        targetValue = if (pressed) pressedSinkFor(motion.press) else 0f,
+        animationSpec = VaultMotion.tweenSpec<Float>(VaultMotion.QUICK, easingFor(motion.curve)),
+        label = "tilePressSink"
     )
     return this
         .graphicsLayer {
             scaleX = scale
             scaleY = scale
+            translationY = sink * density
         }
         .shadow(lift, RoundedCornerShape(16.dp), clip = false)
 }
@@ -214,8 +245,12 @@ internal fun BoardTile(
 
     Box(
         modifier = modifier
-            .tilePress(source, rest)
+            // The bloom lives outside the clip so it can halo the plate; the sheen lives inside it
+            // so it cannot cross the corner. Both are no-ops for a theme whose motion does not use them.
+            .revealGlow(palette, shape)
+            .tilePress(source, rest, palette)
             .clip(shape)
+            .revealSweep(palette)
             // One flat bed per kind, hoisted into a two-stop brush so the tile cannot shimmer.
             .background(Brush.linearGradient(listOf(bed, bed)))
             .tileRule(palette, layout, kind, item.accent, shape)
@@ -651,7 +686,10 @@ private fun MicroCell(
     val vivid = VaultContrast.vibrant(item.accent)
     BoxWithConstraints(
         modifier = modifier
+            .revealGlow(palette, shape)
+            .tilePress(source, 0.dp, palette)
             .clip(shape)
+            .revealSweep(palette)
             .background(vivid.copy(alpha = wash), shape)
             .clickable(interactionSource = source, indication = null, onClick = onClick)
     ) {
@@ -686,20 +724,28 @@ private fun MicroCell(
 }
 
 /**
- * The cascade each board row arrives with. The entrance is the theme design's own grammar and
- * every duration and delay comes off the shared ladder, so reduced motion lands the whole board
- * on one frame instead of queuing eight delayed tweens.
+ * The cascade each board row arrives with.
+ *
+ * The entrance is the *theme's* own grammar — [revealForTheme] composes it from the palette id's
+ * [ThemeMotion]: axis, order, curve, size, duration and stagger. Every number still comes off the
+ * shared ladder, so reduced motion lands the whole board on one frame instead of queuing eight
+ * delayed tweens, and no plate ever waits on a delay long enough to read as missing content.
  */
 @Composable
 internal fun DesignReveal(
     index: Int,
+    count: Int = 6,
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit
 ) {
     val palette = VaultPaletteController.current
     var shown by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(Unit) { shown = true }
-    AnimatedVisibility(visible = shown, enter = revealForDesign(palette.design, index), modifier = modifier) {
+    AnimatedVisibility(
+        visible = shown,
+        enter = revealForTheme(palette.id, index, count),
+        modifier = modifier
+    ) {
         content()
     }
 }
