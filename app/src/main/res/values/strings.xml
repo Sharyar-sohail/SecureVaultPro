@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Secure Wallet Pro</string>
-    <string name="autofill_service_label">Secure Wallet Pro Autofill</string>
+    <string name="app_name">SECURE VAULT PRO</string>
+    <string name="autofill_service_label">SECURE VAULT PRO Autofill</string>
+    <string name="developer_attribution">Developed by Shahryar Soheail</string>
 </resources>

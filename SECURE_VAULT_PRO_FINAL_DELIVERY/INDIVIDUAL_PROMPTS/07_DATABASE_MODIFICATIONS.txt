@@ -1,0 +1,5 @@
+SECURE VAULT PRO — REUSABLE PROMPT
+Developer Attribution: Developed by Shahryar Soheail
+Version: 1.0
+
+PROMPT: Create and apply Room SQLite database migrations for SECURE VAULT PRO without losing user records.

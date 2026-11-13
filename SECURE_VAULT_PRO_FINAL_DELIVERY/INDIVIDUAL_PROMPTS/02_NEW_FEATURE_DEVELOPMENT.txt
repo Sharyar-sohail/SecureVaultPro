@@ -1,0 +1,5 @@
+SECURE VAULT PRO — REUSABLE PROMPT
+Developer Attribution: Developed by Shahryar Soheail
+Version: 1.0
+
+PROMPT: Develop a new feature for SECURE VAULT PRO adhering to Jetpack Compose Material3 standards and zero-knowledge AES-256 encryption.

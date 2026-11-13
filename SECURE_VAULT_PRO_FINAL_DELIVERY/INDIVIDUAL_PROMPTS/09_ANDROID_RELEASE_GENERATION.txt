@@ -1,0 +1,5 @@
+SECURE VAULT PRO — REUSABLE PROMPT
+Developer Attribution: Developed by Shahryar Soheail
+Version: 1.0
+
+PROMPT: Generate official signed release APK and AAB for SECURE VAULT PRO using release.jks.

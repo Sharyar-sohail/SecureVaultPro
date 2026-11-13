@@ -1,0 +1,5 @@
+SECURE VAULT PRO — REUSABLE PROMPT
+Developer Attribution: Developed by Shahryar Soheail
+Version: 1.0
+
+PROMPT: Refine the UI/UX design of SECURE VAULT PRO ensuring smooth 60fps animations, glassmorphic styling, and high-contrast accessibility.

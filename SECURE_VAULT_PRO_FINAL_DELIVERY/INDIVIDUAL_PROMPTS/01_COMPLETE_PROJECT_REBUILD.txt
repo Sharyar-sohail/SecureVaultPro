@@ -1,0 +1,5 @@
+SECURE VAULT PRO — REUSABLE PROMPT
+Developer Attribution: Developed by Shahryar Soheail
+Version: 1.0
+
+PROMPT: Rebuild the entire SECURE VAULT PRO project from clean source code, ensuring all keystore properties and dependencies are aligned.

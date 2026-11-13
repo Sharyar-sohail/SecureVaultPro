@@ -1,0 +1,5 @@
+SECURE VAULT PRO — REUSABLE PROMPT
+Developer Attribution: Developed by Shahryar Soheail
+Version: 1.0
+
+PROMPT: Maintain and enhance the SECURE VAULT PRO Web Edition using WebCrypto API and offline-first storage.

@@ -846,7 +846,8 @@ fun SettingsScreen(
                 subtitle = "Release information",
                 accent = VaultColor.secondary
             ) {
-                AboutRow("Application", "Secure Wallet Pro")
+                AboutRow("Application", "SECURE VAULT PRO")
+                AboutRow("Developer", "Developed by Shahryar Soheail")
                 AboutRow("Version", "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
                 AboutRow("Application ID", "com.securevault.app")
                 AboutRow("Namespace", "com.securevault.pro")

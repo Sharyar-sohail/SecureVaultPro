@@ -1,0 +1,5 @@
+SECURE VAULT PRO — REUSABLE PROMPT
+Developer Attribution: Developed by Shahryar Soheail
+Version: 1.0
+
+PROMPT: Modify an existing feature in SECURE VAULT PRO while maintaining database schema compatibility and running regression tests.

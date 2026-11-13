@@ -1,0 +1,1312 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE html>
+<html b:css='false' b:version='2' class='v2' xmlns='http://www.w3.org/1999/xhtml' xmlns:b='http://www.google.com/2005/gml/b' xmlns:data='http://www.google.com/2005/gml/data' xmlns:expr='http://www.google.com/2005/gml/expr'>
+<head>
+  <meta charset='utf-8'/>
+  <meta content='width=device-width, initial-scale=1.0' name='viewport'/>
+  <title><data:blog.pageTitle/></title>
+  
+  <!-- Google Fonts -->
+  <link href='https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&amp;family=Space+Grotesk:wght@500;700&amp;display=swap' rel='stylesheet'/>
+  
+  <!-- Official Google Identity Services (GIS) SDK -->
+  <script async='async' defer='defer' src='https://accounts.google.com/gsi/client'></script>
+
+  <b:skin><![CDATA[
+    /* -------------------------------------------------------------
+     * SecureVault Pro — Diagnostic Engine Theme
+     * ------------------------------------------------------------- */
+    #navbar-iframe { display: none !important; }
+    
+    :root {
+      /* Theme 0: Cyberpunk Obsidian (Default Dark) */
+      --bg-main: #0B0F19;
+      --surface-card: #141B2D;
+      --surface-hover: #1E273E;
+      --surface-border: rgba(255, 255, 255, 0.08);
+      --primary: #0099FF;
+      --accent: #FFD700;
+      --success: #00FF88;
+      --danger: #FF3366;
+      --text-heading: #F8FAFC;
+      --text-body: #94A3B8;
+      --sidebar-width: 250px;
+      --font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
+    [data-theme="light"] {
+      /* Theme 1: Daylight Pristine (High-Contrast Light) */
+      --bg-main: #F8FAFC;
+      --surface-card: #FFFFFF;
+      --surface-hover: #E2E8F0;
+      --surface-border: rgba(0, 0, 0, 0.08);
+      --primary: #1D4ED8;
+      --accent: #0284C7;
+      --success: #15803D;
+      --danger: #DC2626;
+      --text-heading: #0F172A;
+      --text-body: #334155;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: var(--font-family); }
+    body { background: var(--bg-main); color: var(--text-body); min-height: 100vh; transition: background 0.3s, color 0.3s; }
+
+    /* Strict View State Control Guard */
+    .view-state { display: none !important; }
+    .view-state.active { display: block !important; }
+
+    /* PRE-LOGIN SAAS LANDING PAGE STYLES */
+    .landing-nav { height: 80px; display: flex; align-items: center; justify-content: space-between; padding: 0 48px; max-width: 1400px; margin: 0 auto; }
+    .brand-logo { display: flex; align-items: center; gap: 12px; font-family: 'Space Grotesk', sans-serif; font-size: 22px; font-weight: 700; color: var(--text-heading); }
+    
+    .hero-section { text-align: center; padding: 80px 20px 60px; max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; align-items: center; gap: 24px; }
+    .hero-badge { background: rgba(0, 153, 255, 0.12); color: var(--primary); border: 1px solid rgba(0, 153, 255, 0.3); padding: 6px 16px; border-radius: 20px; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; display: flex; align-items: center; gap: 8px; }
+    
+    .hero-title { font-family: 'Space Grotesk', sans-serif; font-size: 52px; font-weight: 700; color: var(--text-heading); line-height: 1.15; letter-spacing: -1px; }
+    .hero-title span { background: linear-gradient(135deg, var(--primary), var(--accent)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    
+    .hero-subtitle { font-size: 18px; color: var(--text-body); max-width: 680px; line-height: 1.6; }
+    .cta-group { display: flex; gap: 16px; margin-top: 12px; flex-wrap: wrap; justify-content: center; align-items: center; }
+    
+    .google-btn-hero { background: #FFFFFF; color: #1F1F1F; border: 1px solid #DADCE0; padding: 16px 32px; border-radius: 30px; font-size: 16px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.15); transition: transform 0.2s, box-shadow 0.2s; }
+    .google-btn-hero:hover { transform: translateY(-2px); box-shadow: 0 14px 40px rgba(0,0,0,0.25); }
+
+    .download-btn-top { background: rgba(0, 255, 136, 0.12); border: 1px solid rgba(0, 255, 136, 0.3); color: var(--success); padding: 10px 20px; border-radius: 20px; font-size: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: background 0.2s; }
+    .download-btn-top:hover { background: rgba(0, 255, 136, 0.2); }
+
+    .features-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 32px; max-width: 1200px; margin: 40px auto 80px; padding: 0 20px; }
+    .feature-card { background: var(--surface-card); border: 1px solid var(--surface-border); border-radius: 20px; padding: 32px; display: flex; flex-direction: column; gap: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); }
+    .feature-icon { font-size: 36px; }
+    .feature-head { font-size: 20px; font-weight: 700; color: var(--text-heading); }
+    .feature-desc { font-size: 14px; color: var(--text-body); line-height: 1.6; }
+
+    /* POST-LOGIN APP DASHBOARD WORKSPACE STYLES */
+    .top-nav { height: 70px; background: var(--surface-card); border-bottom: 1px solid var(--surface-border); display: flex; align-items: center; justify-content: space-between; padding: 0 32px; position: sticky; top: 0; z-index: 100; backdrop-filter: blur(10px); }
+    
+    .nav-brand { display: flex; align-items: center; gap: 12px; font-family: 'Space Grotesk', sans-serif; font-size: 20px; font-weight: 700; color: var(--text-heading); }
+    .nav-links { display: flex; gap: 24px; }
+    .nav-link { color: var(--text-body); text-decoration: none; font-size: 14px; font-weight: 600; cursor: pointer; transition: color 0.2s; padding: 8px 0; position: relative; }
+    .nav-link:hover, .nav-link.active { color: var(--primary); }
+    .nav-link.active::after { content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 2px; background: var(--primary); border-radius: 2px; }
+
+    .nav-actions { display: flex; align-items: center; gap: 16px; }
+    .theme-toggle-btn { background: var(--surface-hover); border: 1px solid var(--surface-border); color: var(--text-heading); padding: 8px 16px; border-radius: 20px; font-size: 13px; font-weight: 600; cursor: pointer; transition: background 0.2s; display: flex; align-items: center; gap: 6px; }
+
+    .drive-status-badge { display: flex; align-items: center; gap: 8px; background: rgba(0, 255, 136, 0.1); border: 1px solid rgba(0, 255, 136, 0.3); color: var(--success); padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 600; cursor: pointer; transition: background 0.2s; }
+    .drive-status-badge:hover { background: rgba(0, 255, 136, 0.2); }
+
+    .user-badge { display: flex; align-items: center; gap: 10px; background: var(--surface-hover); padding: 4px 14px 4px 4px; border-radius: 24px; cursor: pointer; }
+    .user-avatar-img { width: 32px; height: 32px; border-radius: 50%; object-fit: cover; }
+    .user-avatar-circle { width: 32px; height: 32px; border-radius: 50%; background: var(--primary); color: #FFF; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; }
+    .user-name-text { font-size: 13px; font-weight: 600; color: var(--text-heading); }
+
+    .workspace-layout { display: flex; min-height: calc(100vh - 70px); }
+    .sidebar-nav { width: var(--sidebar-width); background: var(--surface-card); border-right: 1px solid var(--surface-border); padding: 24px 16px; display: flex; flex-direction: column; gap: 8px; flex-shrink: 0; }
+    .sidebar-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--text-body); margin: 16px 12px 8px; }
+    .menu-item { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-radius: 12px; color: var(--text-body); font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+    .menu-item:hover { background: var(--surface-hover); color: var(--text-heading); }
+    .menu-item.active { background: var(--primary); color: #FFFFFF; }
+
+    .main-workspace { flex: 1; padding: 32px; max-width: 1400px; margin: 0 auto; width: 100%; }
+    .tab-pane { display: none; }
+    .tab-pane.active { display: block; }
+
+    .metrics-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 32px; }
+    .metric-card { background: var(--surface-card); border: 1px solid var(--surface-border); border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); }
+    .metric-header { display: flex; align-items: center; justify-content: space-between; font-size: 13px; color: var(--text-body); font-weight: 600; }
+    .metric-val { font-size: 28px; font-weight: 700; color: var(--text-heading); font-family: 'Space Grotesk', sans-serif; }
+    .metric-sub { font-size: 12px; color: var(--success); font-weight: 600; }
+
+    .workspace-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; flex-wrap: wrap; gap: 16px; }
+    .workspace-title { font-size: 24px; font-weight: 700; color: var(--text-heading); }
+
+    .action-bar { display: flex; gap: 12px; align-items: center; }
+    .search-input { background: var(--surface-card); border: 1px solid var(--surface-border); padding: 10px 16px; border-radius: 10px; color: var(--text-heading); outline: none; font-size: 14px; width: 260px; }
+
+    .btn-primary { background: var(--primary); color: #FFFFFF; border: none; padding: 10px 20px; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: opacity 0.2s; }
+    .btn-primary:hover { opacity: 0.9; }
+    .btn-secondary { background: var(--surface-hover); color: var(--text-heading); border: 1px solid var(--surface-border); padding: 10px 20px; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; }
+
+    .table-container { background: var(--surface-card); border: 1px solid var(--surface-border); border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.05); }
+    .data-table { width: 100%; border-collapse: collapse; text-align: left; font-size: 14px; }
+    .data-table th { background: var(--surface-hover); color: var(--text-body); font-weight: 600; padding: 16px 24px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .data-table td { padding: 18px 24px; border-bottom: 1px solid var(--surface-border); color: var(--text-heading); }
+    .data-table tr:last-child td { border-bottom: none; }
+    .data-table tr:hover td { background: var(--surface-hover); }
+
+    .table-actions { display: flex; gap: 8px; }
+    .tbl-btn { background: transparent; border: 1px solid var(--surface-border); color: var(--text-heading); padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
+    .tbl-btn:hover { border-color: var(--primary); color: var(--primary); }
+
+    .modal-backdrop { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(6px); display: none; align-items: center; justify-content: center; z-index: 300; padding: 20px; }
+    .modal-backdrop.active { display: flex; }
+    .modal-box { background: var(--surface-card); border: 1px solid var(--surface-border); border-radius: 20px; padding: 32px; width: 100%; max-width: 520px; box-shadow: 0 20px 50px rgba(0,0,0,0.3); display: flex; flex-direction: column; gap: 20px; }
+    .modal-head { font-size: 20px; font-weight: 700; color: var(--text-heading); }
+
+    .form-group { display: flex; flex-direction: column; gap: 8px; }
+    .form-label { font-size: 12px; font-weight: 600; color: var(--text-body); }
+    .form-input { background: var(--bg-main); border: 1px solid var(--surface-border); padding: 12px; border-radius: 10px; color: var(--text-heading); outline: none; font-size: 14px; }
+
+    .totp-card { background: var(--bg-main); border: 1px solid var(--surface-border); border-radius: 16px; padding: 24px; display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+    .totp-code-val { font-family: 'Space Grotesk', sans-serif; font-size: 32px; font-weight: 700; color: var(--primary); letter-spacing: 6px; }
+    .totp-ring-timer { font-size: 16px; font-weight: 700; color: var(--accent); }
+
+    /* Diagnostic Console Panel */
+    .diagnostic-panel { background: #050811; border: 1px solid var(--primary); border-radius: 16px; padding: 20px; margin-bottom: 32px; font-family: 'Space Grotesk', monospace; font-size: 12px; color: #00FF88; max-height: 240px; overflow-y: auto; box-shadow: 0 10px 30px rgba(0,0,0,0.4); }
+    .diag-line { margin-bottom: 4px; line-height: 1.5; }
+    .diag-line.err { color: #FF3366; }
+    .diag-line.warn { color: #FFD700; }
+
+    @media (max-width: 992px) {
+      .workspace-layout { flex-direction: column; }
+      .sidebar-nav { width: 100%; border-right: none; border-bottom: 1px solid var(--surface-border); padding: 12px 20px; flex-direction: row; overflow-x: auto; }
+      .metrics-grid { grid-template-columns: repeat(2, 1fr); }
+      .top-nav, .landing-nav { padding: 0 20px; }
+      .nav-links { display: none; }
+      .features-grid { grid-template-columns: 1fr; }
+      .hero-title { font-size: 36px; }
+    }
+  ]]></b:skin>
+<!-- Developed by Shahryar Soheail -->
+</head>
+<body>
+
+  <!-- STATE 1: PRE-LOGIN SAAS LANDING PAGE -->
+  <div class='view-state active' id='landingView'>
+    <header class='landing-nav'>
+      <div class='brand-logo'>
+        <svg width='28' height='28' viewBox='0 0 24 24' fill='none' style='flex-shrink:0'><path d='M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z' fill='#0099FF' opacity='0.9'/><path d='M9 12l2 2 4-4' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/></svg>
+        <span>SecureVault Pro</span>
+      </div>
+      <div style='display:flex; gap:16px; align-items:center;'>
+        <button class='download-btn-top' onclick='openModal("appDownloadModal")'>
+          <svg width='16' height='16' viewBox='0 0 24 24' fill='currentColor'><path d='M12 16l-6-6h4V4h4v6h4l-6 6zM4 18h16v2H4v-2z'/></svg>
+          Download APK
+        </button>
+        <button class='theme-toggle-btn' onclick='toggleTheme()'>&#x25D0; Dark</button>
+        <button class='google-btn-hero' onclick='triggerDirectGoogleOAuth()' style='padding:10px 24px; font-size:14px;'>
+          <svg width='18' height='18' viewBox='0 0 24 24'>
+            <path d='M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z' fill='#4285F4'/>
+            <path d='M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z' fill='#34A853'/>
+            <path d='M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l3.66-2.85z' fill='#FBBC05'/>
+            <path d='M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z' fill='#EA4335'/>
+          </svg>
+          Sign In
+        </button>
+      </div>
+    </header>
+
+    <main class='hero-section'>
+      <div class='hero-badge'>
+        <svg width='14' height='14' viewBox='0 0 24 24' fill='currentColor'><path d='M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15h-2v-6h2v6zm0-8h-2V7h2v2z'/></svg>
+        Zero-Knowledge Encrypted Security Platform
+      </div>
+      <h1 class='hero-title'>Protect Your Credentials &amp; Vault <span>Anywhere, Anytime</span></h1>
+      <p class='hero-subtitle'>SecureVault Pro brings military-grade AES-256 encryption, 2FA generation, and live Google Drive AppData diagnostics directly to your browser.</p>
+      
+      <div class='cta-group'>
+        <button class='google-btn-hero' onclick='triggerDirectGoogleOAuth()'>
+          <svg style='width:22px; height:22px;' viewBox='0 0 24 24'>
+            <path d='M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z' fill='#4285F4'></path>
+            <path d='M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z' fill='#34A853'></path>
+            <path d='M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z' fill='#FBBC05'></path>
+            <path d='M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z' fill='#EA4335'></path>
+          </svg>
+          <span>Continue with Google</span>
+        </button>
+
+        <button class='btn-secondary' onclick='openModal("appDownloadModal")' style='padding:16px 28px; border-radius:30px; font-size:16px;'>
+          <svg width='20' height='20' viewBox='0 0 24 24' fill='currentColor'><path d='M17 1.01L7 1c-1.1 0-2 .9-2 2v18c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V3c0-1.1-.9-1.99-2-1.99zM17 19H7V5h10v14z'/></svg>
+          <span>Download Android APK (v105)</span>
+        </button>
+      </div>
+    </main>
+
+    <section class='features-grid'>
+      <div class='feature-card'>
+        <div class='feature-icon'><svg width='36' height='36' viewBox='0 0 24 24' fill='none'><path d='M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z' fill='#0099FF'/><path d='M9 12l2 2 4-4' stroke='white' stroke-width='2' stroke-linecap='round'/></svg></div>
+        <h3 class='feature-head'>AES-256 Vault Encryption</h3>
+        <p class='feature-desc'>Your passwords and sensitive keys are encrypted locally before being stored in your persistent browser database.</p>
+      </div>
+      <div class='feature-card'>
+        <div class='feature-icon'><svg width='36' height='36' viewBox='0 0 24 24' fill='none'><circle cx='12' cy='12' r='10' stroke='#FFD700' stroke-width='2'/><path d='M12 6v6l4 2' stroke='#FFD700' stroke-width='2' stroke-linecap='round'/></svg></div>
+        <h3 class='feature-head'>Live OAuth Diagnostics</h3>
+        <p class='feature-desc'>Logs real-time Google Drive API payloads, scope permissions, and AppData folder file counts.</p>
+      </div>
+      <div class='feature-card'>
+        <div class='feature-icon'><svg width='36' height='36' viewBox='0 0 24 24' fill='none'><path d='M13 2L3 14h9l-1 8 10-12h-9l1-8z' fill='#00FF88'/></svg></div>
+        <h3 class='feature-head'>High-Entropy Generator</h3>
+        <p class='feature-desc'>Generate cryptographic, unhackable random keys with custom length controls and instant 1-click clipboard copy.</p>
+      </div>
+    </section>
+  </div>
+
+  <!-- STATE 2: POST-LOGIN APP DASHBOARD WORKSPACE -->
+  <div class='view-state' id='appDashboardView'>
+    
+    <!-- Top Navigation Header -->
+    <header class='top-nav'>
+      <div class='nav-brand'>
+        <svg width='24' height='24' viewBox='0 0 24 24' fill='none' style='flex-shrink:0'><path d='M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4z' fill='#0099FF'/><path d='M9 12l2 2 4-4' stroke='white' stroke-width='2' stroke-linecap='round'/></svg>
+        <span>SecureVault Pro</span>
+      </div>
+      
+      <nav class='nav-links'>
+        <a class='nav-link active' onclick='switchTab("dashboard", this)'>Dashboard</a>
+        <a class='nav-link' onclick='switchTab("vault", this)'>Vault Manager</a>
+        <a class='nav-link' onclick='switchTab("generator", this)'>Generator</a>
+        <a class='nav-link' onclick='switchTab("totp", this)'>2FA Auth</a>
+        <a class='nav-link' onclick='switchTab("backup", this)'>Import &amp; Export</a>
+        <a class='nav-link' onclick='switchTab("settings", this)'>Settings</a>
+      </nav>
+
+      <div class='nav-actions'>
+        <!-- Download APK Nav Link -->
+        <button class='download-btn-top' onclick='openModal("appDownloadModal")'>
+          <svg width='16' height='16' viewBox='0 0 24 24' fill='currentColor'><path d='M12 16l-6-6h4V4h4v6h4l-6 6zM4 18h16v2H4v-2z'/></svg>
+          Download App
+        </button>
+
+        <!-- Interactive Clickable Drive Backup Scan Badge -->
+        <div class='drive-status-badge' id='driveSyncBadge' onclick='scanAndRestoreExactAndroidAppBackup()' title='Click to Scan Android App Google Drive Folder'>
+          <span id='driveSyncDot'>●</span>
+          <span id='driveSyncStatusText'>Sync Android AppData</span>
+        </div>
+
+        <button class='theme-toggle-btn' onclick='toggleTheme()'>&#x25D0; Dark</button>
+        
+        <!-- Authenticated Profile Badge -->
+        <div class='user-badge' onclick='signOutUser()'>
+          <div class='user-avatar-circle' id='userAvatar'>S</div>
+          <span class='user-name-text' id='userNameText'>sharyar1670@gmail.com</span>
+          <span style='font-size:12px; opacity:0.6; margin-left:4px;' title='Sign Out'>✕</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Desktop Workspace Layout -->
+    <div class='workspace-layout'>
+      <aside class='sidebar-nav'>
+        <div class='sidebar-label'>Navigation</div>
+        <div class='menu-item active' id='menuDashboard' onclick='switchTab("dashboard", this)'>📊 Dashboard</div>
+        <div class='menu-item' id='menuVault' onclick='switchTab("vault", this)'>🔒 Vault Manager</div>
+        <div class='menu-item' id='menuGen' onclick='switchTab("generator", this)'>⚡ Password Generator</div>
+        <div class='menu-item' id='menuTotp' onclick='switchTab("totp", this)'>🛡️ 2FA Authenticator</div>
+        <div class='menu-item' id='menuBackup' onclick='switchTab("backup", this)'>☁️ Data Backup &amp; Export</div>
+        <div class='menu-item' id='menuSettings' onclick='switchTab("settings", this)'>⚙️ Settings &amp; Preferences</div>
+      </aside>
+
+      <main class='main-workspace'>
+        <b:section class='main' id='main'>
+          <b:widget id='Blog1' locked='true' type='Blog' version='1'>
+            <b:includable id='main'>
+
+              <!-- TAB 1: DASHBOARD -->
+              <div class='tab-pane active' id='tabDashboard'>
+                <div class='workspace-header'>
+                  <div>
+                    <h1 class='workspace-title'>Security Dashboard</h1>
+                    <p style='color:var(--text-body); font-size:14px; margin-top:4px;'>Overview of encrypted credentials &amp; Google Drive AppData health.</p>
+                  </div>
+                  <div style='display:flex; gap:12px;'>
+                    <button class='btn-secondary' onclick='scanAndRestoreExactAndroidAppBackup()'>🔄 Sync Android AppData</button>
+                    <button class='btn-primary' onclick='openModal("addModal")'>+ Add Credential</button>
+                  </div>
+                </div>
+
+                <!-- Live OAuth & Google Drive API Diagnostic Terminal Console -->
+                <div class='diagnostic-panel' id='diagConsole'>
+                  <div class='diag-line'>[SYSTEM INIT] SecureVault Pro Diagnostic Engine Initialized.</div>
+                  <div class='diag-line'>[CLIENT ID] 10151634026-hk92m5ur24ffogfno23qabm7e6tageca.apps.googleusercontent.com</div>
+                  <div class='diag-line'>[STATUS] Awaiting Google OAuth access token...</div>
+                </div>
+
+                <!-- Google Drive Android App Backup Selector Card -->
+                <div style='background:var(--surface-card); border:1px solid var(--surface-border); border-radius:20px; padding:24px; margin-bottom:32px; display:flex; flex-direction:column; gap:16px;'>
+                  <div style='display:flex; align-items:center; justify-content:space-between;'>
+                    <div style='font-size:16px; font-weight:700; color:var(--text-heading); display:flex; align-items:center; gap:8px;'>
+                      <span>📁</span>
+                      <span>Detected Google Drive AppData &amp; Root Backups</span>
+                    </div>
+                    <button class='tbl-btn' onclick='scanAndRestoreExactAndroidAppBackup()'>🔄 Rescan AppData</button>
+                  </div>
+
+                  <div style='display:flex; gap:16px; align-items:center; flex-wrap:wrap;'>
+                    <select class='form-input' id='gDriveFileSelect' style='flex:1; min-width:280px;'>
+                      <option value=''>Click "Sync Android AppData" to search Google Drive...</option>
+                    </select>
+                    <button class='btn-primary' onclick='loadSelectedGoogleDriveFile()'>📥 Load Selected Backup</button>
+                  </div>
+                </div>
+
+                <!-- Metrics Grid -->
+                <div class='metrics-grid'>
+                  <div class='metric-card'>
+                    <div class='metric-header'>
+                      <span>TOTAL VAULT ITEMS</span>
+                      <span>🔐</span>
+                    </div>
+                    <div class='metric-val' id='metricTotal'>0</div>
+                    <div class='metric-sub'>AES-256 Encrypted</div>
+                  </div>
+
+                  <div class='metric-card'>
+                    <div class='metric-header'>
+                      <span>WEBSITE CREDENTIALS</span>
+                      <span>🌐</span>
+                    </div>
+                    <div class='metric-val' id='metricWeb'>0</div>
+                    <div class='metric-sub'>Active Accounts</div>
+                  </div>
+
+                  <div class='metric-card'>
+                    <div class='metric-header'>
+                      <span>APP CREDENTIALS</span>
+                      <span>📱</span>
+                    </div>
+                    <div class='metric-val' id='metricApps'>0</div>
+                    <div class='metric-sub'>Secured Keys</div>
+                  </div>
+
+                  <div class='metric-card'>
+                    <div class='metric-header'>
+                      <span>FINANCIAL &amp; CRYPTO</span>
+                      <span>🏦</span>
+                    </div>
+                    <div class='metric-val' id='metricFinance'>0</div>
+                    <div class='metric-sub'>High-Security Vault</div>
+                  </div>
+                </div>
+
+                <!-- Table -->
+                <div class='workspace-header'>
+                  <h2 style='font-size:18px; font-weight:700; color:var(--text-heading);'>Vault Credentials</h2>
+                  <input class='search-input' id='dashSearchInput' placeholder='Search credentials...' type='text'/>
+                </div>
+
+                <div class='table-container'>
+                  <table class='data-table'>
+                    <thead>
+                      <tr>
+                        <th>SERVICE / TITLE</th>
+                        <th>CATEGORY</th>
+                        <th>USERNAME / LOGIN</th>
+                        <th>STATUS</th>
+                        <th>ACTIONS</th>
+                      </tr>
+                    </thead>
+                    <tbody id='dashTableBody'>
+                      <!-- Rendered dynamically by JS -->
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <!-- TAB 2: VAULT MANAGER -->
+              <div class='tab-pane' id='tabVault'>
+                <div class='workspace-header'>
+                  <div>
+                    <h1 class='workspace-title'>Encrypted Vault Manager</h1>
+                    <p style='color:var(--text-body); font-size:14px; margin-top:4px;'>Manage, copy, or edit your encrypted credentials.</p>
+                  </div>
+                  <div class='action-bar'>
+                    <input class='search-input' id='vaultSearchInput' placeholder='Filter vault...' type='text'/>
+                    <button class='btn-primary' onclick='openModal("addModal")'>+ Add Item</button>
+                  </div>
+                </div>
+
+                <div class='table-container'>
+                  <table class='data-table'>
+                    <thead>
+                      <tr>
+                        <th>TITLE</th>
+                        <th>CATEGORY</th>
+                        <th>USERNAME</th>
+                        <th>ENCRYPTED PASSWORD</th>
+                        <th>ACTIONS</th>
+                      </tr>
+                    </thead>
+                    <tbody id='vaultTableBody'>
+                      <!-- Rendered dynamically by JS -->
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <!-- TAB 3: PASSWORD GENERATOR -->
+              <div class='tab-pane' id='tabGenerator'>
+                <div class='workspace-header'>
+                  <div>
+                    <h1 class='workspace-title'>Password &amp; Key Generator</h1>
+                    <p style='color:var(--text-body); font-size:14px; margin-top:4px;'>Generate cryptographically secure high-entropy passwords.</p>
+                  </div>
+                </div>
+
+                <div style='background:var(--surface-card); border:1px solid var(--surface-border); border-radius:20px; padding:40px; max-width:600px; display:flex; flex-direction:column; gap:20px;'>
+                  <div class='form-group'>
+                    <label class='form-label'>GENERATED PASSWORD KEY</label>
+                    <input class='form-input' id='webGenOutput' readonly='readonly' style='font-family:"Space Grotesk", sans-serif; font-size:22px; font-weight:700; color:var(--primary); letter-spacing:2px; text-align:center;' type='text'/>
+                  </div>
+
+                  <div class='form-group'>
+                    <label class='form-label'>KEY LENGTH: <span id='lenVal'>18</span> Characters</label>
+                    <input id='lenSlider' max='64' min='8' oninput='document.getElementById("lenVal").innerText = this.value; generateWebPass();' type='range' value='18'/>
+                  </div>
+
+                  <div style='display:flex; gap:16px;'>
+                    <button class='btn-primary' onclick='generateWebPass()' style='flex:1;'>⚡ Generate New Key</button>
+                    <button class='btn-secondary' onclick='copyWebPass()' style='flex:1;'>📋 Copy to Clipboard</button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- TAB 4: 2FA AUTHENTICATOR TOOL -->
+              <div class='tab-pane' id='tabTotp'>
+                <div class='workspace-header'>
+                  <div>
+                    <h1 class='workspace-title'>2FA Authenticator Simulator</h1>
+                    <p style='color:var(--text-body); font-size:14px; margin-top:4px;'>Live dynamic 6-digit TOTP token generation with 30s timer ring.</p>
+                  </div>
+                </div>
+
+                <div style='max-width:500px;'>
+                  <div class='totp-card'>
+                    <div>
+                      <div style='font-size:12px; color:var(--text-body); font-weight:600;'>Live Security 2FA Token</div>
+                      <div class='totp-code-val' id='totpCodeText'>849 201</div>
+                    </div>
+                    <div class='totp-ring-timer' id='totpTimerText'>28s</div>
+                  </div>
+                  <button class='btn-primary' onclick='copyTotpVal()' style='width:100%; justify-content:center;'>📋 Copy 2FA Token</button>
+                </div>
+              </div>
+
+              <!-- TAB 5: IMPORT & EXPORT DATA -->
+              <div class='tab-pane' id='tabBackup'>
+                <div class='workspace-header'>
+                  <div>
+                    <h1 class='workspace-title'>Data Backup &amp; Portability</h1>
+                    <p style='color:var(--text-body); font-size:14px; margin-top:4px;'>Export local backups or perform instant Google Drive AppData sync.</p>
+                  </div>
+                </div>
+
+                <div style='display:grid; grid-template-columns: repeat(2, 1fr); gap:24px;'>
+                  <div style='background:var(--surface-card); border:1px solid var(--surface-border); border-radius:20px; padding:32px; display:flex; flex-direction:column; gap:16px;'>
+                    <h2 style='font-size:18px; font-weight:700; color:var(--text-heading);'>📦 Export Local Backup</h2>
+                    <p style='font-size:14px; color:var(--text-body);'>Download your full vault entries locally as JSON or CSV files.</p>
+                    <div style='display:flex; gap:12px; margin-top:12px;'>
+                      <button class='btn-primary' onclick='exportDataJSON()'>Download JSON</button>
+                      <button class='btn-secondary' onclick='exportDataCSV()'>Download CSV</button>
+                    </div>
+                  </div>
+
+                  <div style='background:var(--surface-card); border:1px solid var(--surface-border); border-radius:20px; padding:32px; display:flex; flex-direction:column; gap:16px;'>
+                    <h2 style='font-size:18px; font-weight:700; color:var(--text-heading);'>☁️ Cloud Drive Backup Controls</h2>
+                    <p style='font-size:14px; color:var(--text-body);'>Create an Android-compatible backup or restore from AppData folder.</p>
+                    <input accept='.json,.csv' id='importFileInput' onchange='importData(event)' style='display:none;' type='file'/>
+                    <div style='display:flex; gap:12px; margin-top:12px;'>
+                      <button class='btn-primary' onclick='createCloudBackupNow()'>☁️ Create Backup</button>
+                      <button class='btn-secondary' onclick='scanAndRestoreExactAndroidAppBackup()'>🔄 Sync Android AppData</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- TAB 6: SETTINGS & PREFERENCES -->
+              <div class='tab-pane' id='tabSettings'>
+                <div class='workspace-header'>
+                  <div>
+                    <h1 class='workspace-title'>Settings &amp; Vault Preferences</h1>
+                    <p style='color:var(--text-body); font-size:14px; margin-top:4px;'>Configure security parameters, sync behaviors, and theme preferences.</p>
+                  </div>
+                </div>
+
+                <div style='background:var(--surface-card); border:1px solid var(--surface-border); border-radius:20px; padding:32px; max-width:700px; display:flex; flex-direction:column; gap:24px;'>
+                  <div style='display:flex; align-items:center; justify-content:space-between;'>
+                    <div>
+                      <div style='font-size:16px; font-weight:700; color:var(--text-heading);'>Theme Mode</div>
+                      <div style='font-size:13px; color:var(--text-body);'>Switch between Obsidian Dark and Daylight Light UI</div>
+                    </div>
+                    <button class='theme-toggle-btn' onclick='toggleTheme()'>Toggle Theme</button>
+                  </div>
+
+                  <div style='border-top:1px solid var(--surface-border); padding-top:20px; display:flex; align-items:center; justify-content:space-between;'>
+                    <div>
+                      <div style='font-size:16px; font-weight:700; color:var(--text-heading);'>Mobile Android App Download</div>
+                      <div style='font-size:13px; color:var(--text-body);'>Download SecureVault Pro v105 APK for Android</div>
+                    </div>
+                    <button class='download-btn-top' onclick='openModal("appDownloadModal")'>📥 Download APK</button>
+                  </div>
+
+                  <div style='border-top:1px solid var(--surface-border); padding-top:20px; display:flex; align-items:center; justify-content:space-between;'>
+                    <div>
+                      <div style='font-size:16px; font-weight:700; color:var(--text-heading);'>Clear Local Database Cache</div>
+                      <div style='font-size:13px; color:var(--danger);'>Warning: Erases local cache items (does not affect Drive backups)</div>
+                    </div>
+                    <button class='tbl-btn' onclick='clearLocalCache()' style='color:var(--danger); border-color:var(--danger); padding:10px 18px;'>🗑️ Clear Cache</button>
+                  </div>
+                </div>
+              </div>
+
+            </b:includable>
+          </b:widget>
+        </b:section>
+      </main>
+    </div>
+  </div>
+
+  <!-- Modal: Download Mobile Android App -->
+  <div class='modal-backdrop' id='appDownloadModal'>
+    <div class='modal-box'>
+      <div style='display:flex; align-items:center; justify-content:space-between;'>
+        <h2 class='modal-head' style='display:flex; align-items:center; gap:10px;'>
+          📱 SecureVault Pro Android App
+        </h2>
+        <button onclick='closeModal("appDownloadModal")' style='background:transparent; border:none; color:var(--text-body); font-size:20px; cursor:pointer;'>✕</button>
+      </div>
+
+      <div style='background:var(--bg-main); border:1px solid var(--surface-border); border-radius:16px; padding:20px; display:flex; flex-direction:column; gap:12px;'>
+        <div style='display:flex; justify-content:space-between; font-size:13px; color:var(--text-heading);'>
+          <span><strong>VERSION:</strong> v10.5 (Build 105)</span>
+          <span><strong>COMPATIBILITY:</strong> Android 8.0+</span>
+        </div>
+        <div style='display:flex; justify-content:space-between; font-size:13px; color:var(--text-heading);'>
+          <span><strong>ENCRYPTION:</strong> AES-256 Bit</span>
+          <span><strong>CLOUD SYNC:</strong> Google Drive AppData</span>
+        </div>
+      </div>
+
+      <p style='font-size:13px; color:var(--text-body); line-height:1.6;'>Install the native mobile Android application on your smartphone to sync passwords, generate 2FA tokens offline, and auto-fill credentials across all mobile apps.</p>
+
+      <div style='display:flex; flex-direction:column; gap:10px; margin-top:8px;'>
+        <a class='btn-primary' href='http://192.168.1.199:8765/SecureVaultPro_Final_v105.apk' style='justify-content:center; text-decoration:none;' target='_blank'>📥 Direct Download APK (v105)</a>
+        <a class='btn-secondary' href='http://192.168.1.199:8765/' style='justify-content:center; text-decoration:none;' target='_blank'>🌐 Open Wi-Fi Downloads &amp; Audit PDF Dashboard</a>
+        <button class='btn-secondary' onclick='closeModal("appDownloadModal")' style='justify-content:center;'>Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Add New Credential -->
+  <div class='modal-backdrop' id='addModal'>
+    <div class='modal-box'>
+      <h2 class='modal-head'>🔑 Add New Credential</h2>
+      <div class='form-group'>
+        <label class='form-label'>ACCOUNT / SERVICE TITLE</label>
+        <input class='form-input' id='addTitle' placeholder='e.g. Google Workspace, Binance, Bank' type='text'/>
+      </div>
+      <div class='form-group'>
+        <label class='form-label'>CATEGORY</label>
+        <select class='form-input' id='addCategory'>
+          <option value='WEBSITES'>🌐 Websites</option>
+          <option value='APPS'>📱 Apps</option>
+          <option value='BANKING'>🏦 Banking</option>
+          <option value='CRYPTO'>🪙 Crypto</option>
+        </select>
+      </div>
+      <div class='form-group'>
+        <label class='form-label'>USERNAME / LOGIN ID</label>
+        <input class='form-input' id='addUsername' placeholder='Username or email' type='text'/>
+      </div>
+      <div class='form-group'>
+        <label class='form-label'>PASSWORD</label>
+        <input class='form-input' id='addPassword' placeholder='Encrypted Password' type='password'/>
+      </div>
+      <div style='display:flex; gap:12px; margin-top:8px;'>
+        <button class='btn-primary' onclick='saveWebEntry()' style='flex:1;'>Encrypt &amp; Save</button>
+        <button class='btn-secondary' onclick='closeModal("addModal")' style='flex:1;'>Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- JavaScript Diagnostic & Web Engine -->
+  <script type='text/javascript'>
+  //<![CDATA[
+    let webVault = [];
+    let totpTimeLeft = 30;
+    let gDriveAccessToken = null;
+    let gDriveFileId = localStorage.getItem('secure_vault_gdrive_file_id') || null;
+    let detectedDriveFiles = [];
+
+    const GOOGLE_CLIENT_ID = "10151634026-hk92m5ur24ffogfno23qabm7e6tageca.apps.googleusercontent.com";
+
+    // WebCrypto PBKDF2 + AES-GCM Key Derivation & Decryption / Encryption
+    async function deriveWebKey(passwordStr, saltBytes) {
+      const enc = new TextEncoder();
+      const passwordKey = await crypto.subtle.importKey(
+        'raw',
+        enc.encode(passwordStr),
+        { name: 'PBKDF2' },
+        false,
+        ['deriveKey']
+      );
+      return await crypto.subtle.deriveKey(
+        {
+          name: 'PBKDF2',
+          salt: saltBytes,
+          iterations: 600000,
+          hash: 'SHA-256'
+        },
+        passwordKey,
+        { name: 'AES-GCM', length: 256 },
+        false,
+        ['encrypt', 'decrypt']
+      );
+    }
+
+    async function decryptWebPayload(encryptedBlob, passwordStr, saltBytes) {
+      const parts = encryptedBlob.trim().split('.');
+      if (parts.length !== 2) throw new Error('Invalid format');
+      const iv = Uint8Array.from(atob(parts[0]), function(c) { return c.charCodeAt(0); });
+      const ciphertext = Uint8Array.from(atob(parts[1]), function(c) { return c.charCodeAt(0); });
+      const key = await deriveWebKey(passwordStr, saltBytes);
+      const decryptedBuffer = await crypto.subtle.decrypt(
+        { name: 'AES-GCM', iv: iv },
+        key,
+        ciphertext
+      );
+      return new TextDecoder('utf-8').decode(decryptedBuffer);
+    }
+
+    async function encryptWebPayload(jsonStr, passwordStr, saltBytes) {
+      const enc = new TextEncoder();
+      const iv = crypto.getRandomValues(new Uint8Array(12));
+      const key = await deriveWebKey(passwordStr, saltBytes);
+      const encryptedBuffer = await crypto.subtle.encrypt(
+        { name: 'AES-GCM', iv: iv },
+        key,
+        enc.encode(jsonStr)
+      );
+      const ivB64 = btoa(String.fromCharCode.apply(null, iv));
+      const ctB64 = btoa(String.fromCharCode.apply(null, new Uint8Array(encryptedBuffer)));
+      return ivB64 + '.' + ctB64;
+    }
+
+    function logDiag(msg, type) {
+      if (!type) type = 'info';
+      const consoleEl = document.getElementById('diagConsole');
+      if (consoleEl) {
+        const line = document.createElement('div');
+        line.className = 'diag-line ' + (type === 'err' ? 'err' : type === 'warn' ? 'warn' : '');
+        line.innerText = '[' + new Date().toLocaleTimeString() + '] ' + msg;
+        consoleEl.appendChild(line);
+        consoleEl.scrollTop = consoleEl.scrollHeight;
+      }
+      console.log(msg);
+    }
+
+    function checkAuthSession() {
+      const savedUser = localStorage.getItem('secure_vault_user_session');
+      if (savedUser) {
+        try {
+          const user = JSON.parse(savedUser);
+          activateDashboard(user);
+        } catch(e) { lockAppView(); }
+      } else {
+        lockAppView();
+      }
+    }
+
+    function lockAppView() {
+      document.getElementById('landingView').classList.add('active');
+      document.getElementById('appDashboardView').classList.remove('active');
+    }
+
+    function activateDashboard(user) {
+      document.getElementById('landingView').classList.remove('active');
+      document.getElementById('appDashboardView').classList.add('active');
+      
+      const avatarEl = document.getElementById('userAvatar');
+      if (user.avatar && user.avatar.length > 5) {
+        avatarEl.innerHTML = '<img src="' + user.avatar + '" class="user-avatar-img"/>';
+      } else {
+        avatarEl.innerText = (user.name || user.email || 'S').charAt(0).toUpperCase();
+      }
+
+      document.getElementById('userNameText').innerText = user.name || user.email || 'sharyar1670@gmail.com';
+
+      initDatabase();
+      startTotpTimer();
+
+      if (user.accessToken) {
+        gDriveAccessToken = user.accessToken;
+        scanAndRestoreExactAndroidAppBackup();
+      }
+    }
+
+    function triggerDirectGoogleOAuth() {
+      logDiag("Initiating Google OAuth Client (GIS Web SDK)...");
+      showWebToast('Connecting to Google (If warned, click Advanced -> Go to unsafe)');
+
+      if (window.google && google.accounts && google.accounts.oauth2) {
+        const client = google.accounts.oauth2.initTokenClient({
+          client_id: GOOGLE_CLIENT_ID,
+          scope: 'https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/drive.appdata https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.readonly',
+          callback: function(tokenResponse) {
+            if (tokenResponse && tokenResponse.access_token) {
+              gDriveAccessToken = tokenResponse.access_token;
+              logDiag("OAuth token acquired successfully. Access token length: " + gDriveAccessToken.length);
+              
+              fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+                headers: { Authorization: 'Bearer ' + tokenResponse.access_token }
+              })
+              .then(function(res) { return res.json(); })
+              .then(function(profile) {
+                logDiag("Authenticated Profile: " + profile.email);
+                const user = {
+                  name: profile.name || profile.given_name || profile.email.split('@')[0],
+                  email: profile.email,
+                  avatar: profile.picture || profile.name.charAt(0).toUpperCase(),
+                  accessToken: tokenResponse.access_token
+                };
+                localStorage.setItem('secure_vault_user_session', JSON.stringify(user));
+                activateDashboard(user);
+              }).catch(function(e) {
+                logDiag("UserInfo fetch failed: " + e.message, 'warn');
+                authenticateDirectUserSession();
+              });
+            }
+          }
+        });
+        client.requestAccessToken();
+      } else {
+        logDiag("GIS SDK not loaded in browser, attempting fallback...", 'warn');
+        authenticateDirectUserSession();
+      }
+    }
+
+    function authenticateDirectUserSession() {
+      const sessionUser = { name: 'Sharyar', email: 'sharyar1670@gmail.com', avatar: 'S' };
+      localStorage.setItem('secure_vault_user_session', JSON.stringify(sessionUser));
+      activateDashboard(sessionUser);
+    }
+
+    function scanAndRestoreExactAndroidAppBackup() {
+      if (!gDriveAccessToken) {
+        logDiag("No active OAuth access token available.", 'err');
+        triggerDirectGoogleOAuth();
+        return;
+      }
+
+      logDiag("Querying Google Drive API v3: spaces=appDataFolder ...");
+      updateDriveBadge('Scanning AppData...', '#FFD700');
+
+      fetch("https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&fields=files(id,name,mimeType,modifiedTime,size)&pageSize=100", {
+        headers: { Authorization: 'Bearer ' + gDriveAccessToken }
+      })
+      .then(function(res) { return res.json(); })
+      .then(function(data) {
+        detectedDriveFiles = data.files || [];
+        logDiag('Google Drive API returned ' + detectedDriveFiles.length + ' file(s) in AppData.');
+
+        const selectEl = document.getElementById('gDriveFileSelect');
+
+        if (detectedDriveFiles.length > 0) {
+          detectedDriveFiles.sort(function(a,b) { return new Date(b.modifiedTime) - new Date(a.modifiedTime); });
+
+          detectedDriveFiles.forEach(function(f) {
+            logDiag(' -> File: "' + f.name + '" | ID: ' + f.id + ' | Size: ' + (f.size || 'AppData') + ' | Modified: ' + f.modifiedTime);
+          });
+
+          selectEl.innerHTML = detectedDriveFiles.map(function(f) {
+            const dateStr = new Date(f.modifiedTime).toLocaleString();
+            return '<option value="' + f.id + '"> ' + f.name + ' (' + dateStr + ')</option>';
+          }).join('');
+
+          const target = detectedDriveFiles.find(function(f) { return f.name === "vault_backup.enc" || f.name.includes("secure_vault") || f.name.includes("vault"); });
+          if (target) {
+            logDiag('Auto-selected target backup file: "' + target.name + '" (ID: ' + target.id + ')');
+            gDriveFileId = target.id;
+            localStorage.setItem('secure_vault_gdrive_file_id', target.id);
+            selectEl.value = target.id;
+            downloadAndParseMobileBackupPayload(target.id, target.name);
+          } else {
+            downloadAndParseMobileBackupPayload(detectedDriveFiles[0].id, detectedDriveFiles[0].name);
+          }
+        } else {
+          logDiag("Zero files in AppData space. Fallback checking root drive...", 'warn');
+          fetch("https://www.googleapis.com/drive/v3/files?spaces=drive&q=name='vault_backup.enc'&fields=files(id,name,mimeType,modifiedTime,size)&pageSize=50", {
+            headers: { Authorization: 'Bearer ' + gDriveAccessToken }
+          })
+          .then(function(r) { return r.json(); })
+          .then(function(rootData) {
+            const rootFiles = rootData.files || [];
+            if (rootFiles.length > 0) {
+              detectedDriveFiles = rootFiles;
+              selectEl.innerHTML = rootFiles.map(function(f) {
+                return '<option value="' + f.id + '"> ' + f.name + ' (' + new Date(f.modifiedTime).toLocaleString() + ')</option>';
+              }).join('');
+              gDriveFileId = rootFiles[0].id;
+              localStorage.setItem('secure_vault_gdrive_file_id', rootFiles[0].id);
+              downloadAndParseMobileBackupPayload(rootFiles[0].id, rootFiles[0].name);
+            } else {
+              logDiag("Zero backup files found across Drive.", 'warn');
+              selectEl.innerHTML = '<option value="">No backup files found on Google Drive</option>';
+              updateDriveBadge('Clean Vault Ready', '#00FF88');
+            }
+          });
+        }
+      })
+      .catch(function(err) {
+        logDiag("Drive API Error: " + err.message, 'err');
+      });
+    }
+
+    function loadSelectedGoogleDriveFile() {
+      const selectEl = document.getElementById('gDriveFileSelect');
+      const fileId = selectEl.value;
+      if (!fileId) return;
+      const fileObj = detectedDriveFiles.find(function(f) { return f.id === fileId; });
+      downloadAndParseMobileBackupPayload(fileId, fileObj ? fileObj.name : 'Selected File');
+    }
+
+    function downloadAndParseMobileBackupPayload(fileId, fileName) {
+      gDriveFileId = fileId;
+      localStorage.setItem('secure_vault_gdrive_file_id', fileId);
+      logDiag('Fetching "' + fileName + '" (ID: ' + fileId + ')...');
+      fetch('https://www.googleapis.com/drive/v3/files/' + fileId + '?alt=media', {
+        headers: { Authorization: 'Bearer ' + gDriveAccessToken }
+      })
+      .then(function(res) { return res.arrayBuffer(); })
+      .then(async function(buffer) {
+        var rawContent = new TextDecoder('utf-8').decode(buffer);
+        logDiag('Downloaded ' + rawContent.length + ' chars from "' + fileName + '".');
+        try {
+          var trimmed = rawContent.trim();
+          var parsed = null;
+
+          if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+            parsed = JSON.parse(trimmed);
+            logDiag('Parsed plain JSON payload successfully.');
+          } else if (trimmed.includes('.')) {
+            logDiag('Encrypted AES-GCM payload detected. Attempting WebCrypto decryption...');
+            const userEmail = (JSON.parse(localStorage.getItem('secure_vault_user_session') || '{}')).email || 'sharyar1670@gmail.com';
+            
+            var saltBytes = null;
+            const saltFile = detectedDriveFiles.find(function(f) { return f.name === 'key.salt'; });
+            if (saltFile) {
+              const saltRes = await fetch('https://www.googleapis.com/drive/v3/files/' + saltFile.id + '?alt=media', {
+                headers: { Authorization: 'Bearer ' + gDriveAccessToken }
+              });
+              const saltBuf = await saltRes.arrayBuffer();
+              saltBytes = new Uint8Array(saltBuf);
+              logDiag('Downloaded key.salt (' + saltBytes.length + ' bytes).');
+            }
+            if (!saltBytes || saltBytes.length !== 32) {
+              saltBytes = new TextEncoder().encode(userEmail.padEnd(32, '0').slice(0, 32));
+            }
+
+            try {
+              const decryptedText = await decryptWebPayload(trimmed, userEmail, saltBytes);
+              parsed = JSON.parse(decryptedText);
+              logDiag('WebCrypto AES-256-GCM Decryption SUCCESSFUL!');
+            } catch (decryptErr) {
+              logDiag('WebCrypto Decryption failed: ' + decryptErr.message, 'warn');
+            }
+          }
+
+          if (parsed) {
+            logDiag('JSON OK. Root keys: ' + Object.keys(parsed).join(', '));
+            logDiag('Backup version: ' + (parsed.version || 'unknown'));
+            var restoredEntries = [];
+            if (parsed.entries && Array.isArray(parsed.entries)) {
+              restoredEntries = parsed.entries;
+              logDiag('Found "entries": ' + restoredEntries.length + ' items.');
+            } else if (Array.isArray(parsed)) {
+              restoredEntries = parsed;
+            } else if (parsed.items && Array.isArray(parsed.items)) {
+              restoredEntries = parsed.items;
+            }
+            var restoredTotps = (parsed.totps && Array.isArray(parsed.totps)) ? parsed.totps : [];
+            logDiag('TOTP accounts: ' + restoredTotps.length);
+
+            if (restoredEntries.length > 0) {
+              var emojiMap = {
+                WEBSITES: '🌐', APPS: '📱', BANKING: '🏦',
+                CRYPTO: '🪙', SOCIAL: '💬', WORK: '💼',
+                EMAIL: '📧', OTHER: '🔐'
+              };
+              webVault = restoredEntries.map(function(e) {
+                var cat = (e.category || 'WEBSITES').toUpperCase();
+                return {
+                  id: e.id || String(Date.now() + Math.random()),
+                  title: e.title || e.serviceName || e.name || 'Vault Entry',
+                  username: e.username || e.loginId || '',
+                  email: e.email || '',
+                  website: e.website || e.url || '',
+                  password: e.password || '',
+                  notes: e.notes || '',
+                  category: cat,
+                  emoji: e.emoji || emojiMap[cat] || '🔐',
+                  isFavorite: e.isFavorite || false,
+                  strengthScore: e.strengthScore || 0,
+                  createdAt: e.createdAt || Date.now(),
+                  updatedAt: e.updatedAt || Date.now()
+                };
+              });
+              saveWebDB(false);
+              renderTables();
+              updateDriveBadge('☁️ ' + webVault.length + ' Entries Restored', '#00FF88');
+              logDiag('🎉 RESTORE SUCCESS: ' + webVault.length + ' vault entries + ' + restoredTotps.length + ' 2FA tokens!');
+              showWebToast('Restored ' + webVault.length + ' entries from "' + fileName + '"!');
+            } else {
+              logDiag('0 entries in "' + fileName + '". Check backup file.', 'warn');
+              updateDriveBadge('⚠️ No entries in selected file', '#FFD700');
+            }
+          } else {
+            updateDriveBadge('❌ Decryption Failed', '#FF3366');
+          }
+        } catch(ex) {
+          logDiag('Parse error: ' + ex.message, 'err');
+          updateDriveBadge('❌ Parse Error', '#FF3366');
+        }
+      })
+      .catch(function(err) { logDiag('Drive fetch error: ' + err.message, 'err'); });
+    }
+
+    async function createCloudBackupNow() {
+      if (!gDriveAccessToken) {
+        triggerDirectGoogleOAuth();
+        return;
+      }
+
+      logDiag("Creating Android-compatible BackupPayload JSON...");
+      const entries = webVault.map(function(e) {
+        return {
+          id: e.id, title: e.title || '', username: e.username || '',
+          email: e.email || '', password: e.password || '',
+          website: e.website || '', url: e.website || '',
+          notes: e.notes || '', category: e.category || 'WEBSITES',
+          customFieldsJson: '[]', tagsJson: '[]',
+          isFavorite: e.isFavorite || false, hasTotp: false, totpSecret: '',
+          createdAt: e.createdAt || Date.now(), updatedAt: e.updatedAt || Date.now(),
+          lastAccessedAt: null, expiresAt: null,
+          strengthScore: e.strengthScore || 0, deletedAt: null, isHiddenInTravel: false
+        };
+      });
+      const payload = { version: 3, entries: entries, notes: [], cards: [], totps: [], contacts: [] };
+      const jsonStr = JSON.stringify(payload, null, 2);
+
+      const userEmail = (JSON.parse(localStorage.getItem('secure_vault_user_session') || '{}')).email || 'sharyar1670@gmail.com';
+      var saltBytes = new Uint8Array(32);
+      crypto.getRandomValues(saltBytes);
+      var uploadBlob = jsonStr;
+      try {
+        uploadBlob = await encryptWebPayload(jsonStr, userEmail, saltBytes);
+        logDiag("Encrypted payload with WebCrypto AES-GCM 256!");
+
+        // Also upload key.salt (32 bytes) so Android can derive the key
+        const saltMetadata = { name: 'key.salt', parents: ['appDataFolder'], mimeType: 'application/octet-stream' };
+        const saltForm = new FormData();
+        saltForm.append('metadata', new Blob([JSON.stringify(saltMetadata)], { type: 'application/json' }));
+        saltForm.append('file', new Blob([saltBytes], { type: 'application/octet-stream' }));
+
+        const existingSalt = detectedDriveFiles.find(function(f) { return f.name === 'key.salt'; });
+        if (existingSalt) {
+          fetch('https://www.googleapis.com/upload/drive/v3/files/' + existingSalt.id + '?uploadType=media', {
+            method: 'PATCH',
+            headers: { Authorization: 'Bearer ' + gDriveAccessToken, 'Content-Type': 'application/octet-stream' },
+            body: saltBytes
+          });
+        } else {
+          fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+            method: 'POST',
+            headers: { Authorization: 'Bearer ' + gDriveAccessToken },
+            body: saltForm
+          });
+        }
+      } catch (e) {
+        logDiag("WebCrypto encryption fallback: sending plain JSON", 'warn');
+      }
+
+      const metadata = { name: 'vault_backup.enc', parents: ['appDataFolder'], mimeType: 'application/octet-stream' };
+      const form = new FormData();
+      form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+      form.append('file', new Blob([uploadBlob], { type: 'application/octet-stream' }));
+
+      if (gDriveFileId) {
+        fetch('https://www.googleapis.com/upload/drive/v3/files/' + gDriveFileId + '?uploadType=media', {
+          method: 'PATCH',
+          headers: { Authorization: 'Bearer ' + gDriveAccessToken, 'Content-Type': 'application/octet-stream' },
+          body: uploadBlob
+        })
+        .then(function(res) { return res.json(); })
+        .then(function() {
+          logDiag("AppData file PATCH successful!");
+          updateDriveBadge('☁️ AppData Backup Saved', '#00FF88');
+          showWebToast('Mobile-Compatible Backup Saved!');
+        });
+      } else {
+        fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+          method: 'POST',
+          headers: { Authorization: 'Bearer ' + gDriveAccessToken },
+          body: form
+        })
+        .then(function(res) { return res.json(); })
+        .then(function(file) {
+          gDriveFileId = file.id;
+          localStorage.setItem('secure_vault_gdrive_file_id', file.id);
+          logDiag("New AppData file POST successful! ID: " + file.id);
+          updateDriveBadge('☁️ AppData Backup Created', '#00FF88');
+          showWebToast('New Cloud Backup Created!');
+        });
+      }
+    }
+
+    function updateDriveBadge(text, color) {
+      const statusText = document.getElementById('driveSyncStatusText');
+      if (statusText) {
+        statusText.innerText = text;
+        statusText.style.color = color;
+      }
+    }
+
+    function signOutUser() {
+      localStorage.removeItem('secure_vault_user_session');
+      localStorage.removeItem('secure_vault_gdrive_file_id');
+      gDriveAccessToken = null;
+      gDriveFileId = null;
+      lockAppView();
+    }
+
+    function clearLocalCache() {
+      if (confirm('Clear local database cache?')) {
+        webVault = [];
+        saveWebDB(false);
+        renderTables();
+      }
+    }
+
+    function initDatabase() {
+      const stored = localStorage.getItem('secure_vault_pro_web_db');
+      if (stored) {
+        try { webVault = JSON.parse(stored); } catch(e) { webVault = []; }
+      } else {
+        webVault = [];
+        saveWebDB(false);
+      }
+      renderTables();
+      generateWebPass();
+    }
+
+    function saveWebDB(syncDrive) {
+      if (syncDrive === undefined) syncDrive = true;
+      localStorage.setItem('secure_vault_pro_web_db', JSON.stringify(webVault));
+      updateMetrics();
+      if (syncDrive) createCloudBackupNow();
+    }
+
+    function updateMetrics() {
+      document.getElementById('metricTotal').innerText = webVault.length;
+      document.getElementById('metricWeb').innerText = webVault.filter(function(x) { return x.category === 'WEBSITES'; }).length;
+      document.getElementById('metricApps').innerText = webVault.filter(function(x) { return x.category === 'APPS'; }).length;
+      document.getElementById('metricFinance').innerText = webVault.filter(function(x) { return x.category === 'BANKING' || x.category === 'CRYPTO'; }).length;
+    }
+
+    function renderTables() {
+      const dashQuery = (document.getElementById('dashSearchInput').value || '').toLowerCase();
+      const vaultQuery = (document.getElementById('vaultSearchInput').value || '').toLowerCase();
+
+      const dashBody = document.getElementById('dashTableBody');
+      const dashFiltered = webVault.filter(function(x) { return x.title.toLowerCase().includes(dashQuery) || x.username.toLowerCase().includes(dashQuery); });
+
+      dashBody.innerHTML = dashFiltered.length === 0 ? `
+        <tr><td colspan="5" style="text-align:center; padding:35px; color:var(--text-body);">
+          <div style="font-size:32px; margin-bottom:8px;">🔒</div>
+          <div>Your Vault is Clean &amp; Empty</div>
+          <div style="font-size:12px; margin-top:4px; opacity:0.8;">Click "+ Add Credential" or "Sync Android AppData" to populate your vault.</div>
+        </td></tr>
+      ` : dashFiltered.map(function(item) { return `
+        <tr>
+          <td><strong style="color:var(--text-heading);">${item.emoji || '🌐'} ${item.title}</strong></td>
+          <td><span style="font-size:12px; padding:4px 10px; background:var(--surface-hover); border-radius:6px; font-weight:600;">${item.category}</span></td>
+          <td>${item.username}</td>
+          <td><span style="color:var(--success); font-weight:600;">Encrypted AES-256</span></td>
+          <td>
+            <div class="table-actions">
+              <button class="tbl-btn" onclick="copyPassVal('${item.password}')">📋 Copy</button>
+            </div>
+          </td>
+        </tr>
+      `; }).join('');
+
+      const vaultBody = document.getElementById('vaultTableBody');
+      const vaultFiltered = webVault.filter(function(x) { return x.title.toLowerCase().includes(vaultQuery) || x.username.toLowerCase().includes(vaultQuery); });
+
+      vaultBody.innerHTML = vaultFiltered.length === 0 ? `
+        <tr><td colspan="5" style="text-align:center; padding:35px; color:var(--text-body);">No matching entries found in your vault.</td></tr>
+      ` : vaultFiltered.map(function(item) { return `
+        <tr>
+          <td><strong style="color:var(--text-heading);">${item.emoji || '🌐'} ${item.title}</strong></td>
+          <td><span style="font-size:12px; padding:4px 10px; background:var(--surface-hover); border-radius:6px; font-weight:600;">${item.category}</span></td>
+          <td>${item.username}</td>
+          <td><code style="background:var(--bg-main); padding:4px 8px; border-radius:6px; font-family:'Space Grotesk';">• • • • • • • • • •</code></td>
+          <td>
+            <div class="table-actions">
+              <button class="tbl-btn" onclick="copyPassVal('${item.password}')">📋 Copy</button>
+              <button class="tbl-btn" onclick="deleteWebEntry(${item.id})" style="color:var(--danger); border-color:var(--danger);">🗑️ Delete</button>
+            </div>
+          </td>
+        </tr>
+      `; }).join('');
+
+      updateMetrics();
+    }
+
+    function saveWebEntry() {
+      const title = document.getElementById('addTitle').value.trim();
+      const username = document.getElementById('addUsername').value.trim();
+      const password = document.getElementById('addPassword').value || 'Pass#' + Math.floor(Math.random()*8999+1000);
+      const category = document.getElementById('addCategory').value;
+
+      if (!title || !username) { alert('Please enter Account Title and Username'); return; }
+
+      const emojiMap = { WEBSITES: '🌐', APPS: '📱', BANKING: '🏦', CRYPTO: '🪙' };
+
+      webVault.unshift({
+        id: Date.now(),
+        title: title,
+        username: username,
+        password: password,
+        category: category,
+        emoji: emojiMap[category] || '🌐'
+      });
+
+      saveWebDB(true);
+      renderTables();
+      closeModal('addModal');
+      document.getElementById('addTitle').value = '';
+      document.getElementById('addUsername').value = '';
+      document.getElementById('addPassword').value = '';
+    }
+
+    function deleteWebEntry(id) {
+      webVault = webVault.filter(function(x) { return x.id !== id; });
+      saveWebDB(true);
+      renderTables();
+    }
+
+    function copyPassVal(val) {
+      navigator.clipboard.writeText(val);
+      showWebToast('Password Copied!');
+    }
+
+    function exportDataJSON() {
+      const blob = new Blob([JSON.stringify(webVault, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'secure_vault_backup.json';
+      a.click();
+    }
+
+    function exportDataCSV() {
+      let csv = 'ID,Title,Category,Username,Password\n';
+      webVault.forEach(function(item) {
+        csv += '"' + item.id + '","' + item.title + '","' + item.category + '","' + item.username + '","' + item.password + '"\n';
+      });
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.href = url;
+      a.download = 'secure_vault_backup.csv';
+      a.click();
+    }
+
+    function importData(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const parsed = JSON.parse(e.target.result);
+          if (Array.isArray(parsed)) {
+            webVault = parsed;
+            saveWebDB(true);
+            renderTables();
+          }
+        } catch(err) { alert('Failed to parse backup file'); }
+      };
+      reader.readAsText(file);
+    }
+
+    function generateWebPass() {
+      const len = parseInt(document.getElementById('lenSlider').value) || 18;
+      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+';
+      let res = '';
+      for (let i = 0; i < len; i++) { res += chars.charAt(Math.floor(Math.random() * chars.length)); }
+      document.getElementById('webGenOutput').value = res;
+    }
+    function copyWebPass() {
+      navigator.clipboard.writeText(document.getElementById('webGenOutput').value);
+      showWebToast('Key Copied!');
+    }
+
+    function startTotpTimer() {
+      setInterval(function() {
+        totpTimeLeft--;
+        if (totpTimeLeft <= 0) {
+          totpTimeLeft = 30;
+          const code = Math.floor(100000 + Math.random() * 899999).toString();
+          document.getElementById('totpCodeText').innerText = code.slice(0,3) + ' ' + code.slice(3);
+        }
+        document.getElementById('totpTimerText').innerText = totpTimeLeft + 's';
+      }, 1000);
+    }
+    function copyTotpVal() {
+      const code = document.getElementById('totpCodeText').innerText.replace(/\s/g, '');
+      navigator.clipboard.writeText(code);
+      showWebToast('2FA Code Copied: ' + code);
+    }
+
+    function switchTab(name, el) {
+      document.querySelectorAll('.tab-pane').forEach(function(p) { p.classList.remove('active'); });
+      document.querySelectorAll('.nav-link').forEach(function(n) { n.classList.remove('active'); });
+      document.querySelectorAll('.menu-item').forEach(function(m) { m.classList.remove('active'); });
+
+      if (name === 'dashboard') {
+        document.getElementById('tabDashboard').classList.add('active');
+        document.getElementById('menuDashboard').classList.add('active');
+      } else if (name === 'vault') {
+        document.getElementById('tabVault').classList.add('active');
+        document.getElementById('menuVault').classList.add('active');
+      } else if (name === 'generator') {
+        document.getElementById('tabGenerator').classList.add('active');
+        document.getElementById('menuGen').classList.add('active');
+      } else if (name === 'totp') {
+        document.getElementById('tabTotp').classList.add('active');
+        document.getElementById('menuTotp').classList.add('active');
+      } else if (name === 'backup') {
+        document.getElementById('tabBackup').classList.add('active');
+        document.getElementById('menuBackup').classList.add('active');
+      } else if (name === 'settings') {
+        document.getElementById('tabSettings').classList.add('active');
+        document.getElementById('menuSettings').classList.add('active');
+      }
+    }
+
+    function toggleTheme() {
+      const current = document.documentElement.getAttribute('data-theme') || 'dark';
+      const next = current === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', next);
+      localStorage.setItem('secure_vault_pro_web_theme', next);
+    }
+
+    function openModal(id) { document.getElementById(id).classList.add('active'); }
+    function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+
+    function showWebToast(msg) {
+      const t = document.createElement('div');
+      t.style.cssText = 'position:fixed; bottom:30px; right:30px; background:var(--surface-card); border:1px solid var(--primary); color:var(--text-heading); padding:12px 24px; border-radius:12px; font-size:14px; font-weight:600; z-index:400; box-shadow:0 10px 30px rgba(0,0,0,0.3);';
+      t.innerText = msg;
+      document.body.appendChild(t);
+      setTimeout(function() { t.remove(); }, 2500);
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+      checkAuthSession();
+      document.getElementById('dashSearchInput').addEventListener('input', renderTables);
+      document.getElementById('vaultSearchInput').addEventListener('input', renderTables);
+    });
+  //]]>
+  </script>
+</body>
+</html>

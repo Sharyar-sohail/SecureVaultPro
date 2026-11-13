@@ -47,11 +47,11 @@ android {
         applicationId = "com.securevault.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 385
-        versionName = "3.8.1"
+        versionCode = 386
+        versionName = "1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
-        buildConfigField("String", "DRIVE_APP_FOLDER", "\"SecureWalletPro\"")
+        buildConfigField("String", "DRIVE_APP_FOLDER", "\"SecureVaultPro\"")
         buildConfigField("String", "DEFAULT_COMPANION_URL", "\"https://securevaultpro.blogspot.com\"")
     }
 

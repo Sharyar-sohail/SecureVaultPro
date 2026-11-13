@@ -1,0 +1,5 @@
+SECURE VAULT PRO — REUSABLE PROMPT
+Developer Attribution: Developed by Shahryar Soheail
+Version: 1.0
+
+PROMPT: Upgrade SECURE VAULT PRO version baseline, updating build scripts, changelog, and migration vectors.

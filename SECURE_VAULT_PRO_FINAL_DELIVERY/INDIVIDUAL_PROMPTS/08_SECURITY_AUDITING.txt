@@ -1,0 +1,5 @@
+SECURE VAULT PRO — REUSABLE PROMPT
+Developer Attribution: Developed by Shahryar Soheail
+Version: 1.0
+
+PROMPT: Perform a full security audit on SECURE VAULT PRO checking for memory leakage, key exposure, and network vulnerabilities.

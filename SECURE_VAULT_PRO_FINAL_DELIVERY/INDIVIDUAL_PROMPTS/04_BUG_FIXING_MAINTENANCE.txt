@@ -1,0 +1,5 @@
+SECURE VAULT PRO — REUSABLE PROMPT
+Developer Attribution: Developed by Shahryar Soheail
+Version: 1.0
+
+PROMPT: Investigate and resolve bugs in SECURE VAULT PRO without compromising security layers or removing existing features.
