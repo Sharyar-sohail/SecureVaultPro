@@ -1897,10 +1897,10 @@ fun VaultSearchField(
         }
     }
     val fieldColors = OutlinedTextFieldDefaults.colors(
-        focusedBorderColor = VaultColor.accent.copy(alpha = 0.85f),
-        unfocusedBorderColor = if (palette.isLight) palette.abyssElevated.copy(alpha = 0.85f) else VaultColor.hairline,
-        focusedContainerColor = if (palette.isLight) palette.abyssElevated.copy(alpha = 0.95f) else VaultColor.elevated.copy(alpha = 0.75f),
-        unfocusedContainerColor = if (palette.isLight) palette.abyssElevated.copy(alpha = 0.65f) else VaultColor.elevated.copy(alpha = 0.45f),
+        focusedBorderColor = Color.Transparent,
+        unfocusedBorderColor = Color.Transparent,
+        focusedContainerColor = Color.Transparent,
+        unfocusedContainerColor = Color.Transparent,
         cursorColor = VaultColor.accent,
         focusedTextColor = VaultColor.textStrong,
         unfocusedTextColor = VaultColor.textStrong

@@ -51,7 +51,7 @@ private val BOARD_PADDING = 6.dp
 private val KEY_GAP = 5.dp
 
 /** The header row's fixed height, so no layer can grow or shrink it. */
-private val BOARD_HEADER_HEIGHT = 26.dp
+private val BOARD_HEADER_HEIGHT = 32.dp
 
 /**
  * Every layer is four rows tall; this is the PIN pad's own grid height, and it is the grid height
@@ -146,18 +146,77 @@ fun SecureKeyboardPanel(
                 .height(BOARD_HEADER_HEIGHT),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                text = when {
-                    isPinPad -> "Number pad"
-                    layout.shuffled -> "Board shuffled"
-                    else -> "Secure keyboard"
-                },
-                style = MaterialTheme.typography.labelSmall,
-                color = if (layout.shuffled) VaultColor.accent else VaultColor.textFaint,
+            Row(
                 modifier = Modifier.weight(1f).padding(start = 2.dp),
-            )
-            // The shuffle lives up here rather than on the bottom row, so the row under the fingers
-            // holds only the keys a normal keyboard would put there.
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                ThemedIcon(
+                    glyph = Glyph.lock,
+                    contentDescription = null,
+                    tint = if (layout.shuffled) VaultColor.accent else VaultColor.textFaint,
+                    modifier = Modifier.size(13.dp),
+                    animate = false,
+                )
+                Spacer(Modifier.width(4.dp))
+                Text(
+                    text = when {
+                        isPinPad -> "Number pad"
+                        layout.shuffled -> "Shuffled"
+                        else -> "Secure board"
+                    },
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (layout.shuffled) VaultColor.accent else VaultColor.textFaint,
+                )
+            }
+            // Caret navigation and buffer controls
+            ControlCap(
+                shape = palette.chipShape,
+                contentDescription = "Move caret left",
+                onClick = { onKeyPress(SecureKey.CursorLeft) },
+                haptics = haptics,
+                hapticsEnabled = keyHapticsOn,
+            ) {
+                ThemedIcon(
+                    glyph = Glyph.arrowBack,
+                    contentDescription = "Left",
+                    tint = VaultColor.textBody,
+                    modifier = Modifier.size(14.dp),
+                    animate = false,
+                )
+            }
+            Spacer(Modifier.width(4.dp))
+            ControlCap(
+                shape = palette.chipShape,
+                contentDescription = "Move caret right",
+                onClick = { onKeyPress(SecureKey.CursorRight) },
+                haptics = haptics,
+                hapticsEnabled = keyHapticsOn,
+            ) {
+                ThemedIcon(
+                    glyph = Glyph.arrowForward,
+                    contentDescription = "Right",
+                    tint = VaultColor.textBody,
+                    modifier = Modifier.size(14.dp),
+                    animate = false,
+                )
+            }
+            Spacer(Modifier.width(4.dp))
+            ControlCap(
+                shape = palette.chipShape,
+                contentDescription = "Clear all text",
+                onClick = { onKeyPress(SecureKey.Clear) },
+                haptics = haptics,
+                hapticsEnabled = keyHapticsOn,
+            ) {
+                ThemedIcon(
+                    glyph = Glyph.close,
+                    contentDescription = "Clear",
+                    tint = VaultColor.textBody,
+                    modifier = Modifier.size(14.dp),
+                    animate = false,
+                )
+            }
+            Spacer(Modifier.width(4.dp))
             ControlCap(
                 shape = palette.chipShape,
                 contentDescription = "Shuffle the board",
@@ -170,11 +229,11 @@ fun SecureKeyboardPanel(
                     glyph = Glyph.shuffle,
                     contentDescription = "Shuffle the board",
                     tint = if (layout.shuffled) VaultColor.accent else VaultColor.textBody,
-                    modifier = Modifier.size(15.dp),
+                    modifier = Modifier.size(14.dp),
                     animate = false,
                 )
             }
-            Spacer(Modifier.width(6.dp))
+            Spacer(Modifier.width(4.dp))
             ControlCap(
                 shape = palette.chipShape,
                 contentDescription = "Hide secure keyboard",
@@ -255,19 +314,18 @@ private fun KeyCap(
     modifier: Modifier = Modifier,
     bigText: Boolean = false,
 ) {
-    // Draw-only press state: writing it dirties this keycap's draw pass and nothing else. No
-    // recomposition, no animation system, so the light-up lands in the same frame as the character.
     val pressed = remember { mutableStateOf(false) }
-    val highlight = VaultColor.accent.copy(alpha = 0.24f)
+    val isPressed = pressed.value
+    val keyBg = if (isPressed) VaultColor.accent.copy(alpha = 0.90f) else VaultColor.elevated.copy(alpha = 0.85f)
+    val keyBorder = if (isPressed) VaultColor.accent else VaultColor.hairline
+    val keyBorderWidth = if (isPressed) 2.dp else 1.dp
+    val ink = if (isPressed) VaultColor.background else accent
+
     Box(
         modifier = modifier
             .clip(shape)
-            .background(VaultColor.elevated.copy(alpha = 0.85f), shape)
-            .border(1.dp, VaultColor.hairline, shape)
-            .drawWithContent {
-                drawContent()
-                if (pressed.value) drawRect(color = highlight)
-            }
+            .background(keyBg, shape)
+            .border(keyBorderWidth, keyBorder, shape)
             .keyTap(key = key, onKeyPress = onKeyPress, haptics = haptics, hapticsEnabled = hapticsEnabled, pressed = pressed),
         contentAlignment = Alignment.Center,
     ) {
@@ -275,7 +333,7 @@ private fun KeyCap(
             SecureKeyKind.SHIFT -> ThemedIcon(
                 glyph = Glyph.arrowUpward,
                 contentDescription = "Shift",
-                tint = accent,
+                tint = ink,
                 modifier = Modifier.size(16.dp),
                 animate = false,
             )
@@ -283,7 +341,7 @@ private fun KeyCap(
             SecureKeyKind.BACKSPACE -> ThemedIcon(
                 glyph = Glyph.backspace,
                 contentDescription = "Delete",
-                tint = accent,
+                tint = ink,
                 modifier = Modifier.size(17.dp),
                 animate = false,
             )
@@ -291,7 +349,7 @@ private fun KeyCap(
             SecureKeyKind.ENTER -> ThemedIcon(
                 glyph = Glyph.arrowForward,
                 contentDescription = "Enter",
-                tint = accent,
+                tint = ink,
                 modifier = Modifier.size(16.dp),
                 animate = false,
             )
@@ -299,7 +357,7 @@ private fun KeyCap(
             SecureKeyKind.SHUFFLE -> ThemedIcon(
                 glyph = Glyph.shuffle,
                 contentDescription = "Shuffle the board",
-                tint = accent,
+                tint = ink,
                 modifier = Modifier.size(15.dp),
                 animate = false,
             )
@@ -308,15 +366,15 @@ private fun KeyCap(
                 modifier = Modifier
                     .width(38.dp)
                     .height(3.dp)
-                    .background(accent.copy(alpha = 0.45f), RoundedCornerShape(2.dp)),
+                    .background(ink.copy(alpha = 0.75f), RoundedCornerShape(2.dp)),
             )
 
             else -> Text(
                 text = key.label,
                 style = if (bigText) MaterialTheme.typography.titleMedium
                 else MaterialTheme.typography.bodyMedium,
-                color = accent,
-                fontWeight = FontWeight.Medium,
+                color = ink,
+                fontWeight = if (isPressed) FontWeight.Bold else FontWeight.Medium,
                 maxLines = 1,
             )
         }

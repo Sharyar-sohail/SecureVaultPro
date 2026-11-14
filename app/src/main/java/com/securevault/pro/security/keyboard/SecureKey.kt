@@ -28,6 +28,15 @@ enum class SecureKeyKind {
 
     /** Re-seats the tiles in a new order for the rest of this session. */
     SHUFFLE,
+
+    /** Moves the caret one character to the left. */
+    CURSOR_LEFT,
+
+    /** Moves the caret one character to the right. */
+    CURSOR_RIGHT,
+
+    /** Clears the entire text buffer. */
+    CLEAR,
 }
 
 /** Which page of the board is showing. */
@@ -62,6 +71,9 @@ data class SecureKey(
         val Shuffle = SecureKey(id = "shuffle", label = "shuffle", kind = SecureKeyKind.SHUFFLE)
         val ToLetters = SecureKey(id = "letters", label = "ABC", kind = SecureKeyKind.LAYER)
         val ToNumbers = SecureKey(id = "numbers", label = "123", kind = SecureKeyKind.LAYER)
+        val CursorLeft = SecureKey(id = "cursor_left", label = "◀", kind = SecureKeyKind.CURSOR_LEFT)
+        val CursorRight = SecureKey(id = "cursor_right", label = "▶", kind = SecureKeyKind.CURSOR_RIGHT)
+        val Clear = SecureKey(id = "clear", label = "✕", kind = SecureKeyKind.CLEAR)
     }
 }
 
@@ -70,6 +82,9 @@ sealed interface SecureKeyCommand {
     data class Insert(val text: String) : SecureKeyCommand
     data object Backspace : SecureKeyCommand
     data object Enter : SecureKeyCommand
+    data object MoveLeft : SecureKeyCommand
+    data object MoveRight : SecureKeyCommand
+    data object Clear : SecureKeyCommand
 
     /** A layout-only key: the value did not change. */
     data object Ignored : SecureKeyCommand

@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -96,6 +97,7 @@ fun SecurePasswordField(
     onValueChange: (String) -> Unit,
     label: String,
     modifier: Modifier = Modifier,
+    placeholder: String = "Enter master password",
     singleLine: Boolean = true,
     visible: Boolean = false,
     onSubmit: (() -> Unit)? = null,
@@ -163,6 +165,19 @@ fun SecurePasswordField(
                 emitNext(buffer.text)
             }
 
+            SecureKeyCommand.MoveLeft -> {
+                buffer = buffer.moveCursorLeft()
+            }
+
+            SecureKeyCommand.MoveRight -> {
+                buffer = buffer.moveCursorRight()
+            }
+
+            SecureKeyCommand.Clear -> {
+                buffer = buffer.clear()
+                emitNext(buffer.text)
+            }
+
             SecureKeyCommand.Enter -> when {
                 onSubmit != null -> {
                     engaged = false
@@ -224,6 +239,7 @@ fun SecurePasswordField(
             label = label,
             value = buffer.text,
             cursor = buffer.cursor,
+            placeholder = placeholder,
             singleLine = singleLine,
             masked = !visible && !revealed,
             engaged = engaged,
@@ -232,6 +248,10 @@ fun SecurePasswordField(
             revealAvailable = !visible,
             revealed = revealed,
             onToggleReveal = { revealed = !revealed },
+            onClear = {
+                buffer = buffer.clear()
+                emitNext("")
+            },
             modifier = Modifier
                 .fillMaxWidth()
                 .focusRequester(focusRequester)
@@ -270,6 +290,7 @@ private fun SecureFieldChrome(
     label: String,
     value: String,
     cursor: Int,
+    placeholder: String,
     singleLine: Boolean,
     masked: Boolean,
     engaged: Boolean,
@@ -278,6 +299,7 @@ private fun SecureFieldChrome(
     revealAvailable: Boolean,
     revealed: Boolean,
     onToggleReveal: () -> Unit,
+    onClear: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val bodyStyle = MaterialTheme.typography.bodyLarge
@@ -286,19 +308,25 @@ private fun SecureFieldChrome(
     Column(
         modifier = modifier
             .clip(VaultShapes.input)
-            .background(VaultColor.elevated.copy(alpha = 0.55f), VaultShapes.input)
+            .background(
+                if (engaged) VaultColor.elevated.copy(alpha = 0.85f) else VaultColor.elevated.copy(alpha = 0.55f),
+                VaultShapes.input
+            )
             .border(
-                width = if (engaged) 1.4.dp else 1.dp,
-                color = if (engaged) VaultColor.accent.copy(alpha = 0.65f) else VaultColor.hairline,
+                width = if (engaged) 1.6.dp else 1.dp,
+                color = if (engaged) VaultColor.accent else VaultColor.hairline,
                 shape = VaultShapes.input,
             )
             .padding(horizontal = 14.dp, vertical = 12.dp)
     ) {
         SecureFieldHeader(
             label = label,
+            engaged = engaged,
+            hasValue = value.isNotEmpty(),
             revealAvailable = revealAvailable,
             revealed = revealed,
             onToggleReveal = onToggleReveal,
+            onClear = onClear,
         )
         Box(modifier = Modifier.fillMaxWidth()) {
             // Inert editor: it paints the text and reports its layout, and it is the reason an
@@ -330,7 +358,7 @@ private fun SecureFieldChrome(
             )
             if (value.isEmpty() && !engaged) {
                 Text(
-                    text = "Tap to use the secure board",
+                    text = placeholder,
                     style = bodyStyle,
                     color = VaultColor.textFaint,
                     modifier = Modifier.padding(top = 6.dp),
@@ -401,22 +429,57 @@ private class SecureFieldTap {
 @Composable
 private fun SecureFieldHeader(
     label: String,
+    engaged: Boolean,
+    hasValue: Boolean,
     revealAvailable: Boolean,
     revealed: Boolean,
     onToggleReveal: () -> Unit,
+    onClear: () -> Unit,
 ) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelMedium,
-            color = VaultColor.textFaint,
-            fontWeight = FontWeight.Medium,
+        Row(
             modifier = Modifier.weight(1f),
-        )
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium,
+                color = if (engaged) VaultColor.accent else VaultColor.textFaint,
+                fontWeight = if (engaged) FontWeight.SemiBold else FontWeight.Medium,
+            )
+            if (engaged) {
+                Spacer(Modifier.width(6.dp))
+                ThemedIcon(
+                    glyph = Glyph.lock,
+                    contentDescription = "Active field",
+                    tint = VaultColor.accent,
+                    modifier = Modifier.size(12.dp),
+                    animate = false,
+                )
+            }
+        }
+        if (hasValue && engaged) {
+            Box(
+                modifier = Modifier
+                    .size(28.dp)
+                    .clip(VaultShapes.input)
+                    .clickable { onClear() },
+                contentAlignment = Alignment.Center,
+            ) {
+                ThemedIcon(
+                    glyph = Glyph.close,
+                    contentDescription = "Clear field",
+                    tint = VaultColor.textBody,
+                    modifier = Modifier.size(15.dp),
+                    animate = false,
+                )
+            }
+            Spacer(Modifier.width(4.dp))
+        }
         if (revealAvailable) {
             Box(
                 modifier = Modifier
-                    .size(30.dp)
+                    .size(28.dp)
                     .clip(VaultShapes.input)
                     .clickable { onToggleReveal() },
                 contentAlignment = Alignment.Center,
@@ -424,8 +487,8 @@ private fun SecureFieldHeader(
                 ThemedIcon(
                     glyph = if (revealed) Glyph.visibilityOff else Glyph.visibility,
                     contentDescription = if (revealed) "Hide the value" else "Show the value",
-                    tint = VaultColor.textBody,
-                    modifier = Modifier.size(18.dp),
+                    tint = if (revealed) VaultColor.accent else VaultColor.textBody,
+                    modifier = Modifier.size(16.dp),
                     animate = false,
                 )
             }

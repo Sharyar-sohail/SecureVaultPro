@@ -26,6 +26,12 @@ data class SecureTextBuffer(val text: String = "", val cursor: Int = 0) {
         return SecureTextBuffer(text.substring(0, cursor - 1) + text.substring(cursor), cursor - 1)
     }
 
+    fun moveCursorLeft(): SecureTextBuffer =
+        if (cursor <= 0) this else SecureTextBuffer(text, cursor - 1)
+
+    fun moveCursorRight(): SecureTextBuffer =
+        if (cursor >= text.length) this else SecureTextBuffer(text, cursor + 1)
+
     /** A newline only where multiple lines are wanted; single-line fields submit instead. */
     fun appendNewline(): SecureTextBuffer = insert("\n")
 

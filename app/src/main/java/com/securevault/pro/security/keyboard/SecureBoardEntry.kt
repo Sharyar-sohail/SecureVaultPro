@@ -122,6 +122,12 @@ class SecureBoardEntry internal constructor(
 
             SecureKeyCommand.Backspace -> apply(SecureTextBuffer(text, caret).backspace())
 
+            SecureKeyCommand.MoveLeft -> apply(SecureTextBuffer(text, caret).moveCursorLeft())
+
+            SecureKeyCommand.MoveRight -> apply(SecureTextBuffer(text, caret).moveCursorRight())
+
+            SecureKeyCommand.Clear -> apply(SecureTextBuffer.Empty)
+
             SecureKeyCommand.Enter -> when {
                 onSubmit != null -> {
                     isEngaged = false

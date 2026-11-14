@@ -547,7 +547,8 @@ private fun MasterStep(
             SecurePasswordField(
                 value = state.masterPassword,
                 onValueChange = viewModel::setMasterPassword,
-                label = "Master password"
+                label = "Master password",
+                placeholder = "Enter your master password"
             )
             Spacer(Modifier.height(if (compact) 8.dp else 10.dp))
             StrengthMeter(score = state.passwordScore, modifier = Modifier.fillMaxWidth())
@@ -580,6 +581,7 @@ private fun MasterStep(
                 value = state.confirmPassword,
                 onValueChange = viewModel::setConfirmPassword,
                 label = "Confirm master password",
+                placeholder = "Re-enter password to confirm",
                 onSubmit = { if (state.masterReady && !busy) onContinue() }
             )
             if (state.confirmPassword.isNotEmpty() &&

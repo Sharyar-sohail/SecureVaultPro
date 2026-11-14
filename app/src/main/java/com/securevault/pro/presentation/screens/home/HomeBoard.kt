@@ -351,8 +351,8 @@ private fun RailCell(
                 .fillMaxWidth()
                 .contentScale(tuning.tileScale)
                 .padding(
-                    start = rhythm.tilePadH + 4.dp,
-                    end = rhythm.tilePadH + 2.dp,
+                    start = 8.dp,
+                    end = 6.dp,
                     top = fit.padV,
                     bottom = fit.padV
                 ),
@@ -363,12 +363,14 @@ private fun RailCell(
                 size = fit.iconSize,
                 contentDescription = null
             )
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(6.dp))
+            val effectiveFontSize = if (fit.labelSize.value > 13.5f) 13.5.sp else fit.labelSize
             Text(
                 text = cellLabel(item, palette),
-                style = labelStyle.copy(fontSize = fit.labelSize),
+                style = labelStyle.copy(fontSize = effectiveFontSize),
                 color = labelInk,
                 maxLines = 1,
+                softWrap = false,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f)
             )

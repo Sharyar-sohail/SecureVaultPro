@@ -826,10 +826,18 @@ private fun VaultBottomBar(
     val motion = motionFor(palette.id)
     val lit = VaultContrast.vibrant(palette.cyan)
     val barBed = dockBed(palette, plan)
+    val barBrush = dockFillBrush(palette, plan)
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
+            .then(
+                if (!plan.floats) {
+                    Modifier.background(barBrush)
+                } else {
+                    Modifier
+                }
+            )
             .navigationBarsPadding()
             .padding(start = plan.sideInset, end = plan.sideInset, bottom = plan.bottomInset)
     ) {
@@ -850,7 +858,7 @@ private fun VaultBottomBar(
                     }
                 )
                 .clip(barShape)
-                .background(dockFillBrush(palette, plan), barShape)
+                .background(barBrush, barShape)
                 .border(
                     if (plan.edgeRule) 0.dp
                     else palette.cardBorderWidth.coerceAtLeast(1.dp),
@@ -953,12 +961,14 @@ private fun RowScope.DockItem(
     // the final guard for a bar shorter than one line of the theme's own label size.
     val showLabel = plan.showLabels && plan.contentHeight <= plan.itemHeight
 
+    val pillShape = RoundedCornerShape(14.dp)
     Box(
         modifier = Modifier
             .weight(plan.itemWeights[index.coerceAtLeast(0)])
             .fillMaxHeight()
-            .clip(seatShape)
-            .background(wash, seatShape)
+            .padding(vertical = 4.dp, horizontal = 2.dp)
+            .clip(pillShape)
+            .background(wash, pillShape)
             .clickable(onClick = onSelect),
         contentAlignment = Alignment.Center
     ) {

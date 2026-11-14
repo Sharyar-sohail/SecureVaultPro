@@ -166,6 +166,15 @@ object SecureKeyboardEngine {
                     // a fresh seed; typing a character never re-seats the board.
                     reshuffleCount = if (state.shuffled) state.reshuffleCount + 1 else state.reshuffleCount,
                 )
+
+            SecureKeyKind.CURSOR_LEFT ->
+                SecureKeyCommand.MoveLeft to state
+
+            SecureKeyKind.CURSOR_RIGHT ->
+                SecureKeyCommand.MoveRight to state
+
+            SecureKeyKind.CLEAR ->
+                SecureKeyCommand.Clear to state
         }
 
     /** True when the key is one of the fixed modifiers, i.e. drawn as a glyph rather than a letter. */
