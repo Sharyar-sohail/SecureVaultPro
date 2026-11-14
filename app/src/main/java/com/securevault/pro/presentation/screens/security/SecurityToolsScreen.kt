@@ -401,7 +401,7 @@ fun SecurityToolsScreen(
 
                     description = "A real IMAP and SMTP client: connect Google in one tap, or type your own host, port and passphrase. Server passwords are sealed into the vault, never written to a log.",
 
-                    badge = "IMAP � SMTP", badgeAccent = VaultColor.accent,
+                    badge = "IMAP · SMTP", badgeAccent = VaultColor.accent,
 
                     onClick = onOpenEmail
 
@@ -561,11 +561,11 @@ fun SecurityToolsScreen(
 
                     description = if (autofillEnabled) {
 
-                        "Secure Wallet Pro is the active autofill provider. Suggestions fill only from the primary vault."
+                        "Secure Vault Pro is the active autofill provider. Suggestions fill only from the primary vault."
 
                     } else {
 
-                        "Enable “Secure Wallet Pro” in Android autofill settings to fill logins in apps and browsers."
+                        "Enable “Secure Vault Pro” in Android autofill settings to fill logins in apps and browsers."
 
                     },
 
@@ -737,7 +737,7 @@ fun SecurityToolsScreen(
 
                         Text(
 
-                            text = "Secure Wallet Pro ${BuildConfig.VERSION_NAME} · ${BuildConfig.VERSION_CODE} · no analytics, no ad SDKs, no plaintext secrets off-device.",
+                            text = "SECURE VAULT PRO ${BuildConfig.VERSION_NAME} · Developed by Shahryar Soheail · no analytics, no ad SDKs, no plaintext secrets off-device.",
 
                             style = MaterialTheme.typography.bodySmall,
 

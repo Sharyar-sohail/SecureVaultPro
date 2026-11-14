@@ -705,18 +705,21 @@ fun GlassCard(
                         )
                 )
             }
-            if (palette.cardHighlight) {
-                Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .height(1.dp)
-                        .background(
-                            Brush.horizontalGradient(
-                                listOf(accent.copy(alpha = 0.45f), Color.Transparent)
+            // Antigravity Glassmorphic top refraction highlight
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(1.dp)
+                    .background(
+                        Brush.horizontalGradient(
+                            listOf(
+                                Color.White.copy(alpha = if (palette.isLight) 0.40f else 0.22f),
+                                accent.copy(alpha = if (palette.isLight) 0.35f else 0.40f),
+                                Color.Transparent
                             )
                         )
-                )
-            }
+                    )
+            )
         }
         // The rule rides on top of everything, unclipped by the content layer, so a selected card's
         // outline is complete on all four sides.
@@ -729,23 +732,23 @@ fun GlassCard(
     }
 }
 
-private fun Modifier.vaultShadow(
+fun Modifier.vaultShadow(
     palette: VaultPalette,
     shape: Shape,
     accent: Color,
     lifted: Boolean = false
 ): Modifier {
-    if (palette.cardShadow <= 0.dp && !lifted) return this
     val glow = palette.glow
-    val base = palette.cardShadow.coerceAtLeast(0.dp)
+    val base = if (palette.cardShadow > 0.dp) palette.cardShadow else 4.dp
+    val elevation = if (lifted) (base + 6.dp).coerceAtLeast(10.dp) else base
     return shadow(
-        elevation = if (lifted) (base + 4.dp).coerceAtLeast(6.dp) else base,
+        elevation = elevation,
         shape = shape,
         // The plate layer clips itself right after this; the shadow is left free so the card's own
         // drop shadow is not stuffed inside its silhouette.
         clip = false,
-        ambientColor = accent.copy(alpha = if (glow) 0.35f else 0.10f),
-        spotColor = accent.copy(alpha = if (glow) 0.42f else 0.14f)
+        ambientColor = if (palette.isLight) Color.Black.copy(alpha = 0.08f) else Color.Black.copy(alpha = 0.40f),
+        spotColor = accent.copy(alpha = if (glow) 0.38f else (if (palette.isLight) 0.12f else 0.24f))
     )
 }
 
@@ -1894,10 +1897,10 @@ fun VaultSearchField(
         }
     }
     val fieldColors = OutlinedTextFieldDefaults.colors(
-        focusedBorderColor = VaultColor.accent.copy(alpha = 0.6f),
-        unfocusedBorderColor = VaultColor.hairline,
-        focusedContainerColor = VaultColor.elevated.copy(alpha = 0.75f),
-        unfocusedContainerColor = VaultColor.elevated.copy(alpha = 0.45f),
+        focusedBorderColor = VaultColor.accent.copy(alpha = 0.85f),
+        unfocusedBorderColor = if (palette.isLight) palette.abyssElevated.copy(alpha = 0.85f) else VaultColor.hairline,
+        focusedContainerColor = if (palette.isLight) palette.abyssElevated.copy(alpha = 0.95f) else VaultColor.elevated.copy(alpha = 0.75f),
+        unfocusedContainerColor = if (palette.isLight) palette.abyssElevated.copy(alpha = 0.65f) else VaultColor.elevated.copy(alpha = 0.45f),
         cursorColor = VaultColor.accent,
         focusedTextColor = VaultColor.textStrong,
         unfocusedTextColor = VaultColor.textStrong
@@ -1908,11 +1911,14 @@ fun VaultSearchField(
         null
     }
     val dockedSearch = reachableSecureKeyboardDock() != null
+    val searchModifier = modifier
+        .fillMaxWidth()
+        .vaultShadow(palette = palette, shape = palette.inputShape, accent = VaultColor.accent)
     if (board == null) {
         OutlinedTextField(
             value = query,
             onValueChange = onQueryChange,
-            modifier = modifier.fillMaxWidth(),
+            modifier = searchModifier,
             placeholder = placeholderSlot,
             leadingIcon = leadingSlot,
             trailingIcon = trailingSlot,
@@ -1922,7 +1928,7 @@ fun VaultSearchField(
             colors = fieldColors
         )
     } else {
-        Column(modifier = modifier.fillMaxWidth()) {
+        Column(modifier = searchModifier) {
             OutlinedTextField(
                 value = TextFieldValue(board.text, TextRange(board.caret)),
                 onValueChange = { next: TextFieldValue ->

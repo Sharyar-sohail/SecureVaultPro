@@ -130,7 +130,7 @@ fun IntroScreen(onFinished: () -> Unit) {
                 }
                 Spacer(Modifier.width(10.dp))
                 Text(
-                    text = "SECURE WALLET PRO",
+                    text = "SECURE VAULT PRO",
                     style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.8.sp),
                     color = VaultColor.textStrong,
                     fontWeight = FontWeight.SemiBold,

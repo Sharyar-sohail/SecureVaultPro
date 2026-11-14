@@ -684,8 +684,16 @@ private fun FileRow(
     onDelete: () -> Unit
 ) {
     val icon = iconFor(file.mimeType)
+    val accent = when (file.category.uppercase()) {
+        "IMAGE" -> NeonCyan
+        "VIDEO" -> NeonCoral
+        "AUDIO" -> NeonMint
+        "DOCUMENT", "PDF" -> NeonAmber
+        else -> NeonCyan
+    }
     GlassCard(
         modifier = Modifier.fillMaxWidth(),
+        accent = accent,
         contentPadding = PaddingValues(horizontal = 13.dp, vertical = 12.dp),
         onClick = onOpen
     ) {
@@ -694,13 +702,13 @@ private fun FileRow(
                 modifier = Modifier
                     .size(44.dp)
                     .clip(RoundedCornerShape(12.dp))
-                    .background(NeonCyan.copy(alpha = 0.1f)),
+                    .background(accent.copy(alpha = 0.12f)),
                 contentAlignment = Alignment.Center
             ) {
                 ThemedIcon(
                     glyph = icon,
                     contentDescription = null,
-                    tint = NeonCyan,
+                    tint = accent,
                     modifier = Modifier.size(22.dp)
                 )
             }

@@ -184,7 +184,9 @@ private fun Modifier.contentScale(scale: Float): Modifier =
 private fun Modifier.tilePress(
     source: MutableInteractionSource,
     rest: Dp,
-    palette: VaultPalette
+    palette: VaultPalette,
+    shape: Shape = RoundedCornerShape(16.dp),
+    accent: Color = palette.cyan
 ): Modifier {
     val pressed = source.collectIsPressedAsState().value
     val motion = motionFor(palette.id)
@@ -212,13 +214,23 @@ private fun Modifier.tilePress(
         animationSpec = VaultMotion.tweenSpec<Float>(VaultMotion.QUICK, easingFor(motion.curve)),
         label = "tilePressSink"
     )
+    val isLight = palette.isLight
+    val ambient = if (isLight) Color.Black.copy(alpha = 0.08f) else Color.Black.copy(alpha = 0.45f)
+    val spot = accent.copy(alpha = if (isLight) 0.18f else 0.32f)
+
     return this
         .graphicsLayer {
             scaleX = scale
             scaleY = scale
             translationY = sink * density
         }
-        .shadow(lift, RoundedCornerShape(16.dp), clip = false)
+        .shadow(
+            elevation = lift.coerceAtLeast(0.dp),
+            shape = shape,
+            clip = false,
+            ambientColor = ambient,
+            spotColor = spot
+        )
 }
 
 @Composable
@@ -248,7 +260,7 @@ internal fun BoardTile(
             // The bloom lives outside the clip so it can halo the plate; the sheen lives inside it
             // so it cannot cross the corner. Both are no-ops for a theme whose motion does not use them.
             .revealGlow(palette, shape)
-            .tilePress(source, rest, palette)
+            .tilePress(source, rest, palette, shape, item.accent)
             .clip(shape)
             .revealSweep(palette)
             // One flat bed per kind, hoisted into a two-stop brush so the tile cannot shimmer.
@@ -256,6 +268,24 @@ internal fun BoardTile(
             .tileRule(palette, layout, kind, item.accent, shape)
             .clickable(interactionSource = source, indication = null, onClick = onClick)
     ) {
+        // Antigravity top-edge specular glass reflection
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .align(Alignment.TopCenter)
+                .background(
+                    Brush.horizontalGradient(
+                        listOf(
+                            Color.Transparent,
+                            if (palette.isLight) Color.White.copy(alpha = 0.65f) else Color.White.copy(alpha = 0.22f),
+                            item.accent.copy(alpha = if (palette.isLight) 0.40f else 0.25f),
+                            if (palette.isLight) Color.White.copy(alpha = 0.45f) else Color.White.copy(alpha = 0.15f),
+                            Color.Transparent
+                        )
+                    )
+                )
+        )
         // Agentic rails read from their leading edge, adaptive plates from their top rule.
         if (layout == VaultLayout.AGENTIC || layout == VaultLayout.ADAPTIVE) {
             val ruleWidth = if (layout == VaultLayout.AGENTIC) 3.dp else 2.dp
@@ -687,7 +717,7 @@ private fun MicroCell(
     BoxWithConstraints(
         modifier = modifier
             .revealGlow(palette, shape)
-            .tilePress(source, 0.dp, palette)
+            .tilePress(source, 0.dp, palette, shape, item.accent)
             .clip(shape)
             .revealSweep(palette)
             .background(vivid.copy(alpha = wash), shape)

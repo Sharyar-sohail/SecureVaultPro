@@ -178,7 +178,7 @@ fun OnboardingScreen(
                 Spacer(Modifier.width(11.dp))
                 Column {
                     Text(
-                        text = "SECURE WALLET PRO",
+                        text = "SECURE VAULT PRO",
                         style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 2.sp),
                         color = VaultColor.textStrong,
                         fontWeight = FontWeight.SemiBold
@@ -375,7 +375,7 @@ fun OnboardingScreen(
             title = { Text("Import encrypted backup") },
             text = {
                 Text(
-                    text = "Choose a Secure Wallet Pro .enc or .xml.enc export. Your own backups open " +
+                    text = "Choose a Secure Vault Pro .enc or .xml.enc export. Your own backups open " +
                         "automatically; a file you locked with a passphrase asks for it first.",
                     style = MaterialTheme.typography.bodySmall,
                     color = VaultColor.textBody,

@@ -553,7 +553,7 @@ fun SettingsScreen(
                     subtitle = if (autofillEnabled) {
                         "Connected · suggestions appear in apps and browsers"
                     } else {
-                        "Not enabled · tap to choose Secure Wallet Pro"
+                        "Not enabled · tap to choose Secure Vault Pro"
                     },
                     value = if (autofillEnabled) "ON" else "OFF",
                     enabled = !state.decoy,
@@ -570,7 +570,7 @@ fun SettingsScreen(
                         )
                         Spacer(Modifier.width(8.dp))
                         Text(
-                            text = "Choose Secure Wallet Pro in Android settings. Your vault unlocks inline when a login is requested.",
+                            text = "Choose Secure Vault Pro in Android settings. Your vault unlocks inline when a login is requested.",
                             style = MaterialTheme.typography.bodySmall,
                             color = VaultColor.textFaint,
                             lineHeight = 17.sp

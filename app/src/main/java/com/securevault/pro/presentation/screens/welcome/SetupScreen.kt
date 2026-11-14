@@ -435,7 +435,7 @@ private fun SetupHeader(step: Int, backEnabled: Boolean, onBack: () -> Unit, com
             }
             Column(Modifier.weight(1f)) {
                 Text(
-                    text = "SECURE WALLET PRO",
+                    text = "SECURE VAULT PRO",
                     style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 2.sp),
                     color = VaultColor.textBody,
                     fontWeight = FontWeight.SemiBold,

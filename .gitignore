@@ -49,3 +49,6 @@ node_modules/
 # must ship with a blank SEED and no injected cloud config, so published
 # snapshots under release-site/ stay out of history.
 /release-site/Blogger-Theme-*.xml
+
+# Local skills directory
+.skills/
