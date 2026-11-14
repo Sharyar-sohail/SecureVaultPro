@@ -298,7 +298,7 @@ fun OcrScannerScreen(
 
         } else {
 
-            captureError = "Camera access is required to scan. Allow it in Settings → Apps → Secure Wallet Pro → Permissions, or pick an image from the gallery."
+            captureError = "Camera access is required to scan. Allow it in Settings → Apps → SECURE VAULT PRO → Permissions, or pick an image from the gallery."
 
         }
 

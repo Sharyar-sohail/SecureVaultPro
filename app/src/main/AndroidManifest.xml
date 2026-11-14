@@ -44,21 +44,21 @@
         android:networkSecurityConfig="@xml/network_security_config"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/Theme.SecureWalletPro">
+        android:theme="@style/Theme.SecureVaultPro">
 
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTask"
             android:screenOrientation="portrait"
-            android:theme="@style/Theme.SecureWalletPro"
+            android:theme="@style/Theme.SecureVaultPro"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
             <!-- Path A of the WhatsApp import: WhatsApp's own "Export chat" hands the .txt or .zip
-                 to the share sheet, and this filter is what puts Secure Wallet Pro in that sheet.
+                 to the share sheet, and this filter is what puts SECURE VAULT PRO in that sheet.
                  A normal app cannot read WhatsApp's private storage on Android 11+, and
                  Android/media/WhatsApp/Databases is not reachable through SAF, so this hand-over
                  is the only way a whole conversation can arrive without root. The MIME type a

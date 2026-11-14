@@ -101,7 +101,7 @@ class VaultAutofillService : AutofillService() {
                 var added = 0
                 candidates.forEach { entry ->
                     val usernameValue = entry.username.ifBlank { entry.email }
-                    val title = entry.title.trim().ifBlank { "Secure Wallet Pro" }
+                    val title = entry.title.trim().ifBlank { "SECURE VAULT PRO" }
                     val presentation = RemoteViews(packageName, R.layout.autofill_dataset).apply {
                         setTextViewText(R.id.autofill_label, title.take(80))
                         setTextViewText(
@@ -145,7 +145,7 @@ class VaultAutofillService : AutofillService() {
                                 R.id.autofill_label,
                                 "Passkey · ${candidate.record.rpDomain}".take(80)
                             )
-                            setTextViewText(R.id.autofill_detail, "Sign in with Secure Wallet Pro")
+                            setTextViewText(R.id.autofill_detail, "Sign in with SECURE VAULT PRO")
                         }
                         runCatching {
                             response.addDataset(Dataset.Builder(passkeyView).setAuthentication(sender).build())
@@ -158,7 +158,7 @@ class VaultAutofillService : AutofillService() {
                 val saveInfo = if (saveIds.isNotEmpty()) {
                     runCatching {
                         SaveInfo.Builder(SaveInfo.SAVE_DATA_TYPE_PASSWORD, saveIds)
-                            .setDescription("Secure Wallet Pro")
+                            .setDescription("SECURE VAULT PRO")
                             .build()
                     }.getOrNull()
                 } else {
@@ -189,7 +189,7 @@ class VaultAutofillService : AutofillService() {
             FillResponse.Builder()
                 .setSaveInfo(
                     SaveInfo.Builder(SaveInfo.SAVE_DATA_TYPE_PASSWORD, ids)
-                        .setDescription("Secure Wallet Pro")
+                        .setDescription("SECURE VAULT PRO")
                         .build()
                 )
                 .build()
@@ -209,7 +209,7 @@ class VaultAutofillService : AutofillService() {
             }
             val pending = PendingIntent.getActivity(this, UNLOCK_REQUEST_CODE, intent, flags)
             val presentation = RemoteViews(packageName, R.layout.autofill_dataset).apply {
-                setTextViewText(R.id.autofill_label, "Unlock Secure Wallet Pro")
+                setTextViewText(R.id.autofill_label, "Unlock SECURE VAULT PRO")
                 setTextViewText(R.id.autofill_detail, "Tap to open the vault, then autofill")
             }
             FillResponse.Builder()
@@ -220,7 +220,7 @@ class VaultAutofillService : AutofillService() {
 
     override fun onSaveRequest(request: SaveRequest, callback: SaveCallback) {
         if (sessionManager.mode.value != SessionMode.REAL) {
-            callback.onFailure("Unlock Secure Wallet Pro before saving this login.")
+            callback.onFailure("Unlock SECURE VAULT PRO before saving this login.")
             return
         }
         val structure = request.fillContexts.lastOrNull()?.structure

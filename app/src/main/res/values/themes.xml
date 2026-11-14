@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.SecureWalletPro" parent="@android:style/Theme.Material.NoActionBar">
+    <style name="Theme.SecureVaultPro" parent="@android:style/Theme.Material.NoActionBar">
         <item name="android:windowBackground">@color/abyss_dark</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@color/abyss_dark</item>
@@ -10,4 +10,5 @@
         <item name="android:windowActionModeOverlay">true</item>
         <item name="android:colorAccent">@color/neon_cyan</item>
     </style>
+    <style name="Theme.SecureWalletPro" parent="Theme.SecureVaultPro" />
 </resources>

@@ -832,7 +832,7 @@ class CloudSyncManager @Inject constructor(
     }
 
     private fun restoreInstructions(archiveName: String): String = """
-        Secure Wallet Pro — pre-wipe vault archive
+        SECURE VAULT PRO — pre-wipe vault archive
         ==========================================
 
         Archive: $archiveName
@@ -844,7 +844,7 @@ class CloudSyncManager @Inject constructor(
         - MANIFEST.json         Record counts and creation time.
 
         How to restore
-        1. Open Secure Wallet Pro and choose "Import Backup File" on the welcome screen.
+        1. Open SECURE VAULT PRO and choose "Import Backup File" on the welcome screen.
         2. Unzip this archive and select vault_backup.enc (or vault_backup.xml.enc).
         3. Nothing needs typing: the app unlocks this file with the vault key it fetches
            from your account when you sign in.
@@ -1200,7 +1200,7 @@ class CloudSyncManager @Inject constructor(
                 return decodedText
             }
         }
-        throw CloudSyncException("This is not a Secure Wallet Pro backup file")
+        throw CloudSyncException("This is not a SECURE VAULT PRO backup file")
     }
 
     private fun storedVaultSecret(): String? = runCatching {

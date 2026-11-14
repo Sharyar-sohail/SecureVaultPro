@@ -49,9 +49,10 @@ class MainActivity : FragmentActivity() {
         window.statusBarColor = Color.TRANSPARENT
         @Suppress("DEPRECATION")
         window.navigationBarColor = Color.TRANSPARENT
+        val isLight = VaultPaletteController.active.value.isLight
         WindowInsetsControllerCompat(window, window.decorView).apply {
-            isAppearanceLightStatusBars = false
-            isAppearanceLightNavigationBars = false
+            isAppearanceLightStatusBars = isLight
+            isAppearanceLightNavigationBars = isLight
         }
         SharedInbox.offer(this, intent)
         PasskeyHandoff.offer(this, intent)

@@ -94,7 +94,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 
 import androidx.lifecycle.Lifecycle
 
-import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LifecycleEventEffect
 
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
@@ -145,8 +145,6 @@ fun SecurityToolsScreen(
 
     val context = LocalContext.current
 
-    val lifecycleOwner = LocalLifecycleOwner.current
-
     var autofillEnabled by remember { mutableStateOf(false) }
 
 
@@ -189,18 +187,8 @@ fun SecurityToolsScreen(
 
     LaunchedEffect(Unit) { refreshAutofill() }
 
-    DisposableEffect(lifecycleOwner) {
-
-        val observer = LifecycleEventObserver { _, event ->
-
-            if (event == Lifecycle.Event.ON_RESUME) refreshAutofill()
-
-        }
-
-        lifecycleOwner.lifecycle.addObserver(observer)
-
-        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
-
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        refreshAutofill()
     }
 
 

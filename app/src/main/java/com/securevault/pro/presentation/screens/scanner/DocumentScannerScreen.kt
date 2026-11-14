@@ -176,7 +176,7 @@ fun DocumentScannerScreen(
         if (granted) {
             openCamera()
         } else {
-            captureError = "Camera access is required to scan pages. Allow it in Settings → Apps → Secure Wallet Pro → Permissions, or use Gallery."
+            captureError = "Camera access is required to scan pages. Allow it in Settings → Apps → SECURE VAULT PRO → Permissions, or use Gallery."
         }
     }
 

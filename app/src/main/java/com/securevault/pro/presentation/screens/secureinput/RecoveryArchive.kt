@@ -113,7 +113,7 @@ sealed class ArchiveOpenResult {
         get() = when (this) {
             is Unsealed -> null
             WrongPhrase -> "This phrase did not open the recovery file. Check every word and their order."
-            NotAnArchive -> "That file is not a Secure Wallet Pro recovery archive."
+            NotAnArchive -> "That file is not a SECURE VAULT PRO recovery archive."
             Empty -> "The selected file is empty."
             is FutureVersion -> "This archive was written by a newer version (v$version) of the app."
         }
