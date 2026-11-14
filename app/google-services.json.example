@@ -1,0 +1,38 @@
+{
+  "project_info": {
+    "project_number": "000000000000",
+    "project_id": "securevaultpro-example",
+    "storage_bucket": "securevaultpro-example.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:000000000000:android:0000000000000000000000",
+        "android_client_info": {
+          "package_name": "com.securevault.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "000000000000-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.securevault.app",
+            "certificate_hash": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+          }
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
