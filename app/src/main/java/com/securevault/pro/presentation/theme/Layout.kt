@@ -851,8 +851,16 @@ fun motionFor(paletteId: String): ThemeMotion = when (paletteId) {
     "sakura" -> ThemeMotion(EntryAxis.FALL, RevealOrder.PAIRED, MotionCurve.SPRINGY, 300, 48, 12, TileReveal.CONTRACT, 1.06f, glow = false, glowRadius = 0.dp, sweep = false, press = PressResponse.POP)
     // Neon Plasma — counterlight comes across the board, alternating rows, never settling.
     "neon_plasma" -> ThemeMotion(EntryAxis.FROM_RIGHT, RevealOrder.ALTERNATE, MotionCurve.EMPHATIC, 190, 30, 6, TileReveal.EXPAND, 0.91f, glow = true, glowRadius = 13.dp, sweep = true, press = PressResponse.SINK)
-    // Anything the resolver hands back is one of the fifteen; this is the default theme's own motion.
-    else -> motionFor(VaultPalettes.DEFAULT_ID)
+    // Hyperion Obsidian Glass — nextgen flagship obsidian motion with deep settling and tactile sink.
+    "hyperion" -> ThemeMotion(EntryAxis.FALL, RevealOrder.CASCADE, MotionCurve.SETTLING, 220, 35, 8, TileReveal.CONTRACT, 1.02f, glow = true, glowRadius = 12.dp, sweep = true, press = PressResponse.SINK)
+    // Aurora Iris — nextgen radiant holographic motion with emphatic centre-out bloom.
+    "aurora" -> ThemeMotion(EntryAxis.RISE, RevealOrder.CENTER_OUT, MotionCurve.EMPHATIC, 260, 40, 10, TileReveal.EXPAND, 0.95f, glow = true, glowRadius = 14.dp, sweep = true, press = PressResponse.POP)
+    // Fallback: guaranteed terminating base case to strictly prevent infinite recursion.
+    else -> if (paletteId == VaultPalettes.DEFAULT_ID || paletteId.isNullOrBlank()) {
+        ThemeMotion(EntryAxis.RISE, RevealOrder.CASCADE, MotionCurve.GLIDE, 240, 45, 10, TileReveal.EXPAND, 0.96f, glow = true, glowRadius = 10.dp, sweep = false, press = PressResponse.DIP)
+    } else {
+        motionFor(VaultPalettes.DEFAULT_ID)
+    }
 }
 
 /** The cascade slot a plate occupies, given the theme's order and the size of the set. */

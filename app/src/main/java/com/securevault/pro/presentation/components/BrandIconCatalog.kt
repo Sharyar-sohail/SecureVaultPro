@@ -437,7 +437,9 @@ object BrandIconCatalog {
         "neon_plasma" to "dark",
         "terra" to "sakura",
         "slate" to "dark",
-        "carbon" to "noir"
+        "carbon" to "noir",
+        "hyperion" to "noir",
+        "aurora" to "aqua"
     )
 
     private fun resolve(themeId: String): String = aliases[themeId] ?: themeId

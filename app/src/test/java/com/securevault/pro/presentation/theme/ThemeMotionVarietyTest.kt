@@ -308,4 +308,19 @@ class ThemeMotionVarietyTest {
             assertTrue("${palette.id} has no motion", motionFor(palette.id).duration > 0)
         }
     }
+
+    @Test
+    fun `nextgen themes and fallback safety never stack overflow`() {
+        val hyperionMotion = motionFor("hyperion")
+        val auroraMotion = motionFor("aurora")
+        assertTrue("hyperion motion duration must be positive", hyperionMotion.duration > 0)
+        assertTrue("aurora motion duration must be positive", auroraMotion.duration > 0)
+        assertNotEquals("hyperion and aurora motion signatures must differ", hyperionMotion.signature(), auroraMotion.signature())
+
+        // Ensure arbitrary or unknown IDs never throw StackOverflowError and return valid motion
+        val unknownMotion = motionFor("completely_unknown_theme_id_xyz")
+        assertTrue("fallback motion must be positive", unknownMotion.duration > 0)
+        val defaultMotion = motionFor(VaultPalettes.DEFAULT_ID)
+        assertEquals(defaultMotion, unknownMotion)
+    }
 }
