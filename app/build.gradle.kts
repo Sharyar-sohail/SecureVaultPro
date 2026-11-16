@@ -55,6 +55,25 @@ android {
         buildConfigField("String", "DEFAULT_COMPANION_URL", "\"https://securevaultpro.blogspot.com\"")
     }
 
+    flavorDimensions += "edition"
+
+    productFlavors {
+        create("classic") {
+            dimension = "edition"
+            buildConfigField("String", "EDITION", "\"classic\"")
+            buildConfigField("Boolean", "IS_NEXTGEN", "false")
+            buildConfigField("String", "APP_EDITION_NAME", "\"Secure Vault Pro Classic\"")
+        }
+        create("nextgen") {
+            dimension = "edition"
+            buildConfigField("String", "EDITION", "\"nextgen\"")
+            buildConfigField("Boolean", "IS_NEXTGEN", "true")
+            buildConfigField("String", "APP_EDITION_NAME", "\"Secure Vault Pro NextGen\"")
+            versionName = "2.0"
+            versionCode = 387
+        }
+    }
+
     signingConfigs {
         create("release") {
             if (canSignRelease) {

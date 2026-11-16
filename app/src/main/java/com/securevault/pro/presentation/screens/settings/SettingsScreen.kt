@@ -1313,8 +1313,17 @@ fun SettingsScreen(
                         isPassword = true,
                         enabled = !state.working
                     )
-                    state.wipeError?.let {
-                        Text(it, style = MaterialTheme.typography.labelMedium, color = VaultColor.debit)
+                    state.wipeError?.let { err ->
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(err, style = MaterialTheme.typography.labelMedium, color = VaultColor.debit)
+                            if (wipeDeleteCloud) {
+                                Text(
+                                    "Tip: If cloud connection fails or is offline, untick 'Also clear the active Google Drive slot' above to wipe this device locally.",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = VaultColor.textFaint
+                                )
+                            }
+                        }
                     }
                 }
             },

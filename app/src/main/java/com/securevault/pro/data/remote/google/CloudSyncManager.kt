@@ -760,11 +760,6 @@ class CloudSyncManager @Inject constructor(
             if (!driveService.hasDriveAccess()) {
                 throw CloudSyncException("Google Drive is not connected, so no archive can be stored.")
             }
-            if (!driveService.hasArchiveAccess()) {
-                throw CloudSyncException(
-                    "Google Drive file access is missing. Reconnect Google Drive before wiping."
-                )
-            }
             val counts = backupEngine.countAll()
             val payload = withContext(Dispatchers.IO) { backupEngine.buildPayload() }
             val secret = sealingSecret()
@@ -801,7 +796,11 @@ class CloudSyncManager @Inject constructor(
                     "RESTORE.txt" to restoreInstructions(name).toByteArray(Charsets.UTF_8)
                 )
             )
-            val uploaded = driveService.uploadArchive(name, zip)
+            val uploaded = if (driveService.hasArchiveAccess()) {
+                driveService.uploadArchive(name, zip)
+            } else {
+                driveService.upload(name, zip)
+            }
             Result.success(
                 VaultArchiveInfo(
                     id = uploaded.id,

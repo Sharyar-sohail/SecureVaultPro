@@ -684,7 +684,7 @@ private fun UnlockedApp(
                 SettingsScreen(
                     onBack = { navController.popBackStack() },
                     onVaultWiped = {
-                        navController.popBackStack(Routes.HOME, inclusive = false)
+                        navController.popBackStack(Routes.HOME, inclusive = true)
                     },
                     onOpenBackup = { navController.navigate(Routes.BACKUP) },
                     onScanPairing = { navController.navigate(Routes.PAIR_SCANNER) },

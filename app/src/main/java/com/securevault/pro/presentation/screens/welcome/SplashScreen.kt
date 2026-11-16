@@ -38,6 +38,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -181,37 +182,97 @@ fun SplashScreen(
                 )
 
                 Spacer(Modifier.height(if (compact) 16.dp else 28.dp))
-                Text(
-                    text = "SECURE WALLET",
-                    style = MaterialTheme.typography.labelMedium.copy(
-                        letterSpacing = if (minimal) 0.sp else if (compact) 2.sp else 6.sp
-                    ),
-                    color = VaultColor.textFaint,
-                    maxLines = 1
-                )
-                Text(
-                    text = "PRO",
-                    style = (if (compact) {
-                        MaterialTheme.typography.headlineLarge
-                    } else {
-                        MaterialTheme.typography.displayMedium
-                    }).copy(
-                        letterSpacing = if (minimal) 1.sp else if (compact) 3.sp else 10.sp,
-                        fontWeight = FontWeight.Black
-                    ),
-                    color = VaultColor.textStrong,
-                    maxLines = 1
-                )
-                if (!minimal) {
-                    Spacer(Modifier.height(6.dp))
+                if (com.securevault.pro.BuildConfig.IS_NEXTGEN) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .clip(CircleShape)
+                            .background(VaultColor.accent.copy(alpha = 0.15f))
+                            .border(1.dp, VaultColor.accent.copy(alpha = 0.4f), CircleShape)
+                            .padding(horizontal = 12.dp, vertical = 4.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(6.dp)
+                                .background(VaultColor.accent, CircleShape)
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            text = "NEXTGEN 2.0",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 2.sp
+                            ),
+                            color = VaultColor.accent
+                        )
+                    }
+                    Spacer(Modifier.height(8.dp))
                     Text(
-                        text = "Your secrets live behind\nmilitary-grade encryption.",
-                        style = MaterialTheme.typography.bodySmall,
+                        text = "SECURE VAULT",
+                        style = MaterialTheme.typography.labelMedium.copy(
+                            letterSpacing = if (minimal) 0.sp else if (compact) 3.sp else 8.sp,
+                            fontWeight = FontWeight.SemiBold
+                        ),
                         color = VaultColor.textFaint,
-                        textAlign = TextAlign.Center,
-                        lineHeight = 18.sp,
-                        maxLines = 2
+                        maxLines = 1
                     )
+                    Text(
+                        text = "PRO",
+                        style = (if (compact) {
+                            MaterialTheme.typography.headlineLarge
+                        } else {
+                            MaterialTheme.typography.displayMedium
+                        }).copy(
+                            letterSpacing = if (minimal) 1.sp else if (compact) 4.sp else 12.sp,
+                            fontWeight = FontWeight.Black
+                        ),
+                        color = VaultColor.textStrong,
+                        maxLines = 1
+                    )
+                    if (!minimal) {
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            text = "Spatial security & glassmorphic architecture\nZero-knowledge quantum encryption",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = VaultColor.textFaint,
+                            textAlign = TextAlign.Center,
+                            lineHeight = 18.sp,
+                            maxLines = 2
+                        )
+                    }
+                } else {
+                    Text(
+                        text = "SECURE WALLET",
+                        style = MaterialTheme.typography.labelMedium.copy(
+                            letterSpacing = if (minimal) 0.sp else if (compact) 2.sp else 6.sp
+                        ),
+                        color = VaultColor.textFaint,
+                        maxLines = 1
+                    )
+                    Text(
+                        text = "PRO",
+                        style = (if (compact) {
+                            MaterialTheme.typography.headlineLarge
+                        } else {
+                            MaterialTheme.typography.displayMedium
+                        }).copy(
+                            letterSpacing = if (minimal) 1.sp else if (compact) 3.sp else 10.sp,
+                            fontWeight = FontWeight.Black
+                        ),
+                        color = VaultColor.textStrong,
+                        maxLines = 1
+                    )
+                    if (!minimal) {
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            text = "Your secrets live behind\nmilitary-grade encryption.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = VaultColor.textFaint,
+                            textAlign = TextAlign.Center,
+                            lineHeight = 18.sp,
+                            maxLines = 2
+                        )
+                    }
                 }
 
                 Spacer(Modifier.height(if (compact) 16.dp else 26.dp))

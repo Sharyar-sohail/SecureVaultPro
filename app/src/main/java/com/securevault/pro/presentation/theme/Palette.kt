@@ -285,11 +285,129 @@ data class VaultPalette(
 object VaultPalettes {
     // The owner's handset runs ColorOS, and Aqua Tint is the one theme whose layout
     // grammar actually matches it, so an unknown or retired id lands there.
-    const val DEFAULT_ID = "aqua"
-    const val DEFAULT_LIGHT_ID = "solstice"
-    const val DEFAULT_DARK_ID = "dark"
+    val DEFAULT_ID: String
+        get() = if (com.securevault.pro.BuildConfig.IS_NEXTGEN) "hyperion" else "aqua"
+    val DEFAULT_LIGHT_ID: String
+        get() = if (com.securevault.pro.BuildConfig.IS_NEXTGEN) "aurora" else "solstice"
+    val DEFAULT_DARK_ID: String
+        get() = if (com.securevault.pro.BuildConfig.IS_NEXTGEN) "hyperion" else "dark"
 
-    val all: List<VaultPalette> = listOf(
+    /**
+     * NextGen Edition flagship themes designed strictly with Antigravity Design Expert principles:
+     * High-contrast, weightless spatial depth, frosted acrylic glass, and bespoke vibrancy.
+     */
+    val nextGenPalettes: List<VaultPalette> = listOf(
+        VaultPalette(
+            id = "hyperion",
+            name = "Hyperion Obsidian",
+            tagline = "Cosmic obsidian void with electric hyperion cyan, ultraviolet glow, and frosted acrylic depth",
+            inspiredBy = "Antigravity Spatial",
+            iconStyle = IconStyle.FILLED,
+            isLight = false,
+            design = ThemeDesign.LIQUID_GLASS,
+            backdrop = VaultBackdrop.AURORA_MESH,
+            layout = VaultLayout.LEDGER,
+            abyssDark = Color(0xFF07090E),
+            abyssSurface = Color(0xFF0F1422),
+            abyssElevated = Color(0xFF161E31),
+            abyssGlass = Color(0xE60F1422),
+            cyan = Color(0xFF00F2FE),
+            amber = Color(0xFFFFB703),
+            indigo = Color(0xFF0D59F2),
+            mint = Color(0xFF00F59B),
+            coral = Color(0xFFFF3B30),
+            lavender = Color(0xFF00E5FF),
+            textPrimary = Color(0xFFF8FAFC),
+            textSecondary = Color(0xFF94A3B8),
+            textMuted = Color(0xFF64748B),
+            glassBorder = Color(0x3300F2FE),
+            glassHighlight = Color(0x26FFFFFF),
+            dangerDim = Color(0xFF3B1414),
+            cardCorner = 18.dp,
+            buttonCorner = 14.dp,
+            inputCorner = 12.dp,
+            chipCorner = 10.dp,
+            navCorner = 24.dp,
+            cardBorderWidth = 1.dp,
+            cardFillAlpha = 0.85f,
+            cardGradient = true,
+            cardHighlight = true,
+            cardShadow = 8.dp,
+            glow = true,
+            meshIntensity = 0.55f,
+            gradientButtons = true,
+            hardOutline = false,
+            navFloating = true,
+            uppercaseLabels = false,
+            monoTags = false,
+            iconTileCorner = 9.dp,
+            pressDepth = 4.dp,
+            backdropBlur = 20.dp,
+            dock = DockStyle.PILL_FROSTED,
+            header = HeaderStyle.INLINE_BOLD,
+            navIndicator = NavIndicator.PILL,
+            pieForm = PieForm.RING,
+            pieLegend = PieLegend.RING,
+            pieRoundCaps = true,
+            pieGradient = true
+        ),
+        VaultPalette(
+            id = "aurora",
+            name = "Aurora Iris",
+            tagline = "Luminous crystalline alabaster with prismatic refraction, oceanic teal, and celestial iris glow",
+            inspiredBy = "Antigravity Light Glass",
+            iconStyle = IconStyle.FILLED,
+            isLight = true,
+            design = ThemeDesign.LIQUID_GLASS,
+            backdrop = VaultBackdrop.AURORA_MESH,
+            layout = VaultLayout.BENTO,
+            abyssDark = Color(0xFFF4F7FC),
+            abyssSurface = Color(0xFFFFFFFF),
+            abyssElevated = Color(0xFFE8EEF8),
+            abyssGlass = Color(0xF2FFFFFF),
+            cyan = Color(0xFF0284C7),
+            amber = Color(0xFFF59E0B),
+            indigo = Color(0xFF1D4ED8),
+            mint = Color(0xFF10B981),
+            coral = Color(0xFFDC2626),
+            lavender = Color(0xFF00ACC1),
+            textPrimary = Color(0xFF0F172A),
+            textSecondary = Color(0xFF334155),
+            textMuted = Color(0xFF64748B),
+            glassBorder = Color(0x1F0F172A),
+            glassHighlight = Color(0x40FFFFFF),
+            dangerDim = Color(0xFFFEE2E2),
+            cardCorner = 18.dp,
+            buttonCorner = 14.dp,
+            inputCorner = 12.dp,
+            chipCorner = 10.dp,
+            navCorner = 24.dp,
+            cardBorderWidth = 1.dp,
+            cardFillAlpha = 0.92f,
+            cardGradient = true,
+            cardHighlight = true,
+            cardShadow = 10.dp,
+            glow = false,
+            meshIntensity = 0.35f,
+            gradientButtons = true,
+            hardOutline = false,
+            navFloating = true,
+            uppercaseLabels = false,
+            monoTags = false,
+            iconTileCorner = 9.dp,
+            pressDepth = 4.dp,
+            backdropBlur = 16.dp,
+            dock = DockStyle.PILL_FROSTED,
+            header = HeaderStyle.CENTERED,
+            navIndicator = NavIndicator.PILL,
+            pieForm = PieForm.RING,
+            pieLegend = PieLegend.DOT,
+            pieRoundCaps = true,
+            pieGradient = true
+        )
+    )
+
+    val classicPalettes: List<VaultPalette> = listOf(
         // 1 — Solar Pop: warm paper, electric ink blocks, hard outlines, mosaic cells.
         VaultPalette(
             id = "solstice",
@@ -1192,6 +1310,9 @@ object VaultPalettes {
             pieSelectedLift = true
         )
     )
+
+    val all: List<VaultPalette>
+        get() = if (com.securevault.pro.BuildConfig.IS_NEXTGEN) nextGenPalettes else classicPalettes
 
     /**
      * Retired theme ids mapped onto the closest surviving theme. A theme id lives in

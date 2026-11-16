@@ -714,14 +714,24 @@ class SettingsViewModel @Inject constructor(
                 }
                 return@launch
             }
-            val outcome = localWipeService.wipeAll(deleteCloud = deleteCloudBackups)
-            _state.update {
-                it.copy(
-                    working = false,
-                    wiped = outcome.localCleared,
-                    wipeError = outcome.cloudError,
-                    wipeArchiveName = outcome.archiveName
-                )
+            try {
+                val outcome = localWipeService.wipeAll(deleteCloud = deleteCloudBackups)
+                _state.update {
+                    it.copy(
+                        working = false,
+                        wiped = outcome.localCleared,
+                        wipeError = outcome.cloudError,
+                        wipeArchiveName = outcome.archiveName
+                    )
+                }
+            } catch (e: Throwable) {
+                _state.update {
+                    it.copy(
+                        working = false,
+                        wiped = false,
+                        wipeError = e.message ?: "Failed to erase vault. Please try again."
+                    )
+                }
             }
         }
     }
