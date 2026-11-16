@@ -159,6 +159,30 @@ fun HomeScreen(
     onToggleTheme: () -> Unit,
     viewModel: HomeViewModel = hiltViewModel()
 ) {
+    if (com.securevault.pro.BuildConfig.IS_NEXTGEN) {
+        NextGenHomeScreen(
+            onNavigate = onNavigate,
+            onLock = onLock,
+            onToggleTheme = onToggleTheme,
+            viewModel = viewModel
+        )
+    } else {
+        ClassicHomeScreen(
+            onNavigate = onNavigate,
+            onLock = onLock,
+            onToggleTheme = onToggleTheme,
+            viewModel = viewModel
+        )
+    }
+}
+
+@Composable
+fun ClassicHomeScreen(
+    onNavigate: (String) -> Unit,
+    onLock: () -> Unit,
+    onToggleTheme: () -> Unit,
+    viewModel: HomeViewModel = hiltViewModel()
+) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     // The owner tunes the board per theme; the flow follows the active theme id, and the
     // controller is the single snapshot every board reads (VaultApp may call it directly later).
@@ -1386,7 +1410,7 @@ private fun HomeModuleGrid(
 // The search results pane — the one region of Home that scrolls, because it is a data list.
 // -----------------------------------------------------------------------------------------
 @Composable
-private fun SearchResultsPane(
+fun SearchResultsPane(
     state: HomeUiState,
     modifier: Modifier = Modifier,
     onOpen: (SearchHit) -> Unit

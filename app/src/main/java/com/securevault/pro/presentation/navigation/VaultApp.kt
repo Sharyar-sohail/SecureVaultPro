@@ -54,6 +54,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
@@ -341,18 +345,33 @@ private fun UnlockedApp(
                 enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
                 exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
             ) {
-                VaultBottomBar(
-                    currentRoute = currentRoute,
-                    onSelect = { route ->
-                        navController.navigate(route) {
-                            popUpTo(navController.graph.findStartDestination().id) {
-                                saveState = true
+                if (com.securevault.pro.BuildConfig.IS_NEXTGEN) {
+                    NextGenFloatingBottomBar(
+                        currentRoute = currentRoute,
+                        onSelect = { route ->
+                            navController.navigate(route) {
+                                popUpTo(navController.graph.findStartDestination().id) {
+                                    saveState = true
+                                }
+                                launchSingleTop = true
+                                restoreState = true
                             }
-                            launchSingleTop = true
-                            restoreState = true
                         }
-                    }
-                )
+                    )
+                } else {
+                    VaultBottomBar(
+                        currentRoute = currentRoute,
+                        onSelect = { route ->
+                            navController.navigate(route) {
+                                popUpTo(navController.graph.findStartDestination().id) {
+                                    saveState = true
+                                }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        }
+                    )
+                }
             }
         }
     ) { padding ->
@@ -800,6 +819,106 @@ private data class BottomTab(
     val label: String,
     val module: VaultModule
 )
+
+@Composable
+private fun NextGenFloatingBottomBar(
+    currentRoute: String?,
+    onSelect: (String) -> Unit
+) {
+    val tabs = remember {
+        listOf(
+            BottomTab(Routes.HOME, Routes.HOME, "Home", VaultModule.HOME),
+            BottomTab(Routes.vault(), Routes.VAULT, "Vault", VaultModule.PASSWORDS),
+            BottomTab(Routes.AUTH, Routes.AUTH, "Auth", VaultModule.TWO_FA),
+            BottomTab(Routes.CRYPTO, Routes.CRYPTO, "Crypto", VaultModule.CRYPTO),
+            BottomTab(Routes.WALLET, Routes.WALLET, "Cards", VaultModule.CARDS)
+        )
+    }
+
+    val palette = VaultPaletteController.current
+    val barShape = RoundedCornerShape(32.dp)
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .navigationBarsPadding()
+            .padding(horizontal = 20.dp, vertical = 12.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(64.dp)
+                .shadow(
+                    elevation = 16.dp,
+                    shape = barShape,
+                    ambientColor = palette.cyan.copy(alpha = 0.25f),
+                    spotColor = palette.cyan.copy(alpha = 0.35f)
+                )
+                .clip(barShape)
+                .background(
+                    Brush.verticalGradient(
+                        listOf(
+                            palette.abyssSurface.copy(alpha = 0.94f),
+                            palette.abyssElevated.copy(alpha = 0.96f)
+                        )
+                    )
+                )
+                .border(
+                    width = 1.2.dp,
+                    brush = Brush.horizontalGradient(
+                        listOf(
+                            palette.cyan.copy(alpha = 0.6f),
+                            palette.indigo.copy(alpha = 0.35f),
+                            palette.cyan.copy(alpha = 0.45f)
+                        )
+                    ),
+                    shape = barShape
+                )
+                .padding(horizontal = 6.dp),
+            horizontalArrangement = Arrangement.SpaceAround,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            tabs.forEach { tab ->
+                val selected = currentRoute == tab.route || (tab.pattern != Routes.HOME && currentRoute?.startsWith(tab.pattern) == true)
+                val interactionSource = remember { MutableInteractionSource() }
+                val isPressed by interactionSource.collectIsPressedAsState()
+                val scale by animateFloatAsState(if (isPressed) 0.88f else if (selected) 1.05f else 1f, label = "tabScale")
+
+                val pillBg = if (selected) palette.cyan.copy(alpha = 0.18f) else Color.Transparent
+                val pillBorder = if (selected) palette.cyan.copy(alpha = 0.45f) else Color.Transparent
+
+                Column(
+                    modifier = Modifier
+                        .scale(scale)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(pillBg)
+                        .border(1.dp, pillBorder, RoundedCornerShape(20.dp))
+                        .clickable(interactionSource = interactionSource, indication = null) {
+                            onSelect(tab.route)
+                        }
+                        .padding(horizontal = 14.dp, vertical = 6.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    BrandModuleIcon(
+                        module = tab.module,
+                        size = 22.dp
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = tab.label,
+                        style = TextStyle(
+                            fontSize = 10.sp,
+                            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                            color = if (selected) palette.cyan else palette.textMuted
+                        )
+                    )
+                }
+            }
+        }
+    }
+}
 
 @Composable
 private fun VaultBottomBar(
