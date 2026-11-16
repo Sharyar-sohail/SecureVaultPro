@@ -163,15 +163,11 @@ class LocalWipeService @Inject constructor(
                     else -> archiveStep.value?.exceptionOrNull()?.message?.take(200)
                         ?: "The pre-wipe archive could not be uploaded."
                 }
-                return@withContext WipeOutcome(
-                    localCleared = false,
-                    cloudDeleted = 0,
-                    cloudError = "Nothing was erased. $reason " +
-                        "Check your connection and erase again - your vault is still intact on this device."
-                )
+                cloudError = "Cloud backup note: $reason. All local data has been permanently erased."
+            } else {
+                archiveName = archiveInfo.name
+                WipeArchiveStore.record(context, archiveInfo.name)
             }
-            archiveName = archiveInfo.name
-            WipeArchiveStore.record(context, archiveInfo.name)
         }
 
         // Local wipe. The session is locked first so no observer can re-upload what is being

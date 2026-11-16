@@ -523,7 +523,7 @@ class SetupViewModel @Inject constructor(
                     restoreDiagnostic = null
                 )
             }
-            cloudSyncManager.importLocalBackup(bytes, passphrase = passphrase).fold(
+            cloudSyncManager.importLocalBackup(bytes, passphrase = passphrase, replace = true).fold(
                 onSuccess = { result ->
                     val complete = result.failureReason == null
                     val usable = complete || result.counts.total > 0
