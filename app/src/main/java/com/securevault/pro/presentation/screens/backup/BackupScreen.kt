@@ -48,6 +48,7 @@ import androidx.compose.foundation.verticalScroll
 
 import androidx.compose.material3.CircularProgressIndicator
 
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 
 import androidx.compose.material3.Text
@@ -165,6 +166,10 @@ fun BackupScreen(
     var showSeedConfirm by remember { mutableStateOf(false) }
 
     var pendingImport by remember { mutableStateOf<Pair<ByteArray, String>?>(null) }
+
+    var fileToDelete by remember { mutableStateOf<CloudBackupFile?>(null) }
+
+    var showDeleteAllConfirm by remember { mutableStateOf(false) }
 
 
 
@@ -580,18 +585,38 @@ fun BackupScreen(
 
                     }
 
-                    else -> state.backups.forEach { file ->
-
-                        CloudFileRow(
-
-                            file = file,
-
-                            selected = file.id == state.selectedId,
-
-                            onClick = { viewModel.select(file) }
-
-                        )
-
+                    else -> {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 4.dp, vertical = 2.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "${state.backups.size} snapshots in Google Drive",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = VaultColor.textFaint
+                            )
+                            Text(
+                                text = "DELETE ALL",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = VaultColor.debit,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier
+                                    .clip(VaultShapes.chip)
+                                    .clickable { showDeleteAllConfirm = true }
+                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                        state.backups.forEach { file ->
+                            CloudFileRow(
+                                file = file,
+                                selected = file.id == state.selectedId,
+                                onClick = { viewModel.select(file) },
+                                onDelete = { fileToDelete = file }
+                            )
+                        }
                     }
 
                 }
@@ -612,7 +637,9 @@ fun BackupScreen(
 
                         onInspect = viewModel::previewSelected,
 
-                        onRestore = { showRestoreConfirm = true }
+                        onRestore = { showRestoreConfirm = true },
+
+                        onDelete = { fileToDelete = selected }
 
                     )
 
@@ -962,6 +989,35 @@ fun BackupScreen(
 
     )
 
+    ConfirmDialog(
+        visible = fileToDelete != null,
+        title = "Delete this snapshot?",
+        message = "Permanently remove \"${fileToDelete?.name}\" from Google Drive? This cannot be undone.",
+        confirmLabel = "Delete",
+        destructive = true,
+        onConfirm = {
+            val target = fileToDelete
+            fileToDelete = null
+            if (target != null) {
+                viewModel.deleteSnapshot(target)
+            }
+        },
+        onDismiss = { fileToDelete = null }
+    )
+
+    ConfirmDialog(
+        visible = showDeleteAllConfirm,
+        title = "Delete all snapshots?",
+        message = "Permanently delete all ${state.backups.size} cloud snapshots and archives from Google Drive? This cannot be undone.",
+        confirmLabel = "Delete All",
+        destructive = true,
+        onConfirm = {
+            showDeleteAllConfirm = false
+            viewModel.deleteAllSnapshots()
+        },
+        onDismiss = { showDeleteAllConfirm = false }
+    )
+
 
 
     val restoring = cloudState.active && cloudState.operation in setOf(
@@ -1250,7 +1306,9 @@ private fun CloudFileRow(
 
     selected: Boolean,
 
-    onClick: () -> Unit
+    onClick: () -> Unit,
+
+    onDelete: () -> Unit
 
 ) {
 
@@ -1338,6 +1396,30 @@ private fun CloudFileRow(
 
             }
 
+            Spacer(Modifier.width(6.dp))
+
+            IconButton(
+
+                onClick = onDelete,
+
+                modifier = Modifier.size(32.dp)
+
+            ) {
+
+                ThemedIcon(
+
+                    glyph = Glyph.delete,
+
+                    contentDescription = "Delete snapshot",
+
+                    tint = VaultColor.debit.copy(alpha = 0.85f),
+
+                    modifier = Modifier.size(18.dp)
+
+                )
+
+            }
+
         }
 
     }
@@ -1360,7 +1442,9 @@ private fun SelectedBackupCard(
 
     onInspect: () -> Unit,
 
-    onRestore: () -> Unit
+    onRestore: () -> Unit,
+
+    onDelete: () -> Unit
 
 ) {
 
@@ -1584,29 +1668,32 @@ private fun SelectedBackupCard(
 
         Spacer(Modifier.height(14.dp))
 
-        GradientButton(
-
-            text = if (cloudActive && cloudStateOperation == CloudOperation.RESTORE) {
-
-                "Restoring vault…"
-
-            } else {
-
-                "Restore selected backup"
-
-            },
-
-            icon = Glyph.cloudDownload,
-
-            enabled = !cloudActive,
-
-            loading = cloudActive && cloudStateOperation == CloudOperation.RESTORE,
-
+        Row(
             modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            GradientButton(
+                text = if (cloudActive && cloudStateOperation == CloudOperation.RESTORE) {
+                    "Restoring…"
+                } else {
+                    "Restore backup"
+                },
+                icon = Glyph.cloudDownload,
+                enabled = !cloudActive && !state.deletingSnapshot,
+                loading = cloudActive && cloudStateOperation == CloudOperation.RESTORE,
+                modifier = Modifier.weight(1.3f),
+                onClick = onRestore
+            )
 
-            onClick = onRestore
-
-        )
+            GhostButton(
+                text = "Delete",
+                icon = Glyph.delete,
+                accent = VaultColor.debit,
+                enabled = !cloudActive && !state.deletingSnapshot,
+                modifier = Modifier.weight(0.85f),
+                onClick = onDelete
+            )
+        }
 
         Spacer(Modifier.height(8.dp))
 

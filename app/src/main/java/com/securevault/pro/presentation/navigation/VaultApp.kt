@@ -850,10 +850,10 @@ private fun NextGenFloatingBottomBar(
                 .fillMaxWidth()
                 .height(64.dp)
                 .shadow(
-                    elevation = 16.dp,
+                    elevation = if (palette.isLight) 2.dp else 16.dp,
                     shape = barShape,
-                    ambientColor = palette.cyan.copy(alpha = 0.25f),
-                    spotColor = palette.cyan.copy(alpha = 0.35f)
+                    ambientColor = if (palette.isLight) Color(0x10000000) else palette.cyan.copy(alpha = 0.25f),
+                    spotColor = if (palette.isLight) Color(0x15000000) else palette.cyan.copy(alpha = 0.35f)
                 )
                 .clip(barShape)
                 .background(

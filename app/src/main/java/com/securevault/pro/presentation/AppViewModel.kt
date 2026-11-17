@@ -158,7 +158,7 @@ class AppViewModel @Inject constructor(
             val current = VaultPalettes.find(
                 runCatching { appLockManager.themeId.first() }.getOrDefault(VaultPalettes.DEFAULT_ID)
             )
-            val next = if (current.isLight) VaultPalettes.DEFAULT_LIGHT_ID else VaultPalettes.DEFAULT_DARK_ID
+            val next = if (current.isLight) VaultPalettes.DEFAULT_DARK_ID else VaultPalettes.DEFAULT_LIGHT_ID
             VaultPaletteController.apply(next)
             runCatching { appLockManager.setThemeId(next) }
         }

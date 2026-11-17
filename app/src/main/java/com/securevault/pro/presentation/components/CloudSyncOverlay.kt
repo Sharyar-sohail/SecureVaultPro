@@ -56,11 +56,12 @@ fun CloudOperationOverlay(
     val palette = VaultPaletteController.current
     val pct = percent.coerceIn(0, 100)
     val done = pct >= 100
+    val isFailed = title.contains("failed", ignoreCase = true) || detail.contains("failed", ignoreCase = true)
     Dialog(
         onDismissRequest = { onCancel?.invoke() },
         properties = DialogProperties(
-            dismissOnBackPress = onCancel != null,
-            dismissOnClickOutside = false,
+            dismissOnBackPress = onCancel != null || isFailed,
+            dismissOnClickOutside = isFailed,
             usePlatformDefaultWidth = false
         )
     ) {
@@ -191,12 +192,26 @@ fun CloudOperationOverlay(
                         )
                     }
                     Spacer(Modifier.height(16.dp))
+                    val isFailed = title.contains("failed", ignoreCase = true) || detail.contains("failed", ignoreCase = true)
                     if (done) {
                         Text(
                             text = "Finished.",
                             style = MaterialTheme.typography.labelSmall,
                             color = VaultColor.textFaint,
                             textAlign = TextAlign.Center
+                        )
+                    } else if (isFailed) {
+                        Text(
+                            text = "Operation did not complete.",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = VaultColor.debit,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(Modifier.height(12.dp))
+                        GhostButton(
+                            text = "Dismiss",
+                            accent = VaultColor.accent,
+                            onClick = { onCancel?.invoke() }
                         )
                     } else if (onCancel == null) {
                         Text(

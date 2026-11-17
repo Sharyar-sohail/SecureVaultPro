@@ -576,7 +576,7 @@ private fun NextGenSearchCapsule(
         modifier = modifier
             .fillMaxWidth()
             .height(48.dp)
-            .shadow(6.dp, RoundedCornerShape(24.dp))
+            .shadow(if (palette.isLight) 0.dp else 6.dp, RoundedCornerShape(24.dp))
             .clip(RoundedCornerShape(24.dp))
             .background(palette.abyssSurface.copy(alpha = 0.9f))
             .border(1.dp, palette.abyssElevated, RoundedCornerShape(24.dp))
@@ -651,7 +651,7 @@ private fun NextGenNexusHeroCard(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(16.dp, RoundedCornerShape(28.dp))
+            .shadow(if (palette.isLight) 0.dp else 16.dp, RoundedCornerShape(28.dp))
             .clip(RoundedCornerShape(28.dp))
             .background(
                 Brush.linearGradient(
@@ -828,17 +828,17 @@ private fun NextGenNexusHeroCard(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // Action Buttons
+            // Action Buttons (Evenly aligned, perfectly balanced 3-column action bar)
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 NextGenPillButton(
                     text = "New Record",
                     icon = Glyph.add,
                     isPrimary = true,
                     onClick = onQuickAdd,
-                    modifier = Modifier.weight(1.3f)
+                    modifier = Modifier.weight(1f)
                 )
 
                 NextGenPillButton(
@@ -875,26 +875,32 @@ private fun NextGenTelemetryStatCard(
             .clip(RoundedCornerShape(12.dp))
             .background(palette.abyssDark.copy(alpha = 0.6f))
             .border(1.dp, palette.abyssElevated.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
-            .padding(horizontal = 12.dp, vertical = 8.dp),
+            .padding(horizontal = 10.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            modifier = Modifier.weight(1f, fill = false),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Box(
                 modifier = Modifier
                     .size(7.dp)
                     .background(color, CircleShape)
             )
-            Spacer(modifier = Modifier.width(8.dp))
+            Spacer(modifier = Modifier.width(6.dp))
             Text(
                 text = title,
                 style = TextStyle(
-                    fontSize = 12.sp,
+                    fontSize = 11.5.sp,
                     fontWeight = FontWeight.Medium,
                     color = palette.textSecondary
-                )
+                ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
         }
+        Spacer(modifier = Modifier.width(4.dp))
         Text(
             text = count,
             style = TextStyle(
@@ -939,7 +945,8 @@ private fun NextGenPillButton(
             .scale(scale)
             .clip(RoundedCornerShape(20.dp))
             .then(bgModifier)
-            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick),
+            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
+            .padding(horizontal = 4.dp),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -947,16 +954,18 @@ private fun NextGenPillButton(
             glyph = icon,
             contentDescription = null,
             tint = contentColor,
-            size = 16.dp
+            size = 15.dp
         )
-        Spacer(modifier = Modifier.width(6.dp))
+        Spacer(modifier = Modifier.width(5.dp))
         Text(
             text = text,
             style = TextStyle(
-                fontSize = 12.sp,
+                fontSize = 11.5.sp,
                 fontWeight = FontWeight.Bold,
                 color = contentColor
-            )
+            ),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
         )
     }
 }
@@ -1036,7 +1045,7 @@ private fun NextGenWideCard(
         modifier = Modifier
             .fillMaxWidth()
             .scale(scale)
-            .shadow(10.dp, RoundedCornerShape(20.dp))
+            .shadow(if (palette.isLight) 0.dp else 10.dp, RoundedCornerShape(20.dp))
             .clip(RoundedCornerShape(20.dp))
             .background(palette.abyssSurface.copy(alpha = 0.92f))
             .border(1.2.dp, palette.abyssElevated, RoundedCornerShape(20.dp))
@@ -1125,7 +1134,7 @@ private fun NextGenBentoTile(
     Column(
         modifier = modifier
             .scale(scale)
-            .shadow(8.dp, RoundedCornerShape(18.dp))
+            .shadow(if (palette.isLight) 0.dp else 8.dp, RoundedCornerShape(18.dp))
             .clip(RoundedCornerShape(18.dp))
             .background(palette.abyssSurface.copy(alpha = 0.9f))
             .border(1.dp, palette.abyssElevated, RoundedCornerShape(18.dp))

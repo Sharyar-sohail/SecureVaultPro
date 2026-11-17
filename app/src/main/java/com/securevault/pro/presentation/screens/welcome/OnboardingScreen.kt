@@ -397,7 +397,8 @@ fun OnboardingScreen(
 
     // Only an attempt this screen started may cover the three options. A cloud flag
     // left over from anything else is dropped so the pre-login screen can never dead-end.
-    val busy = state.busy || (cloudState.active && flowStarted)
+    val isFailed = cloudState.title.contains("failed", ignoreCase = true) || !cloudState.error.isNullOrBlank()
+    val busy = (state.busy || (cloudState.active && flowStarted)) && !isFailed
     LaunchedEffect(cloudState.active, flowStarted, state.busy) {
         if (cloudState.active && !flowStarted && !state.busy) {
             viewModel.cancelPendingFlow()

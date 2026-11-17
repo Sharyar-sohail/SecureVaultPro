@@ -367,12 +367,16 @@ private fun SecureFieldChrome(
             if (engaged) {
                 val rect = caretRect
                 if (rect != null) {
+                    val density = LocalDensity.current
+                    val leftDp = with(density) { rect.left.toDp() }
+                    val topDp = with(density) { rect.top.toDp() }
+                    val heightDp = with(density) { rect.height.toDp() }
                     Box(
                         modifier = Modifier
                             .padding(top = 6.dp)
-                            .offset(x = rect.left.dp, y = rect.top.dp)
+                            .offset(x = leftDp, y = topDp)
                             .width(2.dp)
-                            .height(rect.height.dp.coerceAtLeast(10.dp))
+                            .height(heightDp.coerceAtLeast(10.dp))
                             .background(VaultColor.accent)
                     )
                 } else {

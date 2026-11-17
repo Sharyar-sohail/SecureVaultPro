@@ -1626,7 +1626,8 @@ fun VaultTextField(
     supportingText: String? = null,
     textStyle: TextStyle? = null,
     keyboardActions: KeyboardActions = KeyboardActions.Default,
-    onImeSubmit: (() -> Unit)? = null
+    onImeSubmit: (() -> Unit)? = null,
+    useSystemKeyboard: Boolean = false
 ) {
     // A submit handler turns the key into "Done" and fires on Enter/Done/Go, so the
     // keyboard can always complete the action the on-screen button would.
@@ -1768,7 +1769,7 @@ fun VaultTextField(
         keyboardType == KeyboardType.NumberPassword ||
         keyboardType == KeyboardType.Phone
     val board: SecureBoardEntry? =
-        if (enabled && LocalSecureKeyboardTyping.current) {
+        if (enabled && LocalSecureKeyboardTyping.current && !useSystemKeyboard) {
             rememberSecureBoard(
                 value = value,
                 onValueChange = onValueChange,

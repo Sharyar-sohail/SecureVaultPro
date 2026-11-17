@@ -276,6 +276,7 @@ class SetupViewModel @Inject constructor(
                 }
                 restoreFromDrive(email)
             } catch (e: GoogleDriveException) {
+                cloudSyncManager.resetState()
                 _state.update {
                     it.copy(
                         busy = false,
@@ -284,6 +285,7 @@ class SetupViewModel @Inject constructor(
                     )
                 }
             } catch (e: Throwable) {
+                cloudSyncManager.resetState()
                 _state.update {
                     it.copy(
                         busy = false,
@@ -390,6 +392,7 @@ class SetupViewModel @Inject constructor(
         val outcome = cloudSyncManager.restoreAnyCloudBackup(email, passphrase = secret)
         outcome.fold(
             onSuccess = { result ->
+                cloudSyncManager.resetState()
                 val complete = result.failureReason == null
                 // A partial restore still leaves a real vault on the device, so the user
                 // is allowed forward with the failure shown — never stranded on Welcome.
@@ -417,6 +420,7 @@ class SetupViewModel @Inject constructor(
                 }
             },
             onFailure = { error ->
+                cloudSyncManager.resetState()
                 val message = error.message?.take(600).orEmpty()
                 if (DriveFaults.needsFreshSignIn(message)) {
                     forcePicker = true

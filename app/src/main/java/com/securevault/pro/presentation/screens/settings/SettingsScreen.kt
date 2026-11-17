@@ -1384,7 +1384,8 @@ fun SettingsScreen(
                         label = "Master password",
                         leadingIcon = Glyph.lock,
                         isPassword = true,
-                        enabled = !state.working
+                        enabled = !state.working,
+                        useSystemKeyboard = true
                     )
                     state.wipeError?.let { err ->
                         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {

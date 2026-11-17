@@ -39,7 +39,8 @@ data class BackupUiState(
     val lastBackupAt: Long = 0L,
     val companionUrl: String = "",
     val companionEnabled: Boolean = false,
-    val storageQuota: DriveStorageQuota? = null
+    val storageQuota: DriveStorageQuota? = null,
+    val deletingSnapshot: Boolean = false
 ) {
     val selected: CloudBackupFile? get() = backups.firstOrNull { it.id == selectedId }
 }
@@ -522,6 +523,72 @@ class BackupViewModel @Inject constructor(
                     _state.update {
                         it.copy(
                             message = error.message?.take(240) ?: "The encrypted file could not be imported.",
+                            messageIsError = true
+                        )
+                    }
+                }
+            )
+        }
+    }
+
+    fun deleteSnapshot(file: CloudBackupFile) {
+        if (state.value.decoy) return
+        viewModelScope.launch {
+            _state.update { it.copy(deletingSnapshot = true, message = null) }
+            val outcome = cloudSyncManager.deleteCloudBackup(file.id)
+            outcome.fold(
+                onSuccess = {
+                    val remaining = cloudSyncManager.listCloudBackups().getOrDefault(emptyList())
+                    _state.update { current ->
+                        current.copy(
+                            deletingSnapshot = false,
+                            backups = remaining,
+                            selectedId = if (current.selectedId == file.id) null else current.selectedId,
+                            preview = if (current.selectedId == file.id) null else current.preview,
+                            message = "${file.name} deleted permanently from Google Drive.",
+                            messageIsError = false
+                        )
+                    }
+                },
+                onFailure = { error ->
+                    _state.update {
+                        it.copy(
+                            deletingSnapshot = false,
+                            message = error.message ?: "Failed to delete snapshot from Google Drive.",
+                            messageIsError = true
+                        )
+                    }
+                }
+            )
+        }
+    }
+
+    fun deleteAllSnapshots() {
+        if (state.value.decoy) return
+        val allIds = state.value.backups.map { it.id }
+        if (allIds.isEmpty()) return
+        viewModelScope.launch {
+            _state.update { it.copy(deletingSnapshot = true, message = null) }
+            val outcome = cloudSyncManager.deleteCloudBackups(allIds)
+            outcome.fold(
+                onSuccess = { count ->
+                    val remaining = cloudSyncManager.listCloudBackups().getOrDefault(emptyList())
+                    _state.update {
+                        it.copy(
+                            deletingSnapshot = false,
+                            backups = remaining,
+                            selectedId = null,
+                            preview = null,
+                            message = "$count snapshot(s) permanently deleted from Google Drive.",
+                            messageIsError = false
+                        )
+                    }
+                },
+                onFailure = { error ->
+                    _state.update {
+                        it.copy(
+                            deletingSnapshot = false,
+                            message = error.message ?: "Failed to delete snapshots from Google Drive.",
                             messageIsError = true
                         )
                     }
