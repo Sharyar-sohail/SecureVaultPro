@@ -112,22 +112,6 @@ fun NextGenHomeScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(bgBase)
-            .drawBehind {
-                drawCircle(
-                    brush = Brush.radialGradient(
-                        colors = listOf(ambientTop, Color.Transparent),
-                        center = Offset(size.width * 0.2f, size.height * 0.08f),
-                        radius = size.width * 0.9f
-                    )
-                )
-                drawCircle(
-                    brush = Brush.radialGradient(
-                        colors = listOf(ambientMid, Color.Transparent),
-                        center = Offset(size.width * 0.85f, size.height * 0.5f),
-                        radius = size.width * 0.8f
-                    )
-                )
-            }
     ) {
         Column(
             modifier = Modifier
@@ -504,8 +488,7 @@ private fun NextGenCommandIsland(
                 NextGenCircleGlassButton(
                     onClick = onLock,
                     iconGlyph = Glyph.lock,
-                    contentDescription = "Lock Vault",
-                    accentHalo = true
+                    contentDescription = "Lock Vault"
                 )
 
                 NextGenCircleGlassButton(
@@ -545,23 +528,22 @@ private fun NextGenCircleGlassButton(
     iconGlyph: Glyph,
     contentDescription: String,
     rotation: Float = 0f,
-    tint: Color? = null,
-    accentHalo: Boolean = false
+    tint: Color? = null
 ) {
     val palette = VaultPaletteController.current
+    val isLight = palette.isLight
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(if (isPressed) 0.88f else 1f, label = "pressScale")
 
-    val bg = if (accentHalo) palette.cyan.copy(alpha = 0.16f) else palette.abyssSurface.copy(alpha = 0.85f)
-    val borderCol = if (accentHalo) palette.cyan.copy(alpha = 0.45f) else palette.abyssElevated.copy(alpha = 0.6f)
-    val iconTint = tint ?: if (accentHalo) palette.cyan else palette.textPrimary
+    val bg = if (isLight) palette.abyssSurface.copy(alpha = 0.95f) else palette.abyssSurface.copy(alpha = 0.85f)
+    val borderCol = if (isLight) palette.abyssElevated.copy(alpha = 0.45f) else palette.abyssElevated.copy(alpha = 0.6f)
+    val iconTint = tint ?: palette.textPrimary
 
     Box(
         modifier = Modifier
             .size(38.dp)
             .scale(scale)
-            .shadow(4.dp, CircleShape)
             .clip(CircleShape)
             .background(bg)
             .border(1.dp, borderCol, CircleShape)

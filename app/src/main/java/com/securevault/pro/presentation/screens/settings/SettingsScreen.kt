@@ -67,8 +67,15 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.securevault.pro.BuildConfig
 import com.securevault.pro.autofill.AutofillSettings
 import com.securevault.pro.data.backup.BloggerThemeFile
+import com.securevault.pro.data.backup.CloudBackupFile
 import com.securevault.pro.data.remote.google.LocalExportData
 import com.securevault.pro.data.remote.google.XmlExportData
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.IconButton
 import com.securevault.pro.presentation.components.BrandModuleIcon
 import com.securevault.pro.presentation.components.GhostButton
 import com.securevault.pro.presentation.components.GlassCard
@@ -715,6 +722,15 @@ fun SettingsScreen(
                 if (state.cloudEmail.isNotBlank()) {
                     RowDivider()
                     SettingsActionRow(
+                        icon = Glyph.cloudDownload,
+                        accent = VaultColor.accent,
+                        title = "Manage Cloud Backups",
+                        subtitle = "View, select & permanently delete Drive snapshots",
+                        enabled = writable,
+                        onClick = viewModel::openCloudBackupsManager
+                    )
+                    RowDivider()
+                    SettingsActionRow(
                         icon = Glyph.cloud,
                         accent = VaultColor.debit,
                         title = "Disconnect Google Drive",
@@ -856,6 +872,63 @@ fun SettingsScreen(
                     TagChip("AES-256-GCM")
                     TagChip("PBKDF2 600k", accent = VaultColor.credit)
                     TagChip("Keystore", accent = VaultColor.decorative)
+                }
+            }
+
+            SettingsSection(
+                title = "Cloud backups & snapshots",
+                subtitle = "Manage Drive backups and wipe old records",
+                accent = VaultColor.accent
+            ) {
+                GlassCard(
+                    borderColor = VaultColor.accent.copy(alpha = 0.35f),
+                    accent = VaultColor.accent
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(42.dp)
+                                .clip(VaultShapes.input)
+                                .background(VaultColor.accent.copy(alpha = 0.12f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            ThemedIcon(
+                                glyph = Glyph.cloud,
+                                contentDescription = null,
+                                tint = VaultColor.accent,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                text = "Drive backups manager",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = VaultColor.textStrong
+                            )
+                            Text(
+                                text = if (state.cloudEmail.isNotBlank()) "Connected to ${state.cloudEmail}" else "Google Drive backups & snapshots",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = VaultColor.textFaint
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        text = "List all encrypted copies, dated snapshots and pre-wipe archives stored in your Google Drive. Select and permanently delete old backups so legacy records never reappear.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = VaultColor.textBody,
+                        lineHeight = 18.sp
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    GhostButton(
+                        text = "Manage cloud backups",
+                        icon = Glyph.cloudDownload,
+                        accent = VaultColor.accent,
+                        enabled = writable,
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = viewModel::openCloudBackupsManager
+                    )
                 }
             }
 
@@ -1669,6 +1742,13 @@ fun SettingsScreen(
             onDismiss = { showScanTokens = false }
         )
     }
+
+    if (state.showCloudBackupsDialog) {
+        CloudBackupsManagerDialog(
+            state = state,
+            viewModel = viewModel
+        )
+    }
 }
 
 /**
@@ -2429,4 +2509,397 @@ private fun durationLabel(seconds: Int): String = when {
     seconds == 60 -> "1 min"
     seconds % 60 == 0 -> "${seconds / 60} min"
     else -> "${seconds}s"
+}
+
+@Composable
+private fun CloudBackupsManagerDialog(
+    state: SettingsUiState,
+    viewModel: SettingsViewModel
+) {
+    val dateFormat = remember { SimpleDateFormat("dd MMM yyyy, HH:mm", Locale.getDefault()) }
+    var fileToDelete by remember { mutableStateOf<CloudBackupFile?>(null) }
+    var showDeleteAllConfirm by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = {
+            if (!state.deletingCloudBackups) viewModel.closeCloudBackupsManager()
+        },
+        containerColor = VaultColor.elevated,
+        titleContentColor = VaultColor.textStrong,
+        textContentColor = VaultColor.textBody,
+        title = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    ThemedIcon(
+                        glyph = Glyph.cloud,
+                        contentDescription = null,
+                        tint = VaultColor.accent,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(Modifier.width(10.dp))
+                    Column {
+                        Text(
+                            text = "Cloud Backups",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = if (state.cloudEmail.isNotBlank()) state.cloudEmail else "Google Drive Storage",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = VaultColor.textFaint
+                        )
+                    }
+                }
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(CircleShape)
+                        .background(VaultColor.overlay.copy(alpha = 0.08f))
+                        .clickable(enabled = !state.loadingCloudBackups && !state.deletingCloudBackups) {
+                            viewModel.loadCloudBackups()
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    ThemedIcon(
+                        glyph = Glyph.sync,
+                        contentDescription = "Refresh",
+                        tint = VaultColor.accent,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 420.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text(
+                    text = "Manage and permanently delete old encrypted backups and snapshots from Google Drive to keep your storage clean and prevent unwanted restoration.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = VaultColor.textBody,
+                    lineHeight = 16.sp
+                )
+
+                state.cloudBackupNotice?.let { notice ->
+                    val isError = state.cloudBackupNoticeIsError
+                    val bannerCol = if (isError) VaultColor.debit else VaultColor.credit
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(VaultShapes.input)
+                            .background(bannerCol.copy(alpha = 0.12f))
+                            .border(1.dp, bannerCol.copy(alpha = 0.35f), VaultShapes.input)
+                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            ThemedIcon(
+                                glyph = if (isError) Glyph.errorOutline else Glyph.checkCircle,
+                                contentDescription = null,
+                                tint = bannerCol,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                text = notice,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = bannerCol,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+                }
+
+                // Batch Actions Bar
+                if (state.cloudBackups.isNotEmpty()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        TextButton(
+                            onClick = viewModel::toggleSelectAllBackups,
+                            enabled = !state.deletingCloudBackups
+                        ) {
+                            val allSelected = state.cloudBackups.isNotEmpty() &&
+                                state.selectedCloudBackupIds.containsAll(state.cloudBackups.map { it.id })
+                            Text(
+                                text = if (allSelected) "Deselect All" else "Select All (${state.cloudBackups.size})",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = VaultColor.accent,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+
+                        if (state.selectedCloudBackupIds.isNotEmpty()) {
+                            TextButton(
+                                onClick = viewModel::deleteSelectedCloudBackups,
+                                enabled = !state.deletingCloudBackups
+                            ) {
+                                Text(
+                                    text = "Delete Selected (${state.selectedCloudBackupIds.size})",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = VaultColor.debit,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                }
+
+                if (state.loadingCloudBackups || state.deletingCloudBackups) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 24.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                strokeWidth = 2.dp,
+                                color = VaultColor.accent
+                            )
+                            Spacer(Modifier.width(10.dp))
+                            Text(
+                                text = if (state.deletingCloudBackups) "Deleting cloud backup..." else "Listing backups from Drive...",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = VaultColor.textBody
+                            )
+                        }
+                    }
+                } else if (state.cloudBackups.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 24.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            ThemedIcon(
+                                glyph = Glyph.checkCircle,
+                                contentDescription = null,
+                                tint = VaultColor.credit,
+                                modifier = Modifier.size(32.dp)
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                text = "No backups found in Google Drive.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = VaultColor.textStrong,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Text(
+                                text = "Your cloud storage has zero lingering snapshots.",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = VaultColor.textFaint
+                            )
+                        }
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f, fill = false),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(state.cloudBackups, key = { it.id }) { file ->
+                            val isSelected = state.selectedCloudBackupIds.contains(file.id)
+                            val isZip = file.name.endsWith(".zip", ignoreCase = true)
+                            val sizeText = when {
+                                file.size >= 1024 * 1024 -> String.format(Locale.US, "%.1f MB", file.size / (1024f * 1024f))
+                                file.size >= 1024 -> String.format(Locale.US, "%.1f KB", file.size / 1024f)
+                                file.size > 0 -> "${file.size} B"
+                                else -> "0 B"
+                            }
+                            val dateText = if (file.modifiedTime > 0) dateFormat.format(Date(file.modifiedTime)) else "Unknown date"
+
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(VaultShapes.input)
+                                    .background(
+                                        if (isSelected) VaultColor.accent.copy(alpha = 0.08f)
+                                        else VaultColor.overlay.copy(alpha = 0.04f)
+                                    )
+                                    .border(
+                                        1.dp,
+                                        if (isSelected) VaultColor.accent.copy(alpha = 0.4f)
+                                        else VaultColor.hairline,
+                                        VaultShapes.input
+                                    )
+                                    .clickable(enabled = !state.deletingCloudBackups) {
+                                        viewModel.toggleSelectBackup(file.id)
+                                    }
+                                    .padding(horizontal = 10.dp, vertical = 8.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Checkbox(
+                                        checked = isSelected,
+                                        onCheckedChange = { viewModel.toggleSelectBackup(file.id) },
+                                        enabled = !state.deletingCloudBackups,
+                                        colors = CheckboxDefaults.colors(
+                                            checkedColor = VaultColor.accent,
+                                            uncheckedColor = VaultColor.textFaint,
+                                            checkmarkColor = VaultColor.onAccent
+                                        ),
+                                        modifier = Modifier.size(24.dp)
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                    ThemedIcon(
+                                        glyph = if (isZip) Glyph.folder else Glyph.lock,
+                                        contentDescription = null,
+                                        tint = if (file.isPrimary) VaultColor.accent else VaultColor.textBody,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                    Column(Modifier.weight(1f)) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(
+                                                text = file.name,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = VaultColor.textStrong,
+                                                fontWeight = FontWeight.SemiBold,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                                modifier = Modifier.weight(1f, fill = false)
+                                            )
+                                            if (file.isPrimary) {
+                                                Spacer(Modifier.width(4.dp))
+                                                TagChip("Primary", accent = VaultColor.accent)
+                                            }
+                                        }
+                                        Text(
+                                            text = "$sizeText · $dateText",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = VaultColor.textFaint
+                                        )
+                                    }
+                                    Spacer(Modifier.width(4.dp))
+                                    IconButton(
+                                        onClick = { fileToDelete = file },
+                                        enabled = !state.deletingCloudBackups,
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        ThemedIcon(
+                                            glyph = Glyph.delete,
+                                            contentDescription = "Delete",
+                                            tint = VaultColor.debit.copy(alpha = 0.8f),
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            if (state.cloudBackups.isNotEmpty()) {
+                TextButton(
+                    onClick = { showDeleteAllConfirm = true },
+                    enabled = !state.deletingCloudBackups
+                ) {
+                    Text(
+                        text = "Delete All Backups",
+                        color = VaultColor.debit,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = viewModel::closeCloudBackupsManager,
+                enabled = !state.deletingCloudBackups
+            ) {
+                Text("Close", color = VaultColor.textBody)
+            }
+        }
+    )
+
+    // Confirm Single File Delete
+    fileToDelete?.let { target ->
+        AlertDialog(
+            onDismissRequest = { fileToDelete = null },
+            containerColor = VaultColor.elevated,
+            title = {
+                Text(
+                    text = "Delete Cloud Backup?",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = VaultColor.textStrong
+                )
+            },
+            text = {
+                Text(
+                    text = "Are you sure you want to permanently delete \"${target.name}\" from Google Drive? This cannot be undone.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = VaultColor.textBody
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val id = target.id
+                        fileToDelete = null
+                        viewModel.deleteSingleCloudBackup(id)
+                    }
+                ) {
+                    Text("Delete", color = VaultColor.debit, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { fileToDelete = null }) {
+                    Text("Cancel", color = VaultColor.textBody)
+                }
+            }
+        )
+    }
+
+    // Confirm Delete All Files
+    if (showDeleteAllConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteAllConfirm = false },
+            containerColor = VaultColor.elevated,
+            title = {
+                Text(
+                    text = "Delete All Cloud Backups?",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = VaultColor.debit
+                )
+            },
+            text = {
+                Text(
+                    text = "This will permanently remove every backup, snapshot, and mirror stored in Google Drive. After this, your Google Drive storage will be completely empty of vault files.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = VaultColor.textBody
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDeleteAllConfirm = false
+                        viewModel.deleteAllCloudBackupsFromSettings()
+                    }
+                ) {
+                    Text("Delete Everything in Cloud", color = VaultColor.debit, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteAllConfirm = false }) {
+                    Text("Cancel", color = VaultColor.textBody)
+                }
+            }
+        )
+    }
 }

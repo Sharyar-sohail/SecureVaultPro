@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.securevault.pro.data.backup.BloggerThemeExporter
 import com.securevault.pro.data.backup.BloggerThemeFile
+import com.securevault.pro.data.backup.CloudBackupFile
 import com.securevault.pro.data.remote.firebase.Keyring
 import com.securevault.pro.data.remote.google.CloudSyncManager
 import com.securevault.pro.data.remote.google.LocalExportData
@@ -84,6 +85,15 @@ data class SettingsUiState(
     val wiped: Boolean = false,
     val message: String? = null,
     val messageIsError: Boolean = false,
+
+    // ---- Cloud backups manager ----
+    val cloudBackups: List<CloudBackupFile> = emptyList(),
+    val loadingCloudBackups: Boolean = false,
+    val selectedCloudBackupIds: Set<String> = emptySet(),
+    val deletingCloudBackups: Boolean = false,
+    val cloudBackupNotice: String? = null,
+    val cloudBackupNoticeIsError: Boolean = false,
+    val showCloudBackupsDialog: Boolean = false,
 
     // ---- realtime sync status (live numbers only; never any key material) ----
     val realtimeUid: String? = null,
@@ -1038,6 +1048,158 @@ class SettingsViewModel @Inject constructor(
                 credentialError = message,
                 message = message,
                 messageIsError = true
+            )
+        }
+    }
+
+    // -----------------------------------------------------------------
+    // CLOUD BACKUPS & SNAPSHOTS MANAGER
+    // -----------------------------------------------------------------
+
+    fun openCloudBackupsManager() {
+        _state.update { it.copy(showCloudBackupsDialog = true, cloudBackupNotice = null) }
+        loadCloudBackups()
+    }
+
+    fun closeCloudBackupsManager() {
+        _state.update { it.copy(showCloudBackupsDialog = false, cloudBackupNotice = null) }
+    }
+
+    fun clearCloudBackupNotice() {
+        _state.update { it.copy(cloudBackupNotice = null) }
+    }
+
+    fun loadCloudBackups() {
+        viewModelScope.launch {
+            _state.update { it.copy(loadingCloudBackups = true, cloudBackupNotice = null) }
+            val outcome = cloudSyncManager.listCloudBackups()
+            outcome.fold(
+                onSuccess = { list ->
+                    _state.update {
+                        it.copy(
+                            loadingCloudBackups = false,
+                            cloudBackups = list,
+                            selectedCloudBackupIds = emptySet()
+                        )
+                    }
+                },
+                onFailure = { error ->
+                    _state.update {
+                        it.copy(
+                            loadingCloudBackups = false,
+                            cloudBackupNotice = error.message ?: "Failed to list backups from Google Drive.",
+                            cloudBackupNoticeIsError = true
+                        )
+                    }
+                }
+            )
+        }
+    }
+
+    fun toggleSelectBackup(fileId: String) {
+        _state.update { current ->
+            val set = current.selectedCloudBackupIds.toMutableSet()
+            if (set.contains(fileId)) set.remove(fileId) else set.add(fileId)
+            current.copy(selectedCloudBackupIds = set)
+        }
+    }
+
+    fun toggleSelectAllBackups() {
+        _state.update { current ->
+            val allIds = current.cloudBackups.map { it.id }.toSet()
+            val next = if (current.selectedCloudBackupIds.containsAll(allIds)) emptySet() else allIds
+            current.copy(selectedCloudBackupIds = next)
+        }
+    }
+
+    fun deleteSingleCloudBackup(fileId: String) {
+        viewModelScope.launch {
+            _state.update { it.copy(deletingCloudBackups = true, cloudBackupNotice = null) }
+            val outcome = cloudSyncManager.deleteCloudBackup(fileId)
+            outcome.fold(
+                onSuccess = {
+                    val remaining = cloudSyncManager.listCloudBackups().getOrDefault(emptyList())
+                    _state.update {
+                        it.copy(
+                            deletingCloudBackups = false,
+                            cloudBackups = remaining,
+                            selectedCloudBackupIds = it.selectedCloudBackupIds - fileId,
+                            cloudBackupNotice = "Backup deleted permanently from Google Drive.",
+                            cloudBackupNoticeIsError = false
+                        )
+                    }
+                },
+                onFailure = { error ->
+                    _state.update {
+                        it.copy(
+                            deletingCloudBackups = false,
+                            cloudBackupNotice = error.message ?: "Failed to delete backup from Google Drive.",
+                            cloudBackupNoticeIsError = true
+                        )
+                    }
+                }
+            )
+        }
+    }
+
+    fun deleteSelectedCloudBackups() {
+        val selected = _state.value.selectedCloudBackupIds
+        if (selected.isEmpty()) return
+        viewModelScope.launch {
+            _state.update { it.copy(deletingCloudBackups = true, cloudBackupNotice = null) }
+            val outcome = cloudSyncManager.deleteCloudBackups(selected)
+            outcome.fold(
+                onSuccess = { count ->
+                    val remaining = cloudSyncManager.listCloudBackups().getOrDefault(emptyList())
+                    _state.update {
+                        it.copy(
+                            deletingCloudBackups = false,
+                            cloudBackups = remaining,
+                            selectedCloudBackupIds = emptySet(),
+                            cloudBackupNotice = "$count backup(s) permanently deleted from Google Drive.",
+                            cloudBackupNoticeIsError = false
+                        )
+                    }
+                },
+                onFailure = { error ->
+                    _state.update {
+                        it.copy(
+                            deletingCloudBackups = false,
+                            cloudBackupNotice = error.message ?: "Failed to delete selected backups.",
+                            cloudBackupNoticeIsError = true
+                        )
+                    }
+                }
+            )
+        }
+    }
+
+    fun deleteAllCloudBackupsFromSettings() {
+        viewModelScope.launch {
+            _state.update { it.copy(deletingCloudBackups = true, cloudBackupNotice = null) }
+            val outcome = cloudSyncManager.deleteAllCloudBackups()
+            outcome.fold(
+                onSuccess = { count ->
+                    val remaining = cloudSyncManager.listCloudBackups().getOrDefault(emptyList())
+                    _state.update {
+                        it.copy(
+                            deletingCloudBackups = false,
+                            cloudBackups = remaining,
+                            selectedCloudBackupIds = emptySet(),
+                            cloudBackupNotice = "All cloud backups permanently deleted ($count files removed).",
+                            cloudBackupNoticeIsError = false
+                        )
+                    }
+                },
+                onFailure = { error ->
+                    _state.update {
+                        it.copy(
+                            deletingCloudBackups = false,
+                            cloudBackupNotice = error.message ?: "Failed to delete all cloud backups.",
+                            cloudBackupNoticeIsError = true
+                        )
+                    }
+                }
             )
         }
     }

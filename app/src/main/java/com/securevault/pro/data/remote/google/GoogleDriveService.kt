@@ -265,7 +265,7 @@ class GoogleDriveService @Inject constructor(
         withContext(Dispatchers.IO) {
             val drive = driveFor(account)
             try {
-                val files = withTimeout(OPERATION_TIMEOUT_MS) {
+                val appDataFiles = withTimeout(OPERATION_TIMEOUT_MS) {
                     drive.files().list()
                         .setSpaces(APP_DATA_FOLDER)
                         .setFields("files(id,name,size,modifiedTime,mimeType)")
@@ -273,8 +273,35 @@ class GoogleDriveService @Inject constructor(
                         .setPageSize(100)
                         .execute()
                 }.files.orEmpty()
-                files.asSequence()
-                    .filter { it.name?.endsWith(".enc", ignoreCase = true) == true }
+
+                val archiveFiles = runCatching {
+                    if (!hasArchiveAccess(account)) emptyList()
+                    else {
+                        val folderList = withTimeout(OPERATION_TIMEOUT_MS) {
+                            drive.files().list()
+                                .setQ("trashed = false and mimeType = 'application/vnd.google-apps.folder' and name = '$ARCHIVE_FOLDER' and 'root' in parents")
+                                .setFields("files(id)")
+                                .setPageSize(1)
+                                .execute().files.orEmpty()
+                        }
+                        val folderId = folderList.firstOrNull()?.id
+                        if (folderId.isNullOrBlank()) emptyList()
+                        else {
+                            withTimeout(OPERATION_TIMEOUT_MS) {
+                                drive.files().list()
+                                    .setQ("'$folderId' in parents and trashed = false")
+                                    .setFields("files(id,name,size,modifiedTime,mimeType)")
+                                    .setOrderBy("modifiedTime desc")
+                                    .setPageSize(50)
+                                    .execute().files.orEmpty()
+                            }
+                        }
+                    }
+                }.getOrDefault(emptyList())
+
+                val allFiles = (appDataFiles + archiveFiles).distinctBy { it.id }
+                allFiles.asSequence()
+                    .filter { it.name?.endsWith(".enc", ignoreCase = true) == true || it.name?.endsWith(".zip", ignoreCase = true) == true }
                     .filter { it.name != "vault_salt.json" }
                     .map { file ->
                         CloudBackupFile(

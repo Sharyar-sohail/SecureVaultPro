@@ -60,7 +60,8 @@ class RetentionGuardTest {
         "LocalWipeService.kt",
         "VaultRepository.kt",
         "CloudSyncManager.kt",
-        "GoogleDriveService.kt"
+        "GoogleDriveService.kt",
+        "SettingsViewModel.kt"
     )
 
     @Test

@@ -179,7 +179,7 @@ class BackupViewModel @Inject constructor(
                     )
                 }
                 val hydrated = withTimeoutOrNull(HYDRATE_TIMEOUT_MS) {
-                    Box(cloudSyncManager.hydrateVault(mergeExisting = true))
+                    Box(cloudSyncManager.hydrateVault(mergeExisting = false))
                 }
                 _state.update {
                     it.copy(

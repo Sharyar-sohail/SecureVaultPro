@@ -626,6 +626,11 @@ class SetupViewModel @Inject constructor(
      */
     private fun restoreInBackground(email: String, masterPassword: String) {
         viewModelScope.launch {
+            if (cloudSyncManager.hasLocalRecords()) {
+                // If the vault was already populated during setup (e.g. via local file import),
+                // never silently merge or overwrite with legacy Drive snapshots.
+                return@launch
+            }
             val outcome = runCatching {
                 withTimeoutOrNull(DRIVE_RETRY_TIMEOUT_MS) {
                     cloudSyncManager.restoreAnyCloudBackup(email, passphrase = masterPassword)

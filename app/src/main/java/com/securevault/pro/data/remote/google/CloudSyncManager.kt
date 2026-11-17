@@ -620,9 +620,9 @@ class CloudSyncManager @Inject constructor(
         passphrase: String? = null
     ): RestoreOutcome? {
         if (sessionManager.isDecoy()) return null
-        if (!mergeExisting && backupEngine.countAll().total > 0) return null
+        if (backupEngine.countAll().total > 0) return null
         // A wiped install stays empty until the user restores a backup explicitly.
-        if (!mergeExisting && WipeArchiveStore.wasWiped(context)) return null
+        if (WipeArchiveStore.wasWiped(context)) return null
         if (driveService.hasDriveAccess()) {
             val restored = restoreAnyCloudBackup(passphrase = passphrase).getOrNull()
             if (restored != null && backupEngine.countAll().total > 0) {
@@ -737,6 +737,9 @@ class CloudSyncManager @Inject constructor(
      */
     suspend fun deleteAllCloudBackups(): Result<Int> = withContext(Dispatchers.IO) {
         if (!driveService.hasDriveAccess()) {
+            driveService.silentSignIn()
+        }
+        if (!driveService.hasDriveAccess()) {
             return@withContext Result.failure(
                 CloudSyncException("Google Drive is not connected.")
             )
@@ -749,6 +752,36 @@ class CloudSyncManager @Inject constructor(
             Result.failure(e)
         }
     }
+
+    suspend fun deleteCloudBackup(fileId: String): Result<Boolean> = withContext(Dispatchers.IO) {
+        if (!driveService.hasDriveAccess()) {
+            driveService.silentSignIn()
+        }
+        if (!driveService.hasDriveAccess()) {
+            return@withContext Result.failure(CloudSyncException("Google Drive is not connected."))
+        }
+        val ok = driveService.delete(fileId)
+        if (ok) Result.success(true)
+        else Result.failure(CloudSyncException("Failed to delete the backup file from Google Drive."))
+    }
+
+    suspend fun deleteCloudBackups(fileIds: Collection<String>): Result<Int> = withContext(Dispatchers.IO) {
+        if (!driveService.hasDriveAccess()) {
+            driveService.silentSignIn()
+        }
+        if (!driveService.hasDriveAccess()) {
+            return@withContext Result.failure(CloudSyncException("Google Drive is not connected."))
+        }
+        var count = 0
+        fileIds.forEach { id ->
+            if (driveService.delete(id)) {
+                count++
+            }
+        }
+        Result.success(count)
+    }
+
+    suspend fun hasLocalRecords(): Boolean = backupEngine.countAll().total > 0
 
     /**
      * Seals the current vault into a timestamped ZIP and uploads it to a visible
