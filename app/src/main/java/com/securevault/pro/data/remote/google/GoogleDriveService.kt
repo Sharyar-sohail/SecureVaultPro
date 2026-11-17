@@ -313,7 +313,11 @@ class GoogleDriveService @Inject constructor(
                         )
                     }
                     .filter { it.id.isNotBlank() }
-                    .sortedWith(compareByDescending<CloudBackupFile> { it.isPrimary }.thenByDescending { it.modifiedTime })
+                    .sortedWith(
+                        compareByDescending<CloudBackupFile> { it.isPrimary }
+                            .thenByDescending { !it.name.endsWith(".zip", ignoreCase = true) }
+                            .thenByDescending { it.modifiedTime }
+                    )
                     .toList()
             } catch (e: GoogleDriveException) {
                 throw e

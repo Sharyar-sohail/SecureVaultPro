@@ -505,7 +505,9 @@ class SetupViewModel @Inject constructor(
             message.contains("locked with a key", ignoreCase = true) ||
             message.contains("does not hold", ignoreCase = true) ||
             message.contains("doesnt have", ignoreCase = true) ||
-            message.contains("could not be opened", ignoreCase = true)
+            message.contains("could not be opened", ignoreCase = true) ||
+            message.contains("could not be decoded", ignoreCase = true) ||
+            message.contains("SECURE VAULT PRO backup file", ignoreCase = true)
 
     fun importLocalFile(bytes: ByteArray, fileName: String, passphrase: String? = null) {
         // Kept so a failure can be retried with a passphrase without asking for the file again.

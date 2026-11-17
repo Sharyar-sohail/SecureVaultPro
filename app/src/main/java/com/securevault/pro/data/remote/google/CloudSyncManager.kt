@@ -1063,6 +1063,40 @@ class CloudSyncManager @Inject constructor(
         }
     }
 
+    private fun unpackZipIfArchive(bytes: ByteArray): ByteArray {
+        if (bytes.size < 4) return bytes
+        if (bytes[0] == 0x50.toByte() && bytes[1] == 0x4B.toByte() &&
+            bytes[2] == 0x03.toByte() && bytes[3] == 0x04.toByte()
+        ) {
+            runCatching {
+                java.util.zip.ZipInputStream(java.io.ByteArrayInputStream(bytes)).use { zis ->
+                    var entry = zis.nextEntry
+                    var candidate: ByteArray? = null
+                    while (entry != null) {
+                        val name = entry.name.lowercase()
+                        if (name.endsWith(".enc") || name.endsWith(".json") || name.endsWith(".xml")) {
+                            val content = zis.readBytes()
+                            if (content.isNotEmpty()) {
+                                if (name.contains("vault_backup.enc")) {
+                                    return content
+                                }
+                                if (name.contains("vault_backup.xml.enc")) {
+                                    candidate = content
+                                } else if (candidate == null && !name.contains("manifest")) {
+                                    candidate = content
+                                }
+                            }
+                        }
+                        zis.closeEntry()
+                        entry = zis.nextEntry
+                    }
+                    candidate?.let { return it }
+                }
+            }
+        }
+        return bytes
+    }
+
     /**
      * Opens a stored backup without changing a byte of it.
      *
@@ -1079,9 +1113,10 @@ class CloudSyncManager @Inject constructor(
         epoch: Long = operationEpoch.get(),
         preferPassphrase: Boolean = false
     ): DecodedBackup = withContext(Dispatchers.Default) {
-        val text = bytes.toString(Charsets.UTF_8).trim()
+        val payloadBytes = unpackZipIfArchive(bytes)
+        val text = payloadBytes.toString(Charsets.UTF_8).trim()
         if (text.isBlank()) throw CloudSyncException("The backup file is empty")
-        val envelope = BackupEnvelopeFormat.parse(bytes)
+        val envelope = BackupEnvelopeFormat.parse(payloadBytes)
         if (envelope != null && envelope.recognised && envelope.salt.size >= 8) {
             val secret = LegacyKeyPlan.exactSecret(
                 keyId = envelope.keyId,
@@ -1219,11 +1254,13 @@ class CloudSyncManager @Inject constructor(
     }
 
     private fun readPlainJson(text: String, bytes: ByteArray): String {
-        val trimmed = text.trimStart('\uFEFF', ' ', '\n', '\r', '\t')
+        val payloadBytes = unpackZipIfArchive(bytes)
+        val contentText = if (payloadBytes !== bytes) payloadBytes.toString(Charsets.UTF_8).trim() else text
+        val trimmed = contentText.trimStart('\uFEFF', ' ', '\n', '\r', '\t')
         // The XML mirror is a real backup body, not a foreign file; BackupParser opens it.
         if (trimmed.startsWith("{") || trimmed.startsWith("[") || trimmed.startsWith("<")) return trimmed
         val decoded = decodeBase64OrNull(trimmed)
-            ?: decodeBase64OrNull(bytes.toString(Charsets.ISO_8859_1))
+            ?: decodeBase64OrNull(payloadBytes.toString(Charsets.ISO_8859_1))
         if (decoded != null) {
             val decodedText = runCatching { decoded.toString(Charsets.UTF_8).trim() }.getOrNull()
             if (decodedText != null &&
@@ -1232,7 +1269,7 @@ class CloudSyncManager @Inject constructor(
                 return decodedText
             }
         }
-        throw CloudSyncException("This is not a SECURE VAULT PRO backup file")
+        throw CloudSyncException("This backup is locked with a key this device does not hold, or is not a readable SECURE VAULT PRO backup file")
     }
 
     private fun storedVaultSecret(): String? = runCatching {
