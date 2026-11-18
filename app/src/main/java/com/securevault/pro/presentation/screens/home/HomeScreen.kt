@@ -1,5 +1,7 @@
 package com.securevault.pro.presentation.screens.home
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
@@ -37,10 +39,12 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -50,12 +54,15 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.launch
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
@@ -184,6 +191,27 @@ fun ClassicHomeScreen(
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val importNotice by viewModel.importNotice.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val csvPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            scope.launch {
+                try {
+                    val content = context.contentResolver.openInputStream(uri)?.use { stream ->
+                        stream.bufferedReader(Charsets.UTF_8).readText()
+                    }
+                    if (!content.isNullOrBlank()) {
+                        viewModel.importCsv(content)
+                    }
+                } catch (e: Exception) {
+                    viewModel.importCsv("")
+                }
+            }
+        }
+    }
     // The owner tunes the board per theme; the flow follows the active theme id, and the
     // controller is the single snapshot every board reads (VaultApp may call it directly later).
     val layoutTuning by viewModel.layoutTuning.collectAsStateWithLifecycle()
@@ -239,7 +267,8 @@ fun ClassicHomeScreen(
                     onNavigate = onNavigate,
                     onLock = onLock,
                     onToggleTheme = onToggleTheme,
-                    onQuickAdd = { quickAdd = true }
+                    onQuickAdd = { quickAdd = true },
+                    onImportCsv = { csvPickerLauncher.launch(arrayOf("text/comma-separated-values", "text/csv", "text/plain", "*/*")) }
                 )
 
                 VaultSearchField(
@@ -364,6 +393,10 @@ fun ClassicHomeScreen(
             onNavigate = { route ->
                 quickAdd = false
                 onNavigate(route)
+            },
+            onImportCsv = {
+                quickAdd = false
+                csvPickerLauncher.launch(arrayOf("text/comma-separated-values", "text/csv", "text/plain", "*/*"))
             }
         )
     }
@@ -373,6 +406,29 @@ fun ClassicHomeScreen(
             state = state,
             onSync = viewModel::syncNow,
             onDismiss = { syncSheet = false }
+        )
+    }
+
+    if (importNotice != null) {
+        val notice = importNotice ?: ""
+        val isSuccess = notice.startsWith("Successfully")
+        AlertDialog(
+            onDismissRequest = { viewModel.clearImportNotice() },
+            title = {
+                Text(
+                    text = if (isSuccess) "CSV Import Successful" else "Import Error",
+                    fontWeight = FontWeight.Bold,
+                    color = if (isSuccess) palette.mint else palette.coral
+                )
+            },
+            text = { Text(text = notice, color = palette.textPrimary) },
+            confirmButton = {
+                TextButton(onClick = { viewModel.clearImportNotice() }) {
+                    Text("OK", color = palette.cyan, fontWeight = FontWeight.Bold)
+                }
+            },
+            containerColor = palette.abyssSurface,
+            shape = RoundedCornerShape(20.dp)
         )
     }
 }
@@ -626,7 +682,8 @@ private fun HomeHeaderRow(
     onNavigate: (String) -> Unit,
     onLock: () -> Unit,
     onToggleTheme: () -> Unit,
-    onQuickAdd: () -> Unit
+    onQuickAdd: () -> Unit,
+    onImportCsv: () -> Unit
 ) {
     val palette = VaultPaletteController.current
     Row(
@@ -663,6 +720,13 @@ private fun HomeHeaderRow(
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            GlassIconButton(
+                icon = Glyph.fileUpload,
+                contentDescription = "Import CSV",
+                onClick = onImportCsv,
+                tint = palette.mint,
+                size = 32.dp
+            )
             GlassIconButton(
                 icon = Glyph.add,
                 contentDescription = "Quick add",
@@ -1774,7 +1838,11 @@ private data class QuickAction(
 )
 
 @Composable
-private fun QuickAddSheet(onDismiss: () -> Unit, onNavigate: (String) -> Unit) {
+private fun QuickAddSheet(
+    onDismiss: () -> Unit,
+    onNavigate: (String) -> Unit,
+    onImportCsv: () -> Unit
+) {
     val palette = VaultPaletteController.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val specs = listOf(
@@ -1826,6 +1894,46 @@ private fun QuickAddSheet(onDismiss: () -> Unit, onNavigate: (String) -> Unit) {
                 )
             }
             Spacer(Modifier.height(18.dp))
+
+            // Featured CSV Import Row
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(palette.abyssElevated)
+                    .border(1.dp, palette.mint.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+                    .clickable { onImportCsv() }
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                ThemedIcon(
+                    glyph = Glyph.fileUpload,
+                    contentDescription = null,
+                    tint = palette.mint,
+                    size = 22.dp
+                )
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        text = "Import Passwords from CSV",
+                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                        color = palette.mint
+                    )
+                    Text(
+                        text = "Google Chrome, Google Passwords, Bitwarden",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = VaultColor.textBody
+                    )
+                }
+                ThemedIcon(
+                    glyph = Glyph.chevronRight,
+                    contentDescription = null,
+                    tint = palette.mint,
+                    size = 16.dp
+                )
+            }
+            Spacer(Modifier.height(10.dp))
             actions.chunked(2).forEach { rowActions ->
                 Row(
                     modifier = Modifier.fillMaxWidth(),

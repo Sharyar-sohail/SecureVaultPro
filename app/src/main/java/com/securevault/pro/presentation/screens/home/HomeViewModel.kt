@@ -24,6 +24,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
@@ -83,6 +84,8 @@ class HomeViewModel @Inject constructor(
     private val query = MutableStateFlow("")
     private val report = MutableStateFlow(SecurityReport())
     private val hits = MutableStateFlow<List<SearchHit>>(emptyList())
+    private val _importNotice = MutableStateFlow<String?>(null)
+    val importNotice: StateFlow<String?> = _importNotice.asStateFlow()
 
     /**
      * Time the board was first stood up, and the moment the first real counts landed.
@@ -262,5 +265,23 @@ class HomeViewModel @Inject constructor(
     /** The sync orb beside the pie chart is a button: it pushes the vault now, not on a timer. */
     fun syncNow() {
         viewModelScope.launch { autoSyncManager.syncNow() }
+    }
+
+    fun clearImportNotice() {
+        _importNotice.value = null
+    }
+
+    fun importCsv(csvContent: String) {
+        viewModelScope.launch {
+            val result = repository.importCsvPasswords(csvContent)
+            result.fold(
+                onSuccess = { count ->
+                    _importNotice.value = "Successfully imported $count passwords from CSV!"
+                },
+                onFailure = { error ->
+                    _importNotice.value = error.message ?: "Failed to import CSV."
+                }
+            )
+        }
     }
 }

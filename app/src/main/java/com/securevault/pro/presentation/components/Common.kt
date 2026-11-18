@@ -161,7 +161,10 @@ fun NeonBackground(
             } else {
                 palette.textPrimary.copy(alpha = 0.028f)
             }
-            if (palette.design == ThemeDesign.GENERATIVE) {
+            if (palette.isLight) {
+                // In light mode, maintain a pristine, spotless background with zero murky shades,
+                // zero radial dark smudges, and zero side vignette shadows.
+            } else if (palette.design == ThemeDesign.GENERATIVE) {
                 // Clean adaptive gradient: no grid, no blobs — one surface that
                 // drifts slowly with content instead of a busy mesh.
                 val drift = sin(pulse * PI).toFloat()
@@ -388,6 +391,8 @@ private fun DrawScope.backdropGlow(
     center: Offset,
     radius: Float
 ) {
+    // In light mode, never paint colored radial circles that cast dark murky shades/shadows on the screen
+    if (VaultPaletteController.current.isLight) return
     drawCircle(
         brush = Brush.radialGradient(
             colors = listOf(color.copy(alpha = alpha), Color.Transparent),

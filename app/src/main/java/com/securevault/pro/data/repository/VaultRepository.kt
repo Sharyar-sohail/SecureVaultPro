@@ -2,6 +2,8 @@ package com.securevault.pro.data.repository
 
 import com.google.gson.JsonParser
 import com.securevault.pro.data.contacts.DeviceContact
+import com.securevault.pro.data.imports.CsvPasswordParser
+import java.util.UUID
 import com.securevault.pro.data.file.FileVaultRepository
 import com.securevault.pro.data.local.dao.CryptoWalletDao
 import com.securevault.pro.data.local.dao.DigitalCardDao
@@ -304,6 +306,60 @@ class VaultRepository @Inject constructor(
         entryCache.remove(entry.id)
         notifyRecord(RealtimeModule.ENTRIES, entry.id)
         true
+    }
+
+    /**
+     * Imports passwords from CSV format (Google Chrome, Bitwarden, LastPass, etc.)
+     */
+    suspend fun importCsvPasswords(csvText: String): Result<Int> = withContext(Dispatchers.IO) {
+        if (sessionManager.isDecoy()) {
+            return@withContext Result.failure(IllegalStateException("Cannot import passwords into decoy vault."))
+        }
+        try {
+            val records = CsvPasswordParser.parse(csvText)
+            if (records.isEmpty()) {
+                return@withContext Result.failure(IllegalArgumentException("No valid passwords found in the selected CSV file."))
+            }
+            val now = System.currentTimeMillis()
+            val entities = records.map { rec ->
+                val id = UUID.randomUUID().toString()
+                val passwordEncrypted = if (rec.password.isNotBlank()) crypto.encrypt(rec.password) else ""
+                val notesEncrypted = if (rec.notes.isNotBlank()) crypto.encrypt(rec.notes) else ""
+                val score = if (rec.password.isNotBlank()) analyzer.scoreFor(rec.password) else 0
+                VaultEntryEntity(
+                    id = id,
+                    title = rec.title.ifBlank { rec.url.takeIf { it.isNotBlank() } ?: "Imported Account" },
+                    username = rec.username,
+                    email = if (rec.username.contains("@")) rec.username else "",
+                    password = passwordEncrypted,
+                    website = rec.url,
+                    url = rec.url,
+                    notes = notesEncrypted,
+                    category = "WEBSITES",
+                    customFieldsJson = "[]",
+                    tagsJson = "[\"imported\"]",
+                    isFavorite = false,
+                    hasTotp = false,
+                    totpSecret = "",
+                    createdAt = now,
+                    updatedAt = now,
+                    lastAccessedAt = null,
+                    expiresAt = null,
+                    strengthScore = score,
+                    deletedAt = null,
+                    isHiddenInTravel = false
+                )
+            }
+            entities.chunked(100).forEach { chunk ->
+                vaultDao.upsertAll(chunk)
+            }
+            entryCache.clear()
+            reloadVaultState()
+            notifyMutation()
+            Result.success(entities.size)
+        } catch (e: Throwable) {
+            Result.failure(e)
+        }
     }
 
     suspend fun deleteEntry(id: String) = withContext(Dispatchers.IO) {

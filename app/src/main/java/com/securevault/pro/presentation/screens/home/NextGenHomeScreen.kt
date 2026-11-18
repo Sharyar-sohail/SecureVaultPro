@@ -1,5 +1,7 @@
 package com.securevault.pro.presentation.screens.home
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -29,9 +31,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -50,6 +54,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -90,6 +95,8 @@ fun NextGenHomeScreen(
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val importNotice by viewModel.importNotice.collectAsStateWithLifecycle()
+    val context = LocalContext.current
     val palette = VaultPaletteController.current
     val calendar = Calendar.getInstance()
     val greeting = greetingForHour(calendar.get(Calendar.HOUR_OF_DAY))
@@ -99,13 +106,30 @@ fun NextGenHomeScreen(
     val scope = rememberCoroutineScope()
     val searching = state.query.isNotBlank()
 
+    val csvPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            scope.launch {
+                try {
+                    val content = context.contentResolver.openInputStream(uri)?.use { stream ->
+                        stream.bufferedReader(Charsets.UTF_8).readText()
+                    }
+                    if (!content.isNullOrBlank()) {
+                        viewModel.importCsv(content)
+                    }
+                } catch (e: Exception) {
+                    viewModel.importCsv("")
+                }
+            }
+        }
+    }
+
     val totalItems = state.counts.passwords + state.counts.totps + state.counts.cards +
         state.counts.notes + state.counts.contacts + state.counts.files
     val cryptoCount = state.categoryCounts["CRYPTO"] ?: 0
 
     val isLight = palette.isLight
-    val ambientTop = if (isLight) palette.cyan.copy(alpha = 0.08f) else palette.cyan.copy(alpha = 0.16f)
-    val ambientMid = if (isLight) palette.indigo.copy(alpha = 0.05f) else palette.abyssElevated.copy(alpha = 0.45f)
     val bgBase = palette.abyssDark
 
     Box(
@@ -126,6 +150,7 @@ fun NextGenHomeScreen(
                 today = today,
                 syncRunning = state.syncRunning,
                 onToggleTheme = onToggleTheme,
+                onImportCsv = { csvPickerLauncher.launch(arrayOf("text/comma-separated-values", "text/csv", "text/plain", "*/*")) },
                 onSyncNow = viewModel::syncNow,
                 onLock = onLock,
                 onOpenSettings = { onNavigate(Routes.SETTINGS) }
@@ -184,6 +209,7 @@ fun NextGenHomeScreen(
                         cardsCount = state.counts.cards,
                         cryptoCount = cryptoCount,
                         onQuickAdd = { quickAddOpen = true },
+                        onImportCsv = { csvPickerLauncher.launch(arrayOf("text/comma-separated-values", "text/csv", "text/plain", "*/*")) },
                         onQuickScan = { onNavigate(Routes.SCAN_HUB) },
                         onSyncNow = viewModel::syncNow
                     )
@@ -403,9 +429,46 @@ fun NextGenHomeScreen(
                             quickAddOpen = false
                             onNavigate(route)
                         }
+                    },
+                    onImportCsv = {
+                        scope.launch { sheetState.hide() }.invokeOnCompletion {
+                            quickAddOpen = false
+                            csvPickerLauncher.launch(arrayOf("text/comma-separated-values", "text/csv", "text/plain", "*/*"))
+                        }
                     }
                 )
             }
+        }
+
+        importNotice?.let { msg ->
+            val isSuccess = msg.contains("Successfully")
+            AlertDialog(
+                onDismissRequest = viewModel::clearImportNotice,
+                containerColor = palette.abyssSurface,
+                title = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        ThemedIcon(
+                            glyph = if (isSuccess) Glyph.checkCircle else Glyph.warning,
+                            contentDescription = null,
+                            tint = if (isSuccess) palette.mint else palette.coral,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = if (isSuccess) "CSV Import Successful" else "Import Error",
+                            style = TextStyle(fontSize = 18.sp, fontWeight = FontWeight.Bold, color = palette.textPrimary)
+                        )
+                    }
+                },
+                text = {
+                    Text(text = msg, style = TextStyle(fontSize = 14.sp, color = palette.textSecondary))
+                },
+                confirmButton = {
+                    TextButton(onClick = viewModel::clearImportNotice) {
+                        Text("OK", color = palette.cyan, fontWeight = FontWeight.Bold)
+                    }
+                }
+            )
         }
     }
 }
@@ -419,6 +482,7 @@ private fun NextGenCommandIsland(
     today: String,
     syncRunning: Boolean,
     onToggleTheme: () -> Unit,
+    onImportCsv: () -> Unit,
     onSyncNow: () -> Unit,
     onLock: () -> Unit,
     onOpenSettings: () -> Unit
@@ -461,6 +525,13 @@ private fun NextGenCommandIsland(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 NextGenCircleGlassButton(
+                    onClick = onImportCsv,
+                    iconGlyph = Glyph.fileUpload,
+                    contentDescription = "Import Passwords from CSV",
+                    tint = palette.mint
+                )
+
+                NextGenCircleGlassButton(
                     onClick = onToggleTheme,
                     iconGlyph = if (isLight) Glyph.lightMode else Glyph.darkMode,
                     contentDescription = "Toggle Theme"
@@ -499,26 +570,67 @@ private fun NextGenCommandIsland(
             }
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(10.dp))
 
-        // Lower Greeting & Date: Full Width so it NEVER truncates!
-        Text(
-            text = greeting,
-            style = TextStyle(
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Black,
-                letterSpacing = (-0.5).sp,
-                color = palette.textPrimary
-            )
-        )
-        Text(
-            text = today,
-            style = TextStyle(
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Medium,
-                color = palette.textMuted
-            )
-        )
+        // Lower Greeting & Date with prominent "Import CSV" Action Pill
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = greeting,
+                    style = TextStyle(
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Black,
+                        letterSpacing = (-0.5).sp,
+                        color = palette.textPrimary
+                    )
+                )
+                Text(
+                    text = today,
+                    style = TextStyle(
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = palette.textMuted
+                    )
+                )
+            }
+
+            Spacer(modifier = Modifier.width(10.dp))
+
+            // Prominent Header "Import CSV" Action Button
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(if (isLight) palette.abyssSurface else palette.abyssElevated)
+                    .border(
+                        1.5.dp,
+                        if (isLight) palette.mint else palette.mint.copy(alpha = 0.6f),
+                        RoundedCornerShape(20.dp)
+                    )
+                    .clickable(onClick = onImportCsv)
+                    .padding(horizontal = 14.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                ThemedIcon(
+                    glyph = Glyph.fileUpload,
+                    contentDescription = "Import CSV",
+                    tint = palette.mint,
+                    size = 16.dp
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "Import CSV",
+                    style = TextStyle(
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = palette.mint
+                    )
+                )
+            }
+        }
     }
 }
 
@@ -536,8 +648,8 @@ private fun NextGenCircleGlassButton(
     val isPressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(if (isPressed) 0.88f else 1f, label = "pressScale")
 
-    val bg = if (isLight) palette.abyssSurface.copy(alpha = 0.95f) else palette.abyssSurface.copy(alpha = 0.85f)
-    val borderCol = if (isLight) palette.abyssElevated.copy(alpha = 0.45f) else palette.abyssElevated.copy(alpha = 0.6f)
+    val bg = if (isLight) palette.abyssSurface else palette.abyssElevated
+    val borderCol = if (isLight) palette.abyssElevated else palette.cyan.copy(alpha = 0.25f)
     val iconTint = tint ?: palette.textPrimary
 
     Box(
@@ -643,6 +755,7 @@ private fun NextGenNexusHeroCard(
     cardsCount: Int,
     cryptoCount: Int,
     onQuickAdd: () -> Unit,
+    onImportCsv: () -> Unit,
     onQuickScan: () -> Unit,
     onSyncNow: () -> Unit
 ) {
@@ -651,26 +764,12 @@ private fun NextGenNexusHeroCard(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(if (palette.isLight) 0.dp else 16.dp, RoundedCornerShape(28.dp))
+            .shadow(if (palette.isLight) 0.dp else 14.dp, RoundedCornerShape(28.dp))
             .clip(RoundedCornerShape(28.dp))
-            .background(
-                Brush.linearGradient(
-                    listOf(
-                        palette.abyssSurface,
-                        palette.abyssElevated.copy(alpha = 0.7f),
-                        palette.abyssSurface
-                    )
-                )
-            )
+            .background(palette.abyssSurface)
             .border(
                 1.5.dp,
-                Brush.linearGradient(
-                    listOf(
-                        palette.cyan.copy(alpha = 0.45f),
-                        palette.indigo.copy(alpha = 0.25f),
-                        palette.abyssElevated
-                    )
-                ),
+                if (palette.isLight) Color(0xFFE2E8F0) else palette.cyan.copy(alpha = 0.35f),
                 RoundedCornerShape(28.dp)
             )
             .padding(20.dp)
@@ -759,8 +858,8 @@ private fun NextGenNexusHeroCard(
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(16.dp))
-                        .background(palette.abyssDark.copy(alpha = 0.7f))
-                        .border(1.dp, palette.abyssElevated, RoundedCornerShape(16.dp))
+                        .background(if (palette.isLight) palette.abyssSurface else palette.abyssDark)
+                        .border(1.dp, if (palette.isLight) Color(0xFFE2E8F0) else palette.abyssElevated, RoundedCornerShape(16.dp))
                         .padding(horizontal = 14.dp, vertical = 10.dp),
                     contentAlignment = Alignment.Center
                 ) {
@@ -828,10 +927,10 @@ private fun NextGenNexusHeroCard(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // Action Buttons (Evenly aligned, perfectly balanced 3-column action bar)
+            // Action Buttons: Row 1 (Primary Action + CSV Import)
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 NextGenPillButton(
                     text = "New Record",
@@ -841,6 +940,22 @@ private fun NextGenNexusHeroCard(
                     modifier = Modifier.weight(1f)
                 )
 
+                NextGenPillButton(
+                    text = "Import CSV",
+                    icon = Glyph.fileUpload,
+                    isPrimary = false,
+                    onClick = onImportCsv,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Action Buttons: Row 2 (Scan QR + Sync Now)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
                 NextGenPillButton(
                     text = "Scan QR",
                     icon = Glyph.cameraAlt,
@@ -869,12 +984,14 @@ private fun NextGenTelemetryStatCard(
     modifier: Modifier = Modifier
 ) {
     val palette = VaultPaletteController.current
+    val bgCol = if (palette.isLight) palette.abyssSurface else palette.abyssElevated
+    val borderCol = if (palette.isLight) Color(0xFFE2E8F0) else palette.abyssElevated
 
     Row(
         modifier = modifier
             .clip(RoundedCornerShape(12.dp))
-            .background(palette.abyssDark.copy(alpha = 0.6f))
-            .border(1.dp, palette.abyssElevated.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
+            .background(bgCol)
+            .border(1.dp, borderCol, RoundedCornerShape(12.dp))
             .padding(horizontal = 10.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
@@ -921,6 +1038,7 @@ private fun NextGenPillButton(
     modifier: Modifier = Modifier
 ) {
     val palette = VaultPaletteController.current
+    val isLight = palette.isLight
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(if (isPressed) 0.94f else 1f, label = "btnScale")
@@ -932,21 +1050,23 @@ private fun NextGenPillButton(
             )
         )
     } else {
+        val solidBg = if (isLight) palette.abyssSurface else palette.abyssElevated
+        val borderCol = if (isLight) palette.cyan else palette.cyan.copy(alpha = 0.45f)
         Modifier
-            .background(palette.abyssDark.copy(alpha = 0.75f))
-            .border(1.dp, palette.abyssElevated, RoundedCornerShape(20.dp))
+            .background(solidBg)
+            .border(1.5.dp, borderCol, RoundedCornerShape(20.dp))
     }
 
-    val contentColor = if (isPrimary) Color.White else palette.textPrimary
+    val contentColor = if (isPrimary) Color.White else if (isLight) palette.cyan else palette.textPrimary
 
     Row(
         modifier = modifier
-            .height(42.dp)
+            .height(44.dp)
             .scale(scale)
             .clip(RoundedCornerShape(20.dp))
             .then(bgModifier)
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
-            .padding(horizontal = 4.dp),
+            .padding(horizontal = 8.dp),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -954,13 +1074,13 @@ private fun NextGenPillButton(
             glyph = icon,
             contentDescription = null,
             tint = contentColor,
-            size = 15.dp
+            size = 16.dp
         )
-        Spacer(modifier = Modifier.width(5.dp))
+        Spacer(modifier = Modifier.width(6.dp))
         Text(
             text = text,
             style = TextStyle(
-                fontSize = 11.5.sp,
+                fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
                 color = contentColor
             ),
@@ -1047,8 +1167,8 @@ private fun NextGenWideCard(
             .scale(scale)
             .shadow(if (palette.isLight) 0.dp else 10.dp, RoundedCornerShape(20.dp))
             .clip(RoundedCornerShape(20.dp))
-            .background(palette.abyssSurface.copy(alpha = 0.92f))
-            .border(1.2.dp, palette.abyssElevated, RoundedCornerShape(20.dp))
+            .background(palette.abyssSurface)
+            .border(1.2.dp, if (palette.isLight) Color(0xFFE2E8F0) else palette.abyssElevated, RoundedCornerShape(20.dp))
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -1136,8 +1256,8 @@ private fun NextGenBentoTile(
             .scale(scale)
             .shadow(if (palette.isLight) 0.dp else 8.dp, RoundedCornerShape(18.dp))
             .clip(RoundedCornerShape(18.dp))
-            .background(palette.abyssSurface.copy(alpha = 0.9f))
-            .border(1.dp, palette.abyssElevated, RoundedCornerShape(18.dp))
+            .background(palette.abyssSurface)
+            .border(1.dp, if (palette.isLight) Color(0xFFE2E8F0) else palette.abyssElevated, RoundedCornerShape(18.dp))
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
             .padding(14.dp)
     ) {
@@ -1194,7 +1314,8 @@ private fun NextGenBentoTile(
 @Composable
 private fun NextGenQuickAddSheet(
     onDismiss: () -> Unit,
-    onSelect: (String) -> Unit
+    onSelect: (String) -> Unit,
+    onImportCsv: () -> Unit
 ) {
     val palette = VaultPaletteController.current
 
@@ -1213,7 +1334,7 @@ private fun NextGenQuickAddSheet(
             )
         )
         Text(
-            text = "Select vault record type to securely encrypt",
+            text = "Select vault record type or import passwords",
             style = TextStyle(
                 fontSize = 13.sp,
                 color = palette.textMuted
@@ -1221,6 +1342,50 @@ private fun NextGenQuickAddSheet(
         )
 
         Spacer(modifier = Modifier.height(18.dp))
+
+        // Featured CSV Import Row
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 6.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .background(if (palette.isLight) palette.abyssElevated else palette.abyssSurface)
+                .border(1.2.dp, palette.cyan.copy(alpha = 0.6f), RoundedCornerShape(14.dp))
+                .clickable { onImportCsv() }
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            ThemedIcon(
+                glyph = Glyph.fileUpload,
+                contentDescription = null,
+                tint = palette.cyan,
+                modifier = Modifier.size(24.dp)
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Import Passwords from CSV",
+                    style = TextStyle(
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = palette.cyan
+                    )
+                )
+                Text(
+                    text = "Google Chrome, Google Passwords, Bitwarden",
+                    style = TextStyle(
+                        fontSize = 11.sp,
+                        color = palette.textSecondary
+                    )
+                )
+            }
+            ThemedIcon(
+                glyph = Glyph.chevronRight,
+                contentDescription = null,
+                tint = palette.cyan,
+                modifier = Modifier.size(14.dp)
+            )
+        }
 
         val options = listOf(
             Triple("New Password", Routes.entryEditor(), VaultModule.PASSWORDS),
@@ -1232,13 +1397,15 @@ private fun NextGenQuickAddSheet(
             Triple("Secret Image", Routes.STEGO, VaultModule.STEGO)
         )
 
+        val rowBg = if (palette.isLight) palette.abyssElevated else palette.abyssSurface
+
         options.forEach { (title, route, module) ->
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 6.dp)
+                    .padding(vertical = 5.dp)
                     .clip(RoundedCornerShape(14.dp))
-                    .background(palette.abyssDark.copy(alpha = 0.5f))
+                    .background(rowBg)
                     .border(1.dp, palette.abyssElevated, RoundedCornerShape(14.dp))
                     .clickable { onSelect(route) }
                     .padding(horizontal = 14.dp, vertical = 12.dp),
