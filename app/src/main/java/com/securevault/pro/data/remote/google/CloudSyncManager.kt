@@ -677,10 +677,16 @@ class CloudSyncManager @Inject constructor(
         }
     }
 
+    /** Callback invoked whenever a Google account is successfully linked so auto-sync immediately mirrors local records. */
+    var onDriveConnectedListener: (() -> Unit)? = null
+
     suspend fun completeGoogleSignIn(data: android.content.Intent?): String? {
         val account = driveService.completeSignIn(data) ?: return null
         val email = account.email?.trim().orEmpty()
-        if (email.isNotBlank()) appLockManager.setCloudEmail(email)
+        if (email.isNotBlank()) {
+            appLockManager.setCloudEmail(email)
+            onDriveConnectedListener?.invoke()
+        }
         return email.ifBlank { null }
     }
 

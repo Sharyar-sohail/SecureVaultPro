@@ -378,7 +378,7 @@ class SetupViewModel @Inject constructor(
                 it.copy(
                     busy = false,
                     restoreMode = SetupRestoreMode.DRIVE,
-                    notice = "No encrypted backup was found in Drive. The embedded vault will be installed when you create the vault.",
+                    notice = "Signed in as $email. No existing backups found in Google Drive. A fresh encrypted vault will be created.",
                     noticeIsError = false,
                     lastRestoredFrom = email,
                     restoreComplete = false,
@@ -606,9 +606,11 @@ class SetupViewModel @Inject constructor(
                 // already open, never before. Nothing on the setup screen waits on a network call:
                 // the restore lands in the banner when it finishes, and the realtime sync starts the
                 // moment the session unlocks either way.
-                if (pendingEmail != null) {
+                if (pendingEmail != null && snapshot.restoreMode == SetupRestoreMode.DRIVE) {
                     pendingDriveEmail = null
                     restoreInBackground(pendingEmail, snapshot.masterPassword)
+                } else {
+                    pendingDriveEmail = null
                 }
             } catch (e: Throwable) {
                 sessionManager.lock()

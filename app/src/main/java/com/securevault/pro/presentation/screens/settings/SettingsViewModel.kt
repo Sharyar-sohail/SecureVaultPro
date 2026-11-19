@@ -8,6 +8,7 @@ import com.securevault.pro.data.repository.VaultRepository
 import com.securevault.pro.data.backup.BloggerThemeFile
 import com.securevault.pro.data.backup.CloudBackupFile
 import com.securevault.pro.data.remote.firebase.Keyring
+import com.securevault.pro.data.remote.google.AutoSyncManager
 import com.securevault.pro.data.remote.google.CloudSyncManager
 import com.securevault.pro.data.remote.google.LocalExportData
 import com.securevault.pro.data.remote.google.XmlExportData
@@ -117,6 +118,7 @@ class SettingsViewModel @Inject constructor(
     private val appLockManager: AppLockManager,
     private val sessionManager: SessionManager,
     private val cloudSyncManager: CloudSyncManager,
+    private val autoSyncManager: AutoSyncManager,
     private val bloggerThemeExporter: BloggerThemeExporter,
     private val localWipeService: LocalWipeService,
     private val realtimeEngine: RealtimeEngine,
@@ -1223,6 +1225,7 @@ class SettingsViewModel @Inject constructor(
                             csvImportIsError = false
                         )
                     }
+                    autoSyncManager.markDirty()
                 },
                 onFailure = { error ->
                     _state.update {

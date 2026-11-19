@@ -81,6 +81,9 @@ class AutoSyncManager @Inject constructor(
         if (!started.compareAndSet(false, true)) return
         // The realtime engine owns its own scope; idempotent, so a re-start at boot is harmless.
         realtimeEngine.start()
+        cloudSyncManager.onDriveConnectedListener = {
+            markDirty()
+        }
         scope.launch {
             appLockManager.lastBackupAt.collect { at ->
                 if (at > _state.value.lastSyncedAt) {
@@ -102,7 +105,9 @@ class AutoSyncManager @Inject constructor(
                 // built after this point, so they are already included in this sync.
                 wake.tryReceive()
                 if (sessionManager.mode.value != SessionMode.REAL) continue
-                if (!cloudSyncManager.canAccessDrive()) continue
+                if (!cloudSyncManager.canAccessDrive()) {
+                    if (!cloudSyncManager.ensureDriveAccess()) continue
+                }
                 syncWithRetry()
             }
         }

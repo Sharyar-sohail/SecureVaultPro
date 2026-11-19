@@ -277,6 +277,7 @@ class HomeViewModel @Inject constructor(
             result.fold(
                 onSuccess = { count ->
                     _importNotice.value = "Successfully imported $count passwords from CSV!"
+                    autoSyncManager.markDirty()
                 },
                 onFailure = { error ->
                     _importNotice.value = error.message ?: "Failed to import CSV."

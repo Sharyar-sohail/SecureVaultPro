@@ -81,8 +81,7 @@ class GoogleDriveService @Inject constructor(
     )
         .requestEmail()
         .requestScopes(
-            Scope(DriveScopes.DRIVE_APPDATA),
-            Scope(DriveScopes.DRIVE_FILE)
+            Scope(DriveScopes.DRIVE_APPDATA)
         )
         .build()
 
@@ -502,12 +501,16 @@ class GoogleDriveService @Inject constructor(
             }
         }.isSuccess
         if (appDataOk) return@withContext true
-        // If it was stored in visible Drive (e.g. .SecureVaultPro-Archives), purge via driveForVisible
-        runCatching {
-            withTimeout(OPERATION_TIMEOUT_MS) {
-                driveForVisible(signedIn).files().delete(fileId).execute()
-            }
-        }.isSuccess
+        // If it was stored in visible Drive (e.g. .SecureVaultPro-Archives), purge via driveForVisible if permission exists
+        if (hasArchiveAccess(signedIn)) {
+            runCatching {
+                withTimeout(OPERATION_TIMEOUT_MS) {
+                    driveForVisible(signedIn).files().delete(fileId).execute()
+                }
+            }.isSuccess
+        } else {
+            false
+        }
     }
 
     /**
@@ -544,70 +547,72 @@ class GoogleDriveService @Inject constructor(
             }
         }
 
-        // 2. Delete all archives and any Secure Vault folders using driveForVisible
-        runCatching {
-            val driveVis = driveForVisible(signedIn)
-            val archiveFolders = withTimeout(OPERATION_TIMEOUT_MS) {
-                driveVis.files().list()
-                    .setQ("trashed = false and mimeType = 'application/vnd.google-apps.folder' and (name contains 'SecureVault' or name contains 'Secure Vault' or name contains 'Vault' or name = '$ARCHIVE_FOLDER')")
-                    .setFields("files(id,name)")
-                    .setPageSize(100)
-                    .execute()
-            }.files.orEmpty()
+        // 2. Delete all archives and any Secure Vault folders using driveForVisible (if granted)
+        if (hasArchiveAccess(signedIn)) {
+            runCatching {
+                val driveVis = driveForVisible(signedIn)
+                val archiveFolders = withTimeout(OPERATION_TIMEOUT_MS) {
+                    driveVis.files().list()
+                        .setQ("trashed = false and mimeType = 'application/vnd.google-apps.folder' and (name contains 'SecureVault' or name contains 'Secure Vault' or name contains 'Vault' or name = '$ARCHIVE_FOLDER')")
+                        .setFields("files(id,name)")
+                        .setPageSize(100)
+                        .execute()
+                }.files.orEmpty()
 
-            archiveFolders.forEach { folder ->
-                val fId = folder.id.orEmpty()
-                if (fId.isNotBlank()) {
-                    val archFiles = runCatching {
-                        withTimeout(OPERATION_TIMEOUT_MS) {
-                            driveVis.files().list()
-                                .setQ("'$fId' in parents and trashed = false")
-                                .setFields("files(id)")
-                                .setPageSize(1000)
-                                .execute()
-                        }.files.orEmpty()
-                    }.getOrDefault(emptyList())
+                archiveFolders.forEach { folder ->
+                    val fId = folder.id.orEmpty()
+                    if (fId.isNotBlank()) {
+                        val archFiles = runCatching {
+                            withTimeout(OPERATION_TIMEOUT_MS) {
+                                driveVis.files().list()
+                                    .setQ("'$fId' in parents and trashed = false")
+                                    .setFields("files(id)")
+                                    .setPageSize(1000)
+                                    .execute()
+                            }.files.orEmpty()
+                        }.getOrDefault(emptyList())
 
-                    archFiles.forEach { af ->
-                        val aId = af.id.orEmpty()
-                        if (aId.isNotBlank()) {
-                            runCatching {
-                                withTimeout(OPERATION_TIMEOUT_MS) {
-                                    driveVis.files().delete(aId).execute()
-                                }
-                            }.onSuccess { deleted++ }
+                        archFiles.forEach { af ->
+                            val aId = af.id.orEmpty()
+                            if (aId.isNotBlank()) {
+                                runCatching {
+                                    withTimeout(OPERATION_TIMEOUT_MS) {
+                                        driveVis.files().delete(aId).execute()
+                                    }
+                                }.onSuccess { deleted++ }
+                            }
                         }
+
+                        // Delete the folder itself
+                        runCatching {
+                            withTimeout(OPERATION_TIMEOUT_MS) {
+                                driveVis.files().delete(fId).execute()
+                            }
+                        }.onSuccess { deleted++ }
                     }
-
-                    // Delete the folder itself
-                    runCatching {
-                        withTimeout(OPERATION_TIMEOUT_MS) {
-                            driveVis.files().delete(fId).execute()
-                        }
-                    }.onSuccess { deleted++ }
                 }
             }
-        }
 
-        // 3. Delete ANY and ALL .zip, .enc, .vnc or SecureVault files in visible Google Drive using driveForVisible
-        runCatching {
-            val driveVis = driveForVisible(signedIn)
-            val strayBackups = withTimeout(OPERATION_TIMEOUT_MS) {
-                driveVis.files().list()
-                    .setQ("trashed = false and (name contains '.enc' or name contains '.zip' or name contains '.vnc' or name contains '.xml' or name contains 'SecureVault' or name contains 'Secure Vault' or name contains 'SecureWallet' or name = '$PRIMARY_BACKUP')")
-                    .setFields("files(id,name)")
-                    .setPageSize(1000)
-                    .execute()
-            }.files.orEmpty()
+            // 3. Delete ANY and ALL .zip, .enc, .vnc or SecureVault files in visible Google Drive using driveForVisible
+            runCatching {
+                val driveVis = driveForVisible(signedIn)
+                val strayBackups = withTimeout(OPERATION_TIMEOUT_MS) {
+                    driveVis.files().list()
+                        .setQ("trashed = false and (name contains '.enc' or name contains '.zip' or name contains '.vnc' or name contains '.xml' or name contains 'SecureVault' or name contains 'Secure Vault' or name contains 'SecureWallet' or name = '$PRIMARY_BACKUP')")
+                        .setFields("files(id,name)")
+                        .setPageSize(1000)
+                        .execute()
+                }.files.orEmpty()
 
-            strayBackups.forEach { stray ->
-                val sId = stray.id.orEmpty()
-                if (sId.isNotBlank()) {
-                    runCatching {
-                        withTimeout(OPERATION_TIMEOUT_MS) {
-                            driveVis.files().delete(sId).execute()
-                        }
-                    }.onSuccess { deleted++ }
+                strayBackups.forEach { stray ->
+                    val sId = stray.id.orEmpty()
+                    if (sId.isNotBlank()) {
+                        runCatching {
+                            withTimeout(OPERATION_TIMEOUT_MS) {
+                                driveVis.files().delete(sId).execute()
+                            }
+                        }.onSuccess { deleted++ }
+                    }
                 }
             }
         }
