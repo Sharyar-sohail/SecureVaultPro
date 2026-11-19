@@ -33,6 +33,8 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -178,7 +180,7 @@ fun NextGenHomeScreen(
                     Spacer(modifier = Modifier.height(10.dp))
 
                     // -------------------------------------------------------------
-                    // A. HERO TELEMETRY DASHBOARD
+                    // A. HERO TELEMETRY DASHBOARD (Compact & Balanced)
                     // -------------------------------------------------------------
                     NextGenNexusHeroCard(
                         totalCount = totalItems,
@@ -187,66 +189,56 @@ fun NextGenHomeScreen(
                         passwordsCount = state.counts.passwords,
                         twoFaCount = state.counts.totps,
                         cardsCount = state.counts.cards,
-                        cryptoCount = cryptoCount,
-                        onQuickAdd = { quickAddOpen = true },
-                        onQuickScan = { onNavigate(Routes.SCAN_HUB) },
-                        onSyncNow = viewModel::syncNow
+                        cryptoCount = cryptoCount
                     )
 
-                    Spacer(modifier = Modifier.height(28.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
 
                     // -------------------------------------------------------------
-                    // B. CATEGORY 1: PRIMARY CREDENTIALS
+                    // B. COMPACT BENTO GRID: ALL 8 CORE MODULES ON ONE SCREEN
                     // -------------------------------------------------------------
                     NextGenSectionHeader(
-                        title = "PRIMARY CREDENTIALS",
-                        subtitle = "Store and autofill passwords, logins and 2FA tokens",
-                        badge = "ZERO-KNOWLEDGE"
+                        title = "VAULT MODULES",
+                        subtitle = "Zero-knowledge encrypted categories",
+                        badge = "LIVE"
                     )
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
 
-                    NextGenWideCard(
-                        title = "Passwords & Logins",
-                        description = "Web credentials, master passkeys and vault logins",
-                        countText = "${state.counts.passwords} Passwords",
-                        badgeText = if (state.report.weakCount > 0) "${state.report.weakCount} Weak" else "All Strong",
-                        badgeIsWarning = state.report.weakCount > 0,
-                        module = VaultModule.PASSWORDS,
-                        onClick = { onNavigate(Routes.vault("PASSWORDS")) }
-                    )
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    NextGenWideCard(
-                        title = "2FA Authenticator",
-                        description = "Time-based one-time passwords with 30s rotating counter",
-                        countText = "${state.counts.totps} Active Tokens",
-                        badgeText = "TOTP Live",
-                        badgeIsWarning = false,
-                        module = VaultModule.TWO_FA,
-                        onClick = { onNavigate(Routes.AUTH) }
-                    )
-
-                    Spacer(modifier = Modifier.height(28.dp))
-
-                    // -------------------------------------------------------------
-                    // C. CATEGORY 2: FINANCIAL ASSETS
-                    // -------------------------------------------------------------
-                    NextGenSectionHeader(
-                        title = "FINANCIAL ASSETS",
-                        subtitle = "Secured debit cards, credit cards and crypto keys",
-                        badge = "ENCRYPTED"
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-
+                    // Row 1: Passwords & Logins + 2FA Authenticator
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(14.dp)
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        NextGenBentoTile(
+                            title = "Passwords",
+                            description = "Credentials & logins",
+                            countText = "${state.counts.passwords}",
+                            module = VaultModule.PASSWORDS,
+                            modifier = Modifier.weight(1f),
+                            onClick = { onNavigate(Routes.vault("PASSWORDS")) }
+                        )
+
+                        NextGenBentoTile(
+                            title = "2FA Tokens",
+                            description = "TOTP authenticator",
+                            countText = "${state.counts.totps}",
+                            module = VaultModule.TWO_FA,
+                            modifier = Modifier.weight(1f),
+                            onClick = { onNavigate(Routes.AUTH) }
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // Row 2: Payment Cards + Crypto Wallets
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         NextGenBentoTile(
                             title = "Payment Cards",
-                            description = "Credit & debit cards with CVV",
-                            countText = "${state.counts.cards} Cards",
+                            description = "Credit & debit cards",
+                            countText = "${state.counts.cards}",
                             module = VaultModule.CARDS,
                             modifier = Modifier.weight(1f),
                             onClick = { onNavigate(Routes.WALLET) }
@@ -254,34 +246,25 @@ fun NextGenHomeScreen(
 
                         NextGenBentoTile(
                             title = "Crypto Wallets",
-                            description = "Multi-chain keys and seed phrases",
-                            countText = "$cryptoCount Wallets",
+                            description = "Seed phrases & keys",
+                            countText = "$cryptoCount",
                             module = VaultModule.CRYPTO,
                             modifier = Modifier.weight(1f),
                             onClick = { onNavigate(Routes.CRYPTO) }
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(28.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
 
-                    // -------------------------------------------------------------
-                    // D. CATEGORY 3: PRIVATE VAULT & MEDIA
-                    // -------------------------------------------------------------
-                    NextGenSectionHeader(
-                        title = "PRIVATE VAULT & MEDIA",
-                        subtitle = "Confidential notes, attachments and secret photos",
-                        badge = "ISOLATED"
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-
+                    // Row 3: Secure Notes + Secret Image
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(14.dp)
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         NextGenBentoTile(
                             title = "Secure Notes",
-                            description = "Encrypted markdown & memos",
-                            countText = "${state.counts.notes} Notes",
+                            description = "Encrypted memos",
+                            countText = "${state.counts.notes}",
                             module = VaultModule.NOTES,
                             modifier = Modifier.weight(1f),
                             onClick = { onNavigate(Routes.vault("NOTES")) }
@@ -289,24 +272,25 @@ fun NextGenHomeScreen(
 
                         NextGenBentoTile(
                             title = "Secret Image",
-                            description = "Steganography hidden media",
-                            countText = "Hidden Media",
+                            description = "Stego hidden media",
+                            countText = "Stego",
                             module = VaultModule.STEGO,
                             modifier = Modifier.weight(1f),
                             onClick = { onNavigate(Routes.STEGO) }
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
 
+                    // Row 4: File Vault + Secure Contacts
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(14.dp)
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         NextGenBentoTile(
                             title = "File Vault",
-                            description = "Private PDFs, docs & files",
-                            countText = "${state.counts.files} Files",
+                            description = "Private documents",
+                            countText = "${state.counts.files}",
                             module = VaultModule.FILES,
                             modifier = Modifier.weight(1f),
                             onClick = { onNavigate(Routes.FILES) }
@@ -314,75 +298,15 @@ fun NextGenHomeScreen(
 
                         NextGenBentoTile(
                             title = "Secure Contacts",
-                            description = "Private directory & numbers",
-                            countText = "${state.counts.contacts} Contacts",
+                            description = "Private address book",
+                            countText = "${state.counts.contacts}",
                             module = VaultModule.CONTACTS,
                             modifier = Modifier.weight(1f),
                             onClick = { onNavigate(Routes.CONTACTS) }
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(28.dp))
-
-                    // -------------------------------------------------------------
-                    // E. CATEGORY 4: DEFENSE & SYSTEM TOOLS
-                    // -------------------------------------------------------------
-                    NextGenSectionHeader(
-                        title = "DEFENSE & SYSTEM TOOLS",
-                        subtitle = "Security audits, backups, cloud sync and diagnostics",
-                        badge = "SYSTEM"
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(14.dp)
-                    ) {
-                        NextGenBentoTile(
-                            title = "Security Health",
-                            description = "Vulnerability & breach scanner",
-                            countText = "${state.report.score}% Rating",
-                            module = VaultModule.HEALTH,
-                            modifier = Modifier.weight(1f),
-                            onClick = { onNavigate(Routes.HEALTH) }
-                        )
-
-                        NextGenBentoTile(
-                            title = "Cloud Sync",
-                            description = "Google Drive & realtime replication",
-                            countText = if (state.cloudEmail.isNotBlank()) "Connected" else "Offline",
-                            module = VaultModule.SYNC,
-                            modifier = Modifier.weight(1f),
-                            onClick = { onNavigate(Routes.SYNC_CENTER) }
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(14.dp)
-                    ) {
-                        NextGenBentoTile(
-                            title = "Offline Backup",
-                            description = "Air-gapped JSON and emergency recovery",
-                            countText = "Encrypted",
-                            module = VaultModule.BACKUP,
-                            modifier = Modifier.weight(1f),
-                            onClick = { onNavigate(Routes.BACKUP) }
-                        )
-
-                        NextGenBentoTile(
-                            title = "Power Tools",
-                            description = "Passphrase generator & shredder",
-                            countText = "Available",
-                            module = VaultModule.TOOLS,
-                            modifier = Modifier.weight(1f),
-                            onClick = { onNavigate(Routes.SECURITY_TOOLS) }
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(24.dp))
+                    Spacer(modifier = Modifier.height(20.dp))
                 }
             }
         }
@@ -441,6 +365,25 @@ fun NextGenHomeScreen(
                         Text("OK", color = palette.cyan, fontWeight = FontWeight.Bold)
                     }
                 }
+            )
+        }
+
+        // FLOATING '+' ACTION BUTTON (Quick Add / QR Scanner)
+        FloatingActionButton(
+            onClick = { quickAddOpen = true },
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = 20.dp, bottom = 82.dp),
+            containerColor = palette.cyan,
+            contentColor = if (palette.isLight) Color.White else palette.abyssDark,
+            shape = CircleShape,
+            elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 6.dp)
+        ) {
+            ThemedIcon(
+                glyph = Glyph.add,
+                contentDescription = "Add Item",
+                tint = if (palette.isLight) Color.White else palette.abyssDark,
+                size = 28.dp
             )
         }
     }
@@ -530,7 +473,8 @@ private fun NextGenCommandIsland(
                 NextGenCircleGlassButton(
                     onClick = onOpenSettings,
                     iconGlyph = Glyph.settings,
-                    contentDescription = "Settings"
+                    contentDescription = "Settings",
+                    isSettings = true
                 )
             }
         }
@@ -564,7 +508,8 @@ private fun NextGenCircleGlassButton(
     iconGlyph: Glyph,
     contentDescription: String,
     rotation: Float = 0f,
-    tint: Color? = null
+    tint: Color? = null,
+    isSettings: Boolean = false
 ) {
     val palette = VaultPaletteController.current
     val isLight = palette.isLight
@@ -572,17 +517,22 @@ private fun NextGenCircleGlassButton(
     val isPressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(if (isPressed) 0.88f else 1f, label = "pressScale")
 
-    val bg = if (isLight) palette.abyssSurface else palette.abyssElevated
-    val borderCol = if (isLight) palette.abyssElevated else palette.cyan.copy(alpha = 0.25f)
-    val iconTint = tint ?: palette.textPrimary
+    val bg = if (isLight) Color(0xFFF8FAFC) else palette.abyssElevated
+    val borderCol = if (isLight) {
+        if (isSettings) palette.cyan.copy(alpha = 0.7f) else Color(0xFFCBD5E1)
+    } else {
+        if (isSettings) palette.cyan.copy(alpha = 0.6f) else palette.cyan.copy(alpha = 0.25f)
+    }
+    val iconTint = tint ?: if (isSettings) palette.cyan else (if (isLight) Color(0xFF1E293B) else palette.textPrimary)
 
     Box(
         modifier = Modifier
-            .size(38.dp)
+            .size(36.dp)
             .scale(scale)
+            .shadow(if (isLight) 1.dp else 0.dp, CircleShape)
             .clip(CircleShape)
             .background(bg)
-            .border(1.dp, borderCol, CircleShape)
+            .border(1.2.dp, borderCol, CircleShape)
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
@@ -677,25 +627,22 @@ private fun NextGenNexusHeroCard(
     passwordsCount: Int,
     twoFaCount: Int,
     cardsCount: Int,
-    cryptoCount: Int,
-    onQuickAdd: () -> Unit,
-    onQuickScan: () -> Unit,
-    onSyncNow: () -> Unit
+    cryptoCount: Int
 ) {
     val palette = VaultPaletteController.current
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(if (palette.isLight) 0.dp else 14.dp, RoundedCornerShape(28.dp))
-            .clip(RoundedCornerShape(28.dp))
+            .shadow(if (palette.isLight) 1.dp else 14.dp, RoundedCornerShape(22.dp))
+            .clip(RoundedCornerShape(22.dp))
             .background(palette.abyssSurface)
             .border(
-                1.5.dp,
+                1.2.dp,
                 if (palette.isLight) Color(0xFFE2E8F0) else palette.cyan.copy(alpha = 0.35f),
-                RoundedCornerShape(28.dp)
+                RoundedCornerShape(22.dp)
             )
-            .padding(20.dp)
+            .padding(14.dp)
     ) {
         Column {
             // Card Header: Telemetry indicator on Left, Cloud Status on Right
@@ -710,13 +657,13 @@ private fun NextGenNexusHeroCard(
                             .size(7.dp)
                             .background(palette.mint, CircleShape)
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
                     Text(
                         text = "VAULT TELEMETRY",
                         style = TextStyle(
-                            fontSize = 11.sp,
+                            fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
-                            letterSpacing = 1.4.sp,
+                            letterSpacing = 1.2.sp,
                             color = palette.cyan
                         )
                     )
@@ -724,10 +671,10 @@ private fun NextGenNexusHeroCard(
 
                 Row(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(12.dp))
+                        .clip(RoundedCornerShape(10.dp))
                         .background(palette.mint.copy(alpha = 0.14f))
-                        .border(1.dp, palette.mint.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
-                        .padding(horizontal = 10.dp, vertical = 4.dp),
+                        .border(1.dp, palette.mint.copy(alpha = 0.3f), RoundedCornerShape(10.dp))
+                        .padding(horizontal = 8.dp, vertical = 3.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     ThemedIcon(
@@ -736,7 +683,7 @@ private fun NextGenNexusHeroCard(
                         tint = palette.mint,
                         size = 12.dp
                     )
-                    Spacer(modifier = Modifier.width(6.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
                     Text(
                         text = if (cloudEmail.isNotBlank()) "Google Drive Active" else "End-to-End Encrypted",
                         style = TextStyle(
@@ -748,7 +695,7 @@ private fun NextGenNexusHeroCard(
                 }
             }
 
-            Spacer(modifier = Modifier.height(18.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
             // Main Total Counter with Security Health Rating
             Row(
@@ -760,7 +707,7 @@ private fun NextGenNexusHeroCard(
                     Text(
                         text = "$totalCount",
                         style = TextStyle(
-                            fontSize = 38.sp,
+                            fontSize = 32.sp,
                             fontWeight = FontWeight.Black,
                             letterSpacing = (-1).sp,
                             color = palette.textPrimary
@@ -769,9 +716,9 @@ private fun NextGenNexusHeroCard(
                     Text(
                         text = "TOTAL ENCRYPTED RECORDS",
                         style = TextStyle(
-                            fontSize = 10.sp,
+                            fontSize = 9.sp,
                             fontWeight = FontWeight.Bold,
-                            letterSpacing = 1.2.sp,
+                            letterSpacing = 1.sp,
                             color = palette.textMuted
                         )
                     )
@@ -780,17 +727,17 @@ private fun NextGenNexusHeroCard(
                 // Security Health Score Badge
                 Box(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(if (palette.isLight) palette.abyssSurface else palette.abyssDark)
-                        .border(1.dp, if (palette.isLight) Color(0xFFE2E8F0) else palette.abyssElevated, RoundedCornerShape(16.dp))
-                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(if (palette.isLight) Color(0xFFF8FAFC) else palette.abyssDark)
+                        .border(1.dp, if (palette.isLight) Color(0xFFE2E8F0) else palette.abyssElevated, RoundedCornerShape(12.dp))
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
                             text = "$securityScore%",
                             style = TextStyle(
-                                fontSize = 18.sp,
+                                fontSize = 16.sp,
                                 fontWeight = FontWeight.Black,
                                 color = if (securityScore >= 80) palette.mint else if (securityScore >= 50) palette.amber else palette.coral
                             )
@@ -798,7 +745,7 @@ private fun NextGenNexusHeroCard(
                         Text(
                             text = "SECURITY",
                             style = TextStyle(
-                                fontSize = 9.sp,
+                                fontSize = 8.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = palette.textMuted
                             )
@@ -807,12 +754,12 @@ private fun NextGenNexusHeroCard(
                 }
             }
 
-            Spacer(modifier = Modifier.height(18.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
-            // 4 Clear Stats Cards (Spacious 2x2 Grid - NEVER CLIPPED)
+            // 4 Clear Stats Cards (Spacious 2x2 Grid)
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 NextGenTelemetryStatCard(
                     title = "Passwords",
@@ -828,11 +775,11 @@ private fun NextGenNexusHeroCard(
                 )
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(6.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 NextGenTelemetryStatCard(
                     title = "Payment Cards",
@@ -844,38 +791,6 @@ private fun NextGenNexusHeroCard(
                     title = "Crypto Wallets",
                     count = "$cryptoCount",
                     color = palette.amber,
-                    modifier = Modifier.weight(1f)
-                )
-            }
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            // Action Buttons: Exactly 3 clean balanced buttons
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                NextGenPillButton(
-                    text = "New Record",
-                    icon = Glyph.add,
-                    isPrimary = true,
-                    onClick = onQuickAdd,
-                    modifier = Modifier.weight(1f)
-                )
-
-                NextGenPillButton(
-                    text = "Scan QR",
-                    icon = Glyph.cameraAlt,
-                    isPrimary = false,
-                    onClick = onQuickScan,
-                    modifier = Modifier.weight(1f)
-                )
-
-                NextGenPillButton(
-                    text = "Sync Now",
-                    icon = Glyph.sync,
-                    isPrimary = false,
-                    onClick = onSyncNow,
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -1248,6 +1163,58 @@ private fun NextGenQuickAddSheet(
         )
 
         Spacer(modifier = Modifier.height(18.dp))
+
+        // Top Priority Action: Scan QR Code
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 5.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .background(if (palette.isLight) palette.abyssElevated else palette.abyssSurface)
+                .border(1.2.dp, palette.cyan.copy(alpha = 0.6f), RoundedCornerShape(14.dp))
+                .clickable { onSelect(Routes.SCAN_HUB) }
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(palette.cyan.copy(alpha = 0.15f)),
+                contentAlignment = Alignment.Center
+            ) {
+                ThemedIcon(
+                    glyph = Glyph.qrCodeScanner,
+                    contentDescription = "Scan QR",
+                    tint = palette.cyan,
+                    size = 20.dp
+                )
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Scan QR Code",
+                    style = TextStyle(
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = palette.cyan
+                    )
+                )
+                Text(
+                    text = "Scan 2FA TOTP secret, Wi-Fi or text QR",
+                    style = TextStyle(
+                        fontSize = 11.sp,
+                        color = palette.textSecondary
+                    )
+                )
+            }
+            ThemedIcon(
+                glyph = Glyph.chevronRight,
+                contentDescription = null,
+                tint = palette.cyan,
+                size = 14.dp
+            )
+        }
 
         val options = listOf(
             Triple("New Password", Routes.entryEditor(), VaultModule.PASSWORDS),

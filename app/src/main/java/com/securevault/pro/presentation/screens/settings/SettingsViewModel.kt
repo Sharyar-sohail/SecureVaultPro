@@ -711,7 +711,7 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun wipeVault(masterPassword: String, deleteCloudBackups: Boolean = true) {
+    fun wipeVault(masterPassword: String, deleteCloudBackups: Boolean = true, createArchive: Boolean = false) {
         if (!ensureWritable()) return
         if (masterPassword.isBlank()) {
             _state.update {
@@ -731,7 +731,7 @@ class SettingsViewModel @Inject constructor(
                 return@launch
             }
             try {
-                val outcome = localWipeService.wipeAll(deleteCloud = deleteCloudBackups)
+                val outcome = localWipeService.wipeAll(deleteCloud = deleteCloudBackups, createArchive = createArchive)
                 _state.update {
                     it.copy(
                         working = false,

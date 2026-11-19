@@ -280,6 +280,7 @@ fun SettingsScreen(
     var removeDecoyMaster by remember { mutableStateOf("") }
     var wipeMaster by remember { mutableStateOf("") }
     var wipeDeleteCloud by remember { mutableStateOf(true) }
+    var wipeCreateArchive by remember { mutableStateOf(false) }
 
     var companionDraft by remember { mutableStateOf("") }
     var companionError by remember { mutableStateOf<String?>(null) }
@@ -697,7 +698,7 @@ fun SettingsScreen(
                     icon = Glyph.fileDownload,
                     accent = VaultColor.accent,
                     title = "Export encrypted backup",
-                    subtitle = "Encrypted file · Blogger theme XML · .xml.enc archive",
+                    subtitle = "Encrypted .enc file for offline safekeeping",
                     enabled = writable,
                     onClick = {
                         viewModel.clearMessage()
@@ -1005,7 +1006,7 @@ fun SettingsScreen(
                 }
                 Spacer(Modifier.height(12.dp))
                 Text(
-                    text = "Erasing destroys every record on this device (including crypto wallets), every encrypted attachment, every offline backup and this device's unlock key. With the cloud option ticked, the encrypted Drive snapshots and the live sync copies the web companion reads are deleted too, after a copy of your vault is archived to Google Drive. Untick it only if you want to keep them. The app returns to first-run setup.",
+                    text = "Erasing permanently destroys every local record on this device (including crypto wallets), encrypted attachments, offline backups and unlock keys. You can choose whether to completely purge all Google Drive cloud backups and whether to save an emergency pre-wipe ZIP archive. The app returns to first-run setup.",
                     style = MaterialTheme.typography.bodySmall,
                     color = VaultColor.textBody,
                     lineHeight = 18.sp
@@ -1408,7 +1409,7 @@ fun SettingsScreen(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(
-                        text = "This permanently erases every local record, encrypted attachment, offline backup and the device key. Before the active Drive slot is cleared, your old vault is sealed into a timestamped ZIP inside Drive → .SecureVaultPro-Archives. After the wipe this app restores nothing, but that archive stays until you delete it by hand.",
+                        text = "This permanently erases every local record, encrypted attachment, offline backup and device key on this phone. Configure your cloud options below:",
                         style = MaterialTheme.typography.bodySmall,
                         color = VaultColor.textBody,
                         lineHeight = 18.sp
@@ -1436,12 +1437,47 @@ fun SettingsScreen(
                         Spacer(Modifier.width(8.dp))
                         Column(Modifier.weight(1f)) {
                             Text(
-                                text = "Also clear the active Google Drive slot",
+                                text = "Delete all Google Drive backups & cloud data",
                                 style = MaterialTheme.typography.titleSmall,
                                 color = VaultColor.textStrong
                             )
                             Text(
-                                text = "Archives first, then removes the main backup, the XML copy and the snapshots",
+                                text = "Permanently removes all backups, snapshots and live sync from Google Drive",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = VaultColor.textFaint,
+                                lineHeight = 15.sp
+                            )
+                        }
+                    }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(VaultShapes.input)
+                            .clickable(enabled = !state.working) {
+                                wipeCreateArchive = !wipeCreateArchive
+                            }
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Checkbox(
+                            checked = wipeCreateArchive,
+                            onCheckedChange = { wipeCreateArchive = it },
+                            enabled = !state.working,
+                            colors = CheckboxDefaults.colors(
+                                checkedColor = VaultColor.warning,
+                                uncheckedColor = VaultColor.textFaint,
+                                checkmarkColor = VaultColor.onAccent
+                            )
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                text = "Save pre-wipe emergency ZIP archive on Drive",
+                                style = MaterialTheme.typography.titleSmall,
+                                color = VaultColor.textStrong
+                            )
+                            Text(
+                                text = "Leave unchecked to completely delete everything without leaving any ZIP file on Drive",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = VaultColor.textFaint,
                                 lineHeight = 15.sp
@@ -1462,7 +1498,7 @@ fun SettingsScreen(
                             Text(err, style = MaterialTheme.typography.labelMedium, color = VaultColor.debit)
                             if (wipeDeleteCloud) {
                                 Text(
-                                    "Tip: If cloud connection fails or is offline, untick 'Also clear the active Google Drive slot' above to wipe this device locally.",
+                                    "Tip: If cloud connection fails or is offline, untick 'Delete all Google Drive backups' above to wipe this device locally.",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = VaultColor.textFaint
                                 )
@@ -1473,7 +1509,7 @@ fun SettingsScreen(
             },
             confirmButton = {
                 TextButton(
-                    onClick = { viewModel.wipeVault(wipeMaster, wipeDeleteCloud) },
+                    onClick = { viewModel.wipeVault(wipeMaster, deleteCloudBackups = wipeDeleteCloud, createArchive = wipeCreateArchive) },
                     enabled = wipeMaster.isNotBlank() && !state.working
                 ) {
                     if (state.working) {
@@ -1554,36 +1590,12 @@ fun SettingsScreen(
                         )
                     }
                     GradientButton(
-                        text = "Export encrypted file",
+                        text = "Export encrypted file (.enc)",
                         icon = Glyph.fileDownload,
                         enabled = ready && !busy,
                         loading = state.exportBusy,
                         modifier = Modifier.fillMaxWidth(),
                         onClick = viewModel::exportEncryptedBackup
-                    )
-                    VaultTextField(
-                        value = state.bloggerClientId,
-                        onValueChange = viewModel::setBloggerClientId,
-                        label = "Google Web Client ID for the theme (optional)",
-                        placeholder = "1234-abc.apps.googleusercontent.com",
-                        singleLine = true,
-                        supportingText = "Only the Blogger theme uses this. Blank keeps the app project's client ID, and the blog can override it on the page."
-                    )
-                    GhostButton(
-                        text = "Export Blogger theme XML",
-                        icon = Glyph.description,
-                        accent = VaultColor.credit,
-                        enabled = ready && !busy,
-                        modifier = Modifier.fillMaxWidth(),
-                        onClick = viewModel::exportBloggerTheme
-                    )
-                    GhostButton(
-                        text = "Export XML archive (.xml.enc)",
-                        icon = Glyph.folderOpen,
-                        accent = VaultColor.warning,
-                        enabled = ready && !busy,
-                        modifier = Modifier.fillMaxWidth(),
-                        onClick = viewModel::exportXmlArchive
                     )
                 }
             },

@@ -71,7 +71,7 @@ fun SyncCenterScreen(
 
     GlassScaffold(
         title = "Sync center",
-        subtitle = "Real-time encrypted JSON · XML snapshots",
+        subtitle = "Real-time encrypted cloud sync & snapshots",
         onBack = onBack
     ) { padding ->
         LazyColumn(
@@ -321,8 +321,8 @@ fun SyncCenterScreen(
                         modifier = Modifier.weight(1f)
                     )
                     EnvelopeTile(
-                        title = "XML copy",
-                        detail = "vault_backup.xml.enc",
+                        title = "Mirror copy",
+                        detail = "vault_mirror.enc",
                         size = sync.lastXmlBytes.toLong(),
                         icon = Glyph.description,
                         accent = VaultColor.secondary,

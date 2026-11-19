@@ -71,7 +71,7 @@ class SyncCenterViewModel @Inject constructor(
             result.fold(
                 onSuccess = { outcome ->
                     setMessage(
-                        "JSON + XML sealed and mirrored · ${outcome.counts.total} records",
+                        "Vault sealed and mirrored · ${outcome.counts.total} records",
                         error = false
                     )
                 },

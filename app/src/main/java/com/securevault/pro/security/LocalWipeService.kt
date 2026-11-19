@@ -141,14 +141,14 @@ class LocalWipeService @Inject constructor(
         const val ENGINE_STOP_TIMEOUT_MS = 20_000L
     }
 
-    suspend fun wipeAll(deleteCloud: Boolean): WipeOutcome = withContext(Dispatchers.IO) {
+    suspend fun wipeAll(deleteCloud: Boolean, createArchive: Boolean = false): WipeOutcome = withContext(Dispatchers.IO) {
         var cloudDeleted = 0
         var realtimeDeleted = 0
         var cloudError: String? = null
         var archiveName: String? = null
 
         val cloudConnected = deleteCloud && cloudSyncManager.canAccessDrive()
-        if (cloudConnected) {
+        if (cloudConnected && createArchive) {
             // Rule 1: the copy exists and is visible in Drive before anything is destroyed.
             val archiveStep = attemptWithin(ARCHIVE_TIMEOUT_MS) { cloudSyncManager.archiveVaultSnapshot() }
             val archiveInfo = archiveStep.value?.getOrNull()
@@ -209,11 +209,11 @@ class LocalWipeService @Inject constructor(
                     deleted == null && deleteStep.fault != null ->
                         "The cloud copies could not be deleted: " +
                             (deleteStep.fault?.message?.take(200) ?: "Google Drive was unreachable.") +
-                            " Your archive is saved as $archiveName. Retry while online."
+                            (archiveName?.let { " Your archive is saved as $it." } ?: "") + " Retry while online."
                     deleted == null ->
                         "The cloud copies could not be deleted within " +
                             "${CLOUD_DELETE_TIMEOUT_MS / 1000} seconds. " +
-                            "Your archive is saved as $archiveName. Retry while online."
+                            (archiveName?.let { "Your archive is saved as $it." } ?: "") + " Retry while online."
                     deleted.isSuccess -> {
                         cloudDeleted = deleted.getOrDefault(0)
                         runCatching {
@@ -223,14 +223,13 @@ class LocalWipeService @Inject constructor(
                     }
                     else -> "The cloud copies could not be deleted: " +
                         (deleted.exceptionOrNull()?.message?.take(200) ?: "Google Drive was unavailable.") +
-                        " Your archive is saved as $archiveName. Retry while online."
+                        (archiveName?.let { " Your archive is saved as $it." } ?: "") + " Retry while online."
                 }
             }
 
             // Realtime erase. The sync tree is the part the web companion reads, so an "erase all
             // data" that left `svp1/users/$uid` intact would leave the owner's ciphertext — and the
-            // key that opens it — on the account forever. It runs only once a Drive archive exists,
-            // under rule 1: the copy is what makes deleting the keyring safe.
+            // key that opens it — on the account forever.
             if (deleteCloud && archiveName != null) {
                 val erase = attemptWithin(REALTIME_ERASE_TIMEOUT_MS) { realtimeEngine.eraseCloudData() }
                 val outcome = erase.value
@@ -246,6 +245,22 @@ class LocalWipeService @Inject constructor(
                         cloudError,
                         "Some synced copies could not be deleted: ${outcome.error} " +
                             "Your archive is saved as $archiveName. Erase again while online."
+                    )
+                }
+                realtimeDeleted = outcome?.nodesRemoved ?: 0
+            } else if (deleteCloud && !createArchive) {
+                val erase = attemptWithin(REALTIME_ERASE_TIMEOUT_MS) { realtimeEngine.eraseCloudData() }
+                val outcome = erase.value
+                when {
+                    outcome == null -> cloudError = joinError(
+                        cloudError,
+                        "The synced copies could not be deleted" +
+                            (if (erase.fault != null) ": ${erase.fault?.message?.take(200)}" else
+                                " within ${REALTIME_ERASE_TIMEOUT_MS / 1000} seconds.")
+                    )
+                    outcome.error != null -> cloudError = joinError(
+                        cloudError,
+                        "Some synced copies could not be deleted: ${outcome.error}."
                     )
                 }
                 realtimeDeleted = outcome?.nodesRemoved ?: 0
