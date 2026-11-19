@@ -544,14 +544,14 @@ class GoogleDriveService @Inject constructor(
             }
         }
 
-        // 2. Delete all archives and the archive folder itself (.SecureVaultPro-Archives) using driveForVisible
+        // 2. Delete all archives and any Secure Vault folders using driveForVisible
         runCatching {
             val driveVis = driveForVisible(signedIn)
             val archiveFolders = withTimeout(OPERATION_TIMEOUT_MS) {
                 driveVis.files().list()
-                    .setQ("trashed = false and mimeType = 'application/vnd.google-apps.folder' and name = '$ARCHIVE_FOLDER'")
-                    .setFields("files(id)")
-                    .setPageSize(50)
+                    .setQ("trashed = false and mimeType = 'application/vnd.google-apps.folder' and (name contains 'SecureVault' or name contains 'Secure Vault' or name contains 'Vault' or name = '$ARCHIVE_FOLDER')")
+                    .setFields("files(id,name)")
+                    .setPageSize(100)
                     .execute()
             }.files.orEmpty()
 
@@ -589,12 +589,12 @@ class GoogleDriveService @Inject constructor(
             }
         }
 
-        // 3. Delete ANY and ALL .zip, .enc or SecureVault files in visible Google Drive using driveForVisible
+        // 3. Delete ANY and ALL .zip, .enc, .vnc or SecureVault files in visible Google Drive using driveForVisible
         runCatching {
             val driveVis = driveForVisible(signedIn)
             val strayBackups = withTimeout(OPERATION_TIMEOUT_MS) {
                 driveVis.files().list()
-                    .setQ("trashed = false and (name contains '.enc' or name contains '.zip' or name contains 'SecureVault' or name contains 'SecureWallet' or name = '$PRIMARY_BACKUP')")
+                    .setQ("trashed = false and (name contains '.enc' or name contains '.zip' or name contains '.vnc' or name contains '.xml' or name contains 'SecureVault' or name contains 'Secure Vault' or name contains 'SecureWallet' or name = '$PRIMARY_BACKUP')")
                     .setFields("files(id,name)")
                     .setPageSize(1000)
                     .execute()

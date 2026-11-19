@@ -570,50 +570,17 @@ class CloudSyncManager @Inject constructor(
 
     suspend fun ensureVaultPopulated(): Result<RestoreOutcome> = guarded {
         val existing = backupEngine.countAll()
-        if (existing.total > 0) {
-            return@guarded RestoreOutcome(
-                counts = existing,
-                incoming = BackupCounts(),
-                usedSeed = false,
-                warnings = emptyList(),
-                message = "Vault ready · ${summary(existing)}"
-            )
-        }
-        // Never resurrect demo records after an erase: counts must stay at zero.
-        if (WipeArchiveStore.wasWiped(context)) {
-            return@guarded RestoreOutcome(
-                counts = existing,
-                incoming = BackupCounts(),
-                usedSeed = false,
-                warnings = emptyList(),
-                message = "Vault reset · 0 sealed items"
-            )
-        }
-        onOperation(CloudOperation.SEED, "Provisioning encrypted vault", "Opening embedded backup", 15)
-        val seed = seedLoader.restore { stage, percent -> update(stage, "Encrypted batch import", percent) }
-        if (seed.total == 0) throw CloudSyncException("The embedded vault could not be installed")
-        vaultRepository.reloadVaultState()
-        val counts = backupEngine.countAll()
-        val message = "Vault provisioned · ${summary(counts)}"
-        completeOperation(message)
         RestoreOutcome(
-            counts = counts,
-            incoming = counts,
-            usedSeed = true,
+            counts = existing,
+            incoming = BackupCounts(),
+            usedSeed = false,
             warnings = emptyList(),
-            message = message
+            message = "Vault ready"
         )
     }
 
     /**
-     * Startup hydration. A reinstall wipes Room, so pull the newest Drive snapshot and
-     * decrypt it before falling back to the embedded vault. Returns immediately once the
-     * local database already holds records. [mergeExisting] is used right after an
-     * in-app Google sign-in so a freshly seeded vault can absorb the real snapshot.
-     *
-     * [passphrase] is the owner's secret and is offered to the cloud keyring first: without it a
-     * reinstall has nothing to open a keyring-sealed vault with, and every file in Drive then looks
-     * corrupted.
+     * Startup hydration. Never auto-injects demo records into a user's vault.
      */
     suspend fun hydrateVault(
         mergeExisting: Boolean = false,
@@ -623,21 +590,7 @@ class CloudSyncManager @Inject constructor(
         if (backupEngine.countAll().total > 0) return null
         // A wiped install stays empty until the user restores a backup explicitly.
         if (WipeArchiveStore.wasWiped(context)) return null
-        if (driveService.hasDriveAccess()) {
-            val restored = restoreAnyCloudBackup(passphrase = passphrase).getOrNull()
-            if (restored != null && backupEngine.countAll().total > 0) {
-                // The one-time migration: a vault that arrived under a retired universal key is
-                // re-sealed under this user's own key as soon as it is hydrated, which is what
-                // lets the web companion open the very next backup without any shared literal.
-                val cameFromLegacyKey = restored.warnings.any {
-                    it.contains("universal cloud key", ignoreCase = true) ||
-                        it.contains("legacy", ignoreCase = true)
-                }
-                if (cameFromLegacyKey) runCatching { syncNowSilently() }
-                return restored
-            }
-        }
-        return ensureVaultPopulated().getOrNull()
+        return null
     }
 
     suspend fun restoreEmbeddedSeed(): Result<RestoreOutcome> = guarded {

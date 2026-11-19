@@ -151,6 +151,13 @@ class LocalWipeService @Inject constructor(
             runCatching { cloudSyncManager.ensureDriveAccess() }
         }
         val cloudConnected = deleteCloud && cloudSyncManager.canAccessDrive()
+        if (deleteCloud && !cloudConnected) {
+            return@withContext WipeOutcome(
+                localCleared = false,
+                cloudDeleted = 0,
+                cloudError = "Google Drive is not connected. Sign in to Google Drive to delete all cloud backups, or uncheck 'Delete all Google Drive backups' to erase locally only. Nothing was erased."
+            )
+        }
         if (cloudConnected && createArchive) {
             // Rule 1: the copy exists and is visible in Drive before anything is destroyed.
             val archiveStep = attemptWithin(ARCHIVE_TIMEOUT_MS) { cloudSyncManager.archiveVaultSnapshot() }
@@ -330,9 +337,22 @@ class LocalWipeService @Inject constructor(
 
     private fun clearTransientFiles() {
         runCatching { File(context.filesDir, "offline_backup").deleteRecursively() }
+        runCatching { File(context.filesDir, "backups").deleteRecursively() }
+        runCatching { File(context.filesDir, "vault_backups").deleteRecursively() }
+        runCatching { File(context.filesDir, "export").deleteRecursively() }
+        runCatching { File(context.filesDir, "exports").deleteRecursively() }
         runCatching { File(context.cacheDir, "secure_share").deleteRecursively() }
         runCatching { File(context.cacheDir, "vault_exports").deleteRecursively() }
         runCatching { File(context.cacheDir, "vault_staging").deleteRecursively() }
         runCatching { File(context.cacheDir, "voice_memos").deleteRecursively() }
+        runCatching {
+            context.filesDir.listFiles()?.forEach { f ->
+                val n = f.name.lowercase()
+                if (n.endsWith(".enc") || n.endsWith(".zip") || n.endsWith(".vnc") || n.endsWith(".bak") || n.endsWith(".tmp")) {
+                    f.delete()
+                }
+            }
+        }
+        runCatching { context.cacheDir.deleteRecursively() }
     }
 }

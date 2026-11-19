@@ -222,7 +222,7 @@ fun NextGenHomeScreen(
                             countText = "${state.counts.passwords}",
                             module = VaultModule.PASSWORDS,
                             modifier = Modifier.weight(1f),
-                            onClick = { onNavigate(Routes.vault("PASSWORDS")) }
+                            onClick = { onNavigate(Routes.vault("ALL")) }
                         )
 
                         NextGenBentoTile(
@@ -274,7 +274,7 @@ fun NextGenHomeScreen(
                             countText = "${state.counts.notes}",
                             module = VaultModule.NOTES,
                             modifier = Modifier.weight(1f),
-                            onClick = { onNavigate(Routes.vault("NOTES")) }
+                            onClick = { onNavigate(Routes.NOTES) }
                         )
 
                         NextGenBentoTile(
