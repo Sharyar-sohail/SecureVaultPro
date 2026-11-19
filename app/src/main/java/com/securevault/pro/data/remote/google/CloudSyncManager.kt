@@ -709,6 +709,12 @@ class CloudSyncManager @Inject constructor(
 
     fun canAccessDrive(): Boolean = driveService.hasDriveAccess()
 
+    suspend fun ensureDriveAccess(): Boolean = withContext(Dispatchers.IO) {
+        if (canAccessDrive()) return@withContext true
+        val refreshed = driveService.usableAccount()
+        return@withContext refreshed != null && driveService.hasDriveAccess(refreshed)
+    }
+
     /** Live Drive quota for the signed-in account; never uses the sync overlay. */
     suspend fun driveStorageQuota(): Result<DriveStorageQuota> = withContext(Dispatchers.IO) {
         if (!driveService.hasDriveAccess()) {

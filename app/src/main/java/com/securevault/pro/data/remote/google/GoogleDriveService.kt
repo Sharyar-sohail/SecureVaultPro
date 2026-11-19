@@ -275,26 +275,24 @@ class GoogleDriveService @Inject constructor(
                 }.files.orEmpty()
 
                 val archiveFiles = runCatching {
-                    if (!hasArchiveAccess(account)) emptyList()
+                    val driveVis = driveForVisible(account)
+                    val folderList = withTimeout(OPERATION_TIMEOUT_MS) {
+                        driveVis.files().list()
+                            .setQ("trashed = false and mimeType = 'application/vnd.google-apps.folder' and name = '$ARCHIVE_FOLDER'")
+                            .setFields("files(id)")
+                            .setPageSize(5)
+                            .execute().files.orEmpty()
+                    }
+                    val folderId = folderList.firstOrNull()?.id
+                    if (folderId.isNullOrBlank()) emptyList()
                     else {
-                        val folderList = withTimeout(OPERATION_TIMEOUT_MS) {
-                            drive.files().list()
-                                .setQ("trashed = false and mimeType = 'application/vnd.google-apps.folder' and name = '$ARCHIVE_FOLDER' and 'root' in parents")
-                                .setFields("files(id)")
-                                .setPageSize(1)
+                        withTimeout(OPERATION_TIMEOUT_MS) {
+                            driveVis.files().list()
+                                .setQ("'$folderId' in parents and trashed = false")
+                                .setFields("files(id,name,size,modifiedTime,mimeType)")
+                                .setOrderBy("modifiedTime desc")
+                                .setPageSize(100)
                                 .execute().files.orEmpty()
-                        }
-                        val folderId = folderList.firstOrNull()?.id
-                        if (folderId.isNullOrBlank()) emptyList()
-                        else {
-                            withTimeout(OPERATION_TIMEOUT_MS) {
-                                drive.files().list()
-                                    .setQ("'$folderId' in parents and trashed = false")
-                                    .setFields("files(id,name,size,modifiedTime,mimeType)")
-                                    .setOrderBy("modifiedTime desc")
-                                    .setPageSize(50)
-                                    .execute().files.orEmpty()
-                            }
                         }
                     }
                 }.getOrDefault(emptyList())
@@ -497,53 +495,63 @@ class GoogleDriveService @Inject constructor(
         account: GoogleSignInAccount? = lastSignedInAccount()
     ): Boolean = withContext(Dispatchers.IO) {
         if (fileId.isBlank()) return@withContext false
+        val signedIn = account ?: lastSignedInAccount()
+        val appDataOk = runCatching {
+            withTimeout(OPERATION_TIMEOUT_MS) {
+                driveFor(signedIn).files().delete(fileId).execute()
+            }
+        }.isSuccess
+        if (appDataOk) return@withContext true
+        // If it was stored in visible Drive (e.g. .SecureVaultPro-Archives), purge via driveForVisible
         runCatching {
             withTimeout(OPERATION_TIMEOUT_MS) {
-                driveFor(account).files().delete(fileId).execute()
+                driveForVisible(signedIn).files().delete(fileId).execute()
             }
         }.isSuccess
     }
 
     /**
      * Removes every file in this app's private appDataFolder, including the
-     * salt and XML mirror. Used only by the full erase flow so that no cloud
-     * artefact survives a wipe.
+     * salt and XML mirror, and purges all .SecureVaultPro-Archives zip files
+     * and .enc backup files from Google Drive.
      */
     suspend fun deleteAllAppDataFiles(
         account: GoogleSignInAccount? = lastSignedInAccount()
     ): Int = withContext(Dispatchers.IO) {
-        val drive = driveFor(account)
+        val signedIn = account ?: lastSignedInAccount() ?: usableAccount()
         var deleted = 0
 
         // 1. Delete all files in private appDataFolder (primary envelope, XML mirror, snapshots, salt)
-        val appDataFiles = runCatching {
-            withTimeout(OPERATION_TIMEOUT_MS) {
+        runCatching {
+            val drive = driveFor(signedIn)
+            val appDataFiles = withTimeout(OPERATION_TIMEOUT_MS) {
                 drive.files().list()
                     .setSpaces(APP_DATA_FOLDER)
                     .setFields("files(id,name)")
                     .setPageSize(1000)
                     .execute()
             }.files.orEmpty()
-        }.getOrDefault(emptyList())
 
-        appDataFiles.forEach { file ->
-            val id = file.id.orEmpty()
-            if (id.isNotBlank()) {
-                runCatching {
-                    withTimeout(OPERATION_TIMEOUT_MS) {
-                        drive.files().delete(id).execute()
-                    }
-                }.onSuccess { deleted++ }
+            appDataFiles.forEach { file ->
+                val id = file.id.orEmpty()
+                if (id.isNotBlank()) {
+                    runCatching {
+                        withTimeout(OPERATION_TIMEOUT_MS) {
+                            drive.files().delete(id).execute()
+                        }
+                    }.onSuccess { deleted++ }
+                }
             }
         }
 
-        // 2. Delete all archives and the archive folder itself (.SecureVaultPro-Archives)
+        // 2. Delete all archives and the archive folder itself (.SecureVaultPro-Archives) using driveForVisible
         runCatching {
+            val driveVis = driveForVisible(signedIn)
             val archiveFolders = withTimeout(OPERATION_TIMEOUT_MS) {
-                drive.files().list()
+                driveVis.files().list()
                     .setQ("trashed = false and mimeType = 'application/vnd.google-apps.folder' and name = '$ARCHIVE_FOLDER'")
                     .setFields("files(id)")
-                    .setPageSize(10)
+                    .setPageSize(50)
                     .execute()
             }.files.orEmpty()
 
@@ -552,10 +560,10 @@ class GoogleDriveService @Inject constructor(
                 if (fId.isNotBlank()) {
                     val archFiles = runCatching {
                         withTimeout(OPERATION_TIMEOUT_MS) {
-                            drive.files().list()
+                            driveVis.files().list()
                                 .setQ("'$fId' in parents and trashed = false")
                                 .setFields("files(id)")
-                                .setPageSize(500)
+                                .setPageSize(1000)
                                 .execute()
                         }.files.orEmpty()
                     }.getOrDefault(emptyList())
@@ -565,7 +573,7 @@ class GoogleDriveService @Inject constructor(
                         if (aId.isNotBlank()) {
                             runCatching {
                                 withTimeout(OPERATION_TIMEOUT_MS) {
-                                    drive.files().delete(aId).execute()
+                                    driveVis.files().delete(aId).execute()
                                 }
                             }.onSuccess { deleted++ }
                         }
@@ -574,20 +582,21 @@ class GoogleDriveService @Inject constructor(
                     // Delete the folder itself
                     runCatching {
                         withTimeout(OPERATION_TIMEOUT_MS) {
-                            drive.files().delete(fId).execute()
+                            driveVis.files().delete(fId).execute()
                         }
                     }.onSuccess { deleted++ }
                 }
             }
         }
 
-        // 3. Delete any visible backup or enc files across the user's Google Drive
+        // 3. Delete ANY and ALL .zip, .enc or SecureVault files in visible Google Drive using driveForVisible
         runCatching {
+            val driveVis = driveForVisible(signedIn)
             val strayBackups = withTimeout(OPERATION_TIMEOUT_MS) {
-                drive.files().list()
-                    .setQ("trashed = false and (name contains '.enc' or name contains 'SecureVault' or name contains 'SecureWallet' or name = '$PRIMARY_BACKUP')")
+                driveVis.files().list()
+                    .setQ("trashed = false and (name contains '.enc' or name contains '.zip' or name contains 'SecureVault' or name contains 'SecureWallet' or name = '$PRIMARY_BACKUP')")
                     .setFields("files(id,name)")
-                    .setPageSize(200)
+                    .setPageSize(1000)
                     .execute()
             }.files.orEmpty()
 
@@ -596,7 +605,7 @@ class GoogleDriveService @Inject constructor(
                 if (sId.isNotBlank()) {
                     runCatching {
                         withTimeout(OPERATION_TIMEOUT_MS) {
-                            drive.files().delete(sId).execute()
+                            driveVis.files().delete(sId).execute()
                         }
                     }.onSuccess { deleted++ }
                 }

@@ -1073,59 +1073,62 @@ private fun NextGenBentoTile(
     val isPressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(if (isPressed) 0.96f else 1f, label = "tileScale")
 
-    Row(
+    Column(
         modifier = modifier
             .scale(scale)
-            .shadow(if (isLight) 1.dp else 4.dp, RoundedCornerShape(14.dp))
-            .clip(RoundedCornerShape(14.dp))
+            .shadow(if (isLight) 2.dp else 4.dp, RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(16.dp))
             .background(palette.abyssSurface)
-            .border(1.dp, if (isLight) Color(0xFFE2E8F0) else palette.abyssElevated, RoundedCornerShape(14.dp))
+            .border(1.dp, if (isLight) Color(0xFFE2E8F0) else palette.abyssElevated, RoundedCornerShape(16.dp))
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
-            .padding(horizontal = 10.dp, vertical = 7.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .padding(horizontal = 11.dp, vertical = 8.dp)
     ) {
-        BrandModuleIcon(
-            module = module,
-            size = 28.dp
-        )
-        Spacer(modifier = Modifier.width(8.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = title,
-                style = TextStyle(
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = palette.textPrimary
-                ),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                text = description,
-                style = TextStyle(
-                    fontSize = 9.sp,
-                    color = palette.textMuted
-                ),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-        Spacer(modifier = Modifier.width(4.dp))
-        Box(
-            modifier = Modifier
-                .clip(RoundedCornerShape(6.dp))
-                .background(palette.cyan.copy(alpha = 0.12f))
-                .padding(horizontal = 6.dp, vertical = 2.dp)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = countText,
-                style = TextStyle(
-                    fontSize = 10.5.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = palette.cyan
-                )
+            BrandModuleIcon(
+                module = module,
+                size = 28.dp
             )
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(palette.cyan.copy(alpha = 0.12f))
+                    .padding(horizontal = 6.dp, vertical = 2.dp)
+            ) {
+                Text(
+                    text = countText,
+                    style = TextStyle(
+                        fontSize = 10.5.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = palette.cyan
+                    )
+                )
+            }
         }
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = title,
+            style = TextStyle(
+                fontSize = 12.5.sp,
+                fontWeight = FontWeight.Bold,
+                color = palette.textPrimary
+            ),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        Spacer(modifier = Modifier.height(1.dp))
+        Text(
+            text = description,
+            style = TextStyle(
+                fontSize = 9.5.sp,
+                color = palette.textMuted
+            ),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }
 

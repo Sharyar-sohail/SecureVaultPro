@@ -147,6 +147,9 @@ class LocalWipeService @Inject constructor(
         var cloudError: String? = null
         var archiveName: String? = null
 
+        if (deleteCloud && !cloudSyncManager.canAccessDrive()) {
+            runCatching { cloudSyncManager.ensureDriveAccess() }
+        }
         val cloudConnected = deleteCloud && cloudSyncManager.canAccessDrive()
         if (cloudConnected && createArchive) {
             // Rule 1: the copy exists and is visible in Drive before anything is destroyed.
