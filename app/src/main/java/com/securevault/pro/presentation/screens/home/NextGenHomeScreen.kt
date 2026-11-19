@@ -9,6 +9,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -19,6 +20,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -55,6 +57,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
@@ -175,24 +179,27 @@ fun NextGenHomeScreen(
                         .weight(1f)
                         .verticalScroll(rememberScrollState())
                         .padding(horizontal = 20.dp)
-                        .padding(bottom = 110.dp)
+                        .padding(bottom = 12.dp)
                 ) {
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(4.dp))
 
                     // -------------------------------------------------------------
-                    // A. HERO TELEMETRY DASHBOARD (Compact & Balanced)
+                    // A. INFOGRAPHIC TELEMETRY DASHBOARD (Compact & Data-Dense)
                     // -------------------------------------------------------------
-                    NextGenNexusHeroCard(
+                    NextGenInfographicTelemetryCard(
                         totalCount = totalItems,
                         securityScore = state.report.score,
                         cloudEmail = state.cloudEmail,
                         passwordsCount = state.counts.passwords,
                         twoFaCount = state.counts.totps,
                         cardsCount = state.counts.cards,
-                        cryptoCount = cryptoCount
+                        cryptoCount = cryptoCount,
+                        notesCount = state.counts.notes,
+                        contactsCount = state.counts.contacts,
+                        filesCount = state.counts.files
                     )
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
 
                     // -------------------------------------------------------------
                     // B. COMPACT BENTO GRID: ALL 8 CORE MODULES ON ONE SCREEN
@@ -202,12 +209,12 @@ fun NextGenHomeScreen(
                         subtitle = "Zero-knowledge encrypted categories",
                         badge = "LIVE"
                     )
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
 
                     // Row 1: Passwords & Logins + 2FA Authenticator
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         NextGenBentoTile(
                             title = "Passwords",
@@ -228,12 +235,12 @@ fun NextGenHomeScreen(
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
 
                     // Row 2: Payment Cards + Crypto Wallets
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         NextGenBentoTile(
                             title = "Payment Cards",
@@ -254,12 +261,12 @@ fun NextGenHomeScreen(
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
 
                     // Row 3: Secure Notes + Secret Image
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         NextGenBentoTile(
                             title = "Secure Notes",
@@ -280,12 +287,12 @@ fun NextGenHomeScreen(
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
 
                     // Row 4: File Vault + Secure Contacts
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         NextGenBentoTile(
                             title = "File Vault",
@@ -306,7 +313,46 @@ fun NextGenHomeScreen(
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(20.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // -------------------------------------------------------------
+                    // C. SYSTEM TOOLS STRIP (Restored Core Functionality)
+                    // -------------------------------------------------------------
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        NextGenToolPill(
+                            title = "Security",
+                            icon = Glyph.shield,
+                            accent = palette.mint,
+                            modifier = Modifier.weight(1f),
+                            onClick = { onNavigate(Routes.HEALTH) }
+                        )
+                        NextGenToolPill(
+                            title = "Cloud Sync",
+                            icon = Glyph.cloud,
+                            accent = palette.cyan,
+                            modifier = Modifier.weight(1f),
+                            onClick = { onNavigate(Routes.SYNC_CENTER) }
+                        )
+                        NextGenToolPill(
+                            title = "Backup",
+                            icon = Glyph.fileDownload,
+                            accent = palette.indigo,
+                            modifier = Modifier.weight(1f),
+                            onClick = { onNavigate(Routes.BACKUP) }
+                        )
+                        NextGenToolPill(
+                            title = "Tools",
+                            icon = Glyph.security,
+                            accent = palette.amber,
+                            modifier = Modifier.weight(1f),
+                            onClick = { onNavigate(Routes.SECURITY_TOOLS) }
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(6.dp))
                 }
             }
         }
@@ -368,12 +414,12 @@ fun NextGenHomeScreen(
             )
         }
 
-        // FLOATING '+' ACTION BUTTON (Quick Add / QR Scanner)
+        // FLOATING '+' ACTION BUTTON (Quick Add / QR Scanner - Placed at bottom right near nav bar)
         FloatingActionButton(
             onClick = { quickAddOpen = true },
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(end = 20.dp, bottom = 82.dp),
+                .padding(end = 18.dp, bottom = 14.dp),
             containerColor = palette.cyan,
             contentColor = if (palette.isLight) Color.White else palette.abyssDark,
             shape = CircleShape,
@@ -473,32 +519,37 @@ private fun NextGenCommandIsland(
                 NextGenCircleGlassButton(
                     onClick = onOpenSettings,
                     iconGlyph = Glyph.settings,
-                    contentDescription = "Settings",
-                    isSettings = true
+                    contentDescription = "Settings"
                 )
             }
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(4.dp))
 
-        // Lower Greeting & Date: Full Width so it NEVER truncates!
-        Text(
-            text = greeting,
-            style = TextStyle(
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Black,
-                letterSpacing = (-0.5).sp,
-                color = palette.textPrimary
+        // Lower Greeting & Date: Compact Row
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.Bottom
+        ) {
+            Text(
+                text = greeting,
+                style = TextStyle(
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Black,
+                    letterSpacing = (-0.5).sp,
+                    color = palette.textPrimary
+                )
             )
-        )
-        Text(
-            text = today,
-            style = TextStyle(
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Medium,
-                color = palette.textMuted
+            Text(
+                text = today,
+                style = TextStyle(
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = palette.textMuted
+                )
             )
-        )
+        }
     }
 }
 
@@ -508,8 +559,7 @@ private fun NextGenCircleGlassButton(
     iconGlyph: Glyph,
     contentDescription: String,
     rotation: Float = 0f,
-    tint: Color? = null,
-    isSettings: Boolean = false
+    tint: Color? = null
 ) {
     val palette = VaultPaletteController.current
     val isLight = palette.isLight
@@ -517,13 +567,9 @@ private fun NextGenCircleGlassButton(
     val isPressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(if (isPressed) 0.88f else 1f, label = "pressScale")
 
-    val bg = if (isLight) Color(0xFFF8FAFC) else palette.abyssElevated
-    val borderCol = if (isLight) {
-        if (isSettings) palette.cyan.copy(alpha = 0.7f) else Color(0xFFCBD5E1)
-    } else {
-        if (isSettings) palette.cyan.copy(alpha = 0.6f) else palette.cyan.copy(alpha = 0.25f)
-    }
-    val iconTint = tint ?: if (isSettings) palette.cyan else (if (isLight) Color(0xFF1E293B) else palette.textPrimary)
+    val bg = if (isLight) Color(0xFFF1F5F9) else palette.abyssElevated
+    val borderCol = if (isLight) Color(0xFFCBD5E1) else Color.White.copy(alpha = 0.12f)
+    val iconTint = tint ?: (if (isLight) Color(0xFF1E293B) else palette.textPrimary)
 
     Box(
         modifier = Modifier
@@ -532,7 +578,7 @@ private fun NextGenCircleGlassButton(
             .shadow(if (isLight) 1.dp else 0.dp, CircleShape)
             .clip(CircleShape)
             .background(bg)
-            .border(1.2.dp, borderCol, CircleShape)
+            .border(1.dp, borderCol, CircleShape)
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
@@ -617,298 +663,251 @@ private fun NextGenSearchCapsule(
 }
 
 // =====================================================================
-// COMPONENT 3: NEXUS HERO TELEMETRY CARD (Spacious & Clean)
+// COMPONENT 3: INFOGRAPHIC TELEMETRY CARD (Precision & Compact)
 // =====================================================================
 @Composable
-private fun NextGenNexusHeroCard(
+private fun NextGenInfographicTelemetryCard(
     totalCount: Int,
     securityScore: Int,
     cloudEmail: String,
     passwordsCount: Int,
     twoFaCount: Int,
     cardsCount: Int,
-    cryptoCount: Int
+    cryptoCount: Int,
+    notesCount: Int,
+    contactsCount: Int,
+    filesCount: Int
 ) {
     val palette = VaultPaletteController.current
+    val isLight = palette.isLight
+
+    val slices = remember(passwordsCount, twoFaCount, cardsCount, cryptoCount, notesCount, contactsCount, filesCount) {
+        listOf(
+            passwordsCount.toFloat() to palette.cyan,
+            twoFaCount.toFloat() to palette.mint,
+            cardsCount.toFloat() to palette.indigo,
+            cryptoCount.toFloat() to palette.amber,
+            contactsCount.toFloat() to palette.coral,
+            notesCount.toFloat() to Color(0xFF8B5CF6),
+            filesCount.toFloat() to Color(0xFF0EA5E9)
+        )
+    }
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(if (palette.isLight) 1.dp else 14.dp, RoundedCornerShape(22.dp))
-            .clip(RoundedCornerShape(22.dp))
+            .shadow(if (isLight) 1.dp else 8.dp, RoundedCornerShape(18.dp))
+            .clip(RoundedCornerShape(18.dp))
             .background(palette.abyssSurface)
             .border(
-                1.2.dp,
-                if (palette.isLight) Color(0xFFE2E8F0) else palette.cyan.copy(alpha = 0.35f),
-                RoundedCornerShape(22.dp)
+                1.dp,
+                if (isLight) Color(0xFFE2E8F0) else palette.cyan.copy(alpha = 0.25f),
+                RoundedCornerShape(18.dp)
             )
-            .padding(14.dp)
+            .padding(horizontal = 14.dp, vertical = 10.dp)
     ) {
-        Column {
-            // Card Header: Telemetry indicator on Left, Cloud Status on Right
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // 1. Infographic Radial Donut Gauge
+            Box(
+                modifier = Modifier.size(52.dp),
+                contentAlignment = Alignment.Center
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(7.dp)
-                            .background(palette.mint, CircleShape)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "VAULT TELEMETRY",
-                        style = TextStyle(
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 1.2.sp,
-                            color = palette.cyan
-                        )
-                    )
-                }
-
-                Row(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(palette.mint.copy(alpha = 0.14f))
-                        .border(1.dp, palette.mint.copy(alpha = 0.3f), RoundedCornerShape(10.dp))
-                        .padding(horizontal = 8.dp, vertical = 3.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    ThemedIcon(
-                        glyph = Glyph.cloudDone,
-                        contentDescription = "Cloud",
-                        tint = palette.mint,
-                        size = 12.dp
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = if (cloudEmail.isNotBlank()) "Google Drive Active" else "End-to-End Encrypted",
-                        style = TextStyle(
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = palette.mint
-                        )
-                    )
-                }
+                NextGenVaultDonutGauge(
+                    slices = slices,
+                    modifier = Modifier.fillMaxSize()
+                )
+                ThemedIcon(
+                    glyph = Glyph.shield,
+                    contentDescription = null,
+                    tint = palette.cyan,
+                    size = 18.dp
+                )
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.width(12.dp))
 
-            // Main Total Counter with Security Health Rating
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column {
-                    Text(
-                        text = "$totalCount",
-                        style = TextStyle(
-                            fontSize = 32.sp,
-                            fontWeight = FontWeight.Black,
-                            letterSpacing = (-1).sp,
-                            color = palette.textPrimary
-                        )
-                    )
-                    Text(
-                        text = "TOTAL ENCRYPTED RECORDS",
-                        style = TextStyle(
-                            fontSize = 9.sp,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 1.sp,
-                            color = palette.textMuted
-                        )
-                    )
-                }
-
-                // Security Health Score Badge
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(if (palette.isLight) Color(0xFFF8FAFC) else palette.abyssDark)
-                        .border(1.dp, if (palette.isLight) Color(0xFFE2E8F0) else palette.abyssElevated, RoundedCornerShape(12.dp))
-                        .padding(horizontal = 12.dp, vertical = 6.dp),
-                    contentAlignment = Alignment.Center
+            // 2. Metrics & Segmented Distribution Bar
+            Column(modifier = Modifier.weight(1f)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Row(verticalAlignment = Alignment.Bottom) {
                         Text(
-                            text = "$securityScore%",
+                            text = "$totalCount",
                             style = TextStyle(
-                                fontSize = 16.sp,
+                                fontSize = 20.sp,
                                 fontWeight = FontWeight.Black,
-                                color = if (securityScore >= 80) palette.mint else if (securityScore >= 50) palette.amber else palette.coral
+                                letterSpacing = (-0.5).sp,
+                                color = palette.textPrimary
                             )
                         )
+                        Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = "SECURITY",
+                            text = "ENCRYPTED RECORDS",
                             style = TextStyle(
-                                fontSize = 8.sp,
+                                fontSize = 8.5.sp,
                                 fontWeight = FontWeight.Bold,
+                                letterSpacing = 0.8.sp,
                                 color = palette.textMuted
+                            ),
+                            modifier = Modifier.padding(bottom = 2.dp)
+                        )
+                    }
+
+                    // Security Rating Badge
+                    val ratingColor = if (securityScore >= 80) palette.mint else if (securityScore >= 50) palette.amber else palette.coral
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(if (isLight) Color(0xFFF1F5F9) else palette.abyssElevated)
+                            .border(1.dp, ratingColor.copy(alpha = 0.35f), RoundedCornerShape(6.dp))
+                            .padding(horizontal = 6.dp, vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(modifier = Modifier.size(5.dp).background(ratingColor, CircleShape))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "$securityScore% SECURE",
+                            style = TextStyle(
+                                fontSize = 8.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = ratingColor
+                            )
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                // Segmented Infographic Bar
+                val sumTotal = slices.sumOf { it.first.toDouble() }.toFloat().coerceAtLeast(1f)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(5.dp)
+                        .clip(RoundedCornerShape(3.dp))
+                        .background(if (isLight) Color(0xFFE2E8F0) else palette.abyssElevated)
+                ) {
+                    if (totalCount == 0) {
+                        Box(Modifier.fillMaxWidth().fillMaxHeight().background(palette.cyan.copy(alpha = 0.25f)))
+                    } else {
+                        slices.forEach { (count, color) ->
+                            if (count > 0f) {
+                                Box(
+                                    modifier = Modifier
+                                        .weight(count / sumTotal)
+                                        .fillMaxHeight()
+                                        .background(color)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(5.dp))
+
+                // Mini Legend Strip
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        InfographicLegendDot(color = palette.cyan, label = "Pass: $passwordsCount")
+                        InfographicLegendDot(color = palette.mint, label = "2FA: $twoFaCount")
+                        if (contactsCount > 0) {
+                            InfographicLegendDot(color = palette.coral, label = "Cont: $contactsCount")
+                        } else if (cardsCount > 0) {
+                            InfographicLegendDot(color = palette.indigo, label = "Cards: $cardsCount")
+                        } else {
+                            InfographicLegendDot(color = palette.amber, label = "Crypto: $cryptoCount")
+                        }
+                    }
+
+                    // Cloud indicator
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(5.dp)
+                                .background(if (cloudEmail.isNotBlank()) palette.mint else palette.cyan, CircleShape)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = if (cloudEmail.isNotBlank()) "Drive" else "Vault",
+                            style = TextStyle(
+                                fontSize = 8.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (cloudEmail.isNotBlank()) palette.mint else palette.cyan
                             )
                         )
                     }
                 }
             }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // 4 Clear Stats Cards (Spacious 2x2 Grid)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                NextGenTelemetryStatCard(
-                    title = "Passwords",
-                    count = "$passwordsCount",
-                    color = palette.cyan,
-                    modifier = Modifier.weight(1f)
-                )
-                NextGenTelemetryStatCard(
-                    title = "2FA Tokens",
-                    count = "$twoFaCount",
-                    color = palette.mint,
-                    modifier = Modifier.weight(1f)
-                )
-            }
-
-            Spacer(modifier = Modifier.height(6.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                NextGenTelemetryStatCard(
-                    title = "Payment Cards",
-                    count = "$cardsCount",
-                    color = palette.indigo,
-                    modifier = Modifier.weight(1f)
-                )
-                NextGenTelemetryStatCard(
-                    title = "Crypto Wallets",
-                    count = "$cryptoCount",
-                    color = palette.amber,
-                    modifier = Modifier.weight(1f)
-                )
-            }
         }
     }
 }
 
 @Composable
-private fun NextGenTelemetryStatCard(
-    title: String,
-    count: String,
-    color: Color,
-    modifier: Modifier = Modifier
-) {
+private fun InfographicLegendDot(color: Color, label: String) {
     val palette = VaultPaletteController.current
-    val bgCol = if (palette.isLight) palette.abyssSurface else palette.abyssElevated
-    val borderCol = if (palette.isLight) Color(0xFFE2E8F0) else palette.abyssElevated
-
-    Row(
-        modifier = modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(bgCol)
-            .border(1.dp, borderCol, RoundedCornerShape(12.dp))
-            .padding(horizontal = 10.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Row(
-            modifier = Modifier.weight(1f, fill = false),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(7.dp)
-                    .background(color, CircleShape)
-            )
-            Spacer(modifier = Modifier.width(6.dp))
-            Text(
-                text = title,
-                style = TextStyle(
-                    fontSize = 11.5.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = palette.textSecondary
-                ),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-        }
-        Spacer(modifier = Modifier.width(4.dp))
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(modifier = Modifier.size(5.dp).background(color, CircleShape))
+        Spacer(modifier = Modifier.width(3.dp))
         Text(
-            text = count,
+            text = label,
             style = TextStyle(
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Bold,
-                color = palette.textPrimary
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Medium,
+                color = palette.textSecondary
             )
         )
     }
 }
 
 @Composable
-private fun NextGenPillButton(
-    text: String,
-    icon: Glyph,
-    isPrimary: Boolean,
-    onClick: () -> Unit,
+private fun NextGenVaultDonutGauge(
+    slices: List<Pair<Float, Color>>,
     modifier: Modifier = Modifier
 ) {
-    val palette = VaultPaletteController.current
-    val isLight = palette.isLight
-    val interactionSource = remember { MutableInteractionSource() }
-    val isPressed by interactionSource.collectIsPressedAsState()
-    val scale by animateFloatAsState(if (isPressed) 0.94f else 1f, label = "btnScale")
+    Canvas(modifier = modifier) {
+        val total = slices.sumOf { it.first.toDouble() }.toFloat()
+        val stroke = 5.dp.toPx()
+        val radius = (size.minDimension - stroke) / 2f
+        val center = Offset(size.width / 2f, size.height / 2f)
 
-    val bgModifier = if (isPrimary) {
-        Modifier.background(
-            Brush.horizontalGradient(
-                listOf(palette.cyan, palette.indigo)
+        if (total <= 0f) {
+            drawCircle(
+                color = Color(0xFF00E5FF).copy(alpha = 0.25f),
+                radius = radius,
+                center = center,
+                style = Stroke(width = stroke)
             )
-        )
-    } else {
-        val solidBg = if (isLight) palette.abyssSurface else palette.abyssElevated
-        val borderCol = if (isLight) palette.cyan else palette.cyan.copy(alpha = 0.45f)
-        Modifier
-            .background(solidBg)
-            .border(1.5.dp, borderCol, RoundedCornerShape(20.dp))
-    }
-
-    val contentColor = if (isPrimary) Color.White else if (isLight) palette.cyan else palette.textPrimary
-
-    Row(
-        modifier = modifier
-            .height(44.dp)
-            .scale(scale)
-            .clip(RoundedCornerShape(20.dp))
-            .then(bgModifier)
-            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
-            .padding(horizontal = 8.dp),
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        ThemedIcon(
-            glyph = icon,
-            contentDescription = null,
-            tint = contentColor,
-            size = 16.dp
-        )
-        Spacer(modifier = Modifier.width(6.dp))
-        Text(
-            text = text,
-            style = TextStyle(
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                color = contentColor
-            ),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
+        } else {
+            var currentAngle = -90f
+            slices.forEach { (value, color) ->
+                if (value > 0f) {
+                    val sweep = (value / total) * 360f
+                    drawArc(
+                        color = color,
+                        startAngle = currentAngle,
+                        sweepAngle = sweep,
+                        useCenter = false,
+                        topLeft = Offset(center.x - radius, center.y - radius),
+                        size = androidx.compose.ui.geometry.Size(radius * 2, radius * 2),
+                        style = Stroke(width = stroke, cap = StrokeCap.Round)
+                    )
+                    currentAngle += sweep
+                }
+            }
+        }
     }
 }
 
@@ -1069,63 +1068,104 @@ private fun NextGenBentoTile(
     modifier: Modifier = Modifier
 ) {
     val palette = VaultPaletteController.current
+    val isLight = palette.isLight
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(if (isPressed) 0.96f else 1f, label = "tileScale")
 
-    Column(
+    Row(
         modifier = modifier
             .scale(scale)
-            .shadow(if (palette.isLight) 0.dp else 8.dp, RoundedCornerShape(18.dp))
-            .clip(RoundedCornerShape(18.dp))
+            .shadow(if (isLight) 1.dp else 4.dp, RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(14.dp))
             .background(palette.abyssSurface)
-            .border(1.dp, if (palette.isLight) Color(0xFFE2E8F0) else palette.abyssElevated, RoundedCornerShape(18.dp))
+            .border(1.dp, if (isLight) Color(0xFFE2E8F0) else palette.abyssElevated, RoundedCornerShape(14.dp))
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
-            .padding(14.dp)
+            .padding(horizontal = 10.dp, vertical = 7.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            BrandModuleIcon(
-                module = module,
-                size = 32.dp
+        BrandModuleIcon(
+            module = module,
+            size = 28.dp
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = TextStyle(
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = palette.textPrimary
+                ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
+            Text(
+                text = description,
+                style = TextStyle(
+                    fontSize = 9.sp,
+                    color = palette.textMuted
+                ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        Spacer(modifier = Modifier.width(4.dp))
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(6.dp))
+                .background(palette.cyan.copy(alpha = 0.12f))
+                .padding(horizontal = 6.dp, vertical = 2.dp)
+        ) {
             Text(
                 text = countText,
                 style = TextStyle(
-                    fontSize = 11.sp,
+                    fontSize = 10.5.sp,
                     fontWeight = FontWeight.Bold,
                     color = palette.cyan
                 )
             )
         }
+    }
+}
 
-        Spacer(modifier = Modifier.height(10.dp))
+@Composable
+private fun NextGenToolPill(
+    title: String,
+    icon: Glyph,
+    accent: Color,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    val palette = VaultPaletteController.current
+    val isLight = palette.isLight
 
+    Row(
+        modifier = modifier
+            .height(34.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .background(palette.abyssSurface)
+            .border(1.dp, if (isLight) Color(0xFFE2E8F0) else palette.abyssElevated, RoundedCornerShape(10.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center
+    ) {
+        ThemedIcon(
+            glyph = icon,
+            contentDescription = title,
+            tint = accent,
+            size = 14.dp
+        )
+        Spacer(modifier = Modifier.width(4.dp))
         Text(
             text = title,
             style = TextStyle(
-                fontSize = 14.sp,
+                fontSize = 10.5.sp,
                 fontWeight = FontWeight.Bold,
                 color = palette.textPrimary
             ),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
-
-        Spacer(modifier = Modifier.height(2.dp))
-
-        Text(
-            text = description,
-            style = TextStyle(
-                fontSize = 10.sp,
-                color = palette.textMuted,
-                lineHeight = 13.sp
-            ),
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis
+            maxLines = 1
         )
     }
 }

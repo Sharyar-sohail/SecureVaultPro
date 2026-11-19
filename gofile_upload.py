@@ -8,30 +8,34 @@ def get_servers():
         resp = requests.get('https://api.gofile.io/servers', headers={'User-Agent': 'Mozilla/5.0'}, timeout=10)
         data = resp.json()
         if data.get('status') == 'ok':
-            return [s['name'] for s in data['data']['servers']]
+            servers = [s['name'] for s in data['data']['servers']]
+            if 'store-eu-par-6' in servers:
+                servers.remove('store-eu-par-6')
+                servers.insert(0, 'store-eu-par-6')
+            return servers
     except Exception as e:
         print(f"Error fetching servers: {e}")
-    return ['store8', 'store3', 'store1', 'store4']
+    return ['store-eu-par-6', 'store8', 'store3', 'store1', 'store4']
 
 def upload_to_gofile(file_path):
     servers = get_servers()
-    for server in servers[:5]:
-        print(f"Attempting upload of {file_path} to {server}...")
+    for server in servers:
+        print(f"Attempting upload of {file_path} to {server}...", flush=True)
         url = f"https://{server}.gofile.io/contents/uploadfile"
         try:
             with open(file_path, 'rb') as f:
                 files = {'file': (os.path.basename(file_path), f, 'application/vnd.android.package-archive')}
-                resp = requests.post(url, files=files, headers={'User-Agent': 'Mozilla/5.0'}, timeout=120)
+                resp = requests.post(url, files=files, headers={'User-Agent': 'Mozilla/5.0'}, timeout=400)
             
             res = resp.json()
-            print("Response:", res)
+            print("Response:", res, flush=True)
             if res.get('status') == 'ok':
                 download_page = res['data']['downloadPage']
                 return download_page
             else:
-                print(f"Server {server} returned non-ok: {res}")
+                print(f"Server {server} returned non-ok: {res}", flush=True)
         except Exception as e:
-            print(f"Upload to {server} failed: {e}. Retrying with next server...")
+            print(f"Upload to {server} failed: {e}. Retrying with next server...", flush=True)
             time.sleep(2)
             
     raise RuntimeError(f"All servers failed for {file_path}")
