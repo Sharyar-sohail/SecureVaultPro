@@ -233,6 +233,28 @@ fun SettingsScreen(
         xmlExportLauncher.launch(data.fileName)
     }
 
+    // CSV import picker — opened by the "Import passwords from CSV" row in Google & backup section
+    val csvImportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            scope.launch {
+                try {
+                    val content = context.contentResolver.openInputStream(uri)?.use { stream ->
+                        stream.bufferedReader(Charsets.UTF_8).readText()
+                    }
+                    if (!content.isNullOrBlank()) {
+                        viewModel.importCsv(content)
+                    } else {
+                        viewModel.importCsv("")
+                    }
+                } catch (e: Exception) {
+                    viewModel.importCsv("")
+                }
+            }
+        }
+    }
+
     LaunchedEffect(pairingPayload) {
         pairingPayload?.takeIf { it.isNotBlank() }?.let {
             viewModel.applyPairing(it)
@@ -683,6 +705,22 @@ fun SettingsScreen(
                     }
                 )
                 RowDivider()
+                SettingsActionRow(
+                    icon = Glyph.fileUpload,
+                    accent = VaultColor.credit,
+                    title = "Import passwords from CSV",
+                    subtitle = "Google Chrome, Google Passwords, Bitwarden (.csv)",
+                    enabled = writable,
+                    onClick = {
+                        csvImportLauncher.launch(arrayOf(
+                            "text/comma-separated-values",
+                            "text/csv",
+                            "text/plain",
+                            "*/*"
+                        ))
+                    }
+                )
+                RowDivider()
                 SettingsSwitchRow(
                     icon = Glyph.sync,
                     accent = VaultColor.credit,
@@ -1017,6 +1055,38 @@ fun SettingsScreen(
                             modifier = Modifier
                                 .clip(VaultShapes.chip)
                                 .clickable { viewModel.clearMessage() }
+                                .padding(horizontal = 4.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+            }
+
+            state.csvImportNotice?.let { notice ->
+                val accent = if (state.csvImportIsError) VaultColor.warning else VaultColor.credit
+                GlassCard(borderColor = accent.copy(alpha = 0.3f), accent = accent) {
+                    Row(verticalAlignment = Alignment.Top) {
+                        ThemedIcon(
+                            glyph = if (state.csvImportIsError) Glyph.errorOutline else Glyph.checkCircle,
+                            contentDescription = null,
+                            tint = accent,
+                            modifier = Modifier.padding(top = 1.dp).size(18.dp)
+                        )
+                        Spacer(Modifier.width(10.dp))
+                        Text(
+                            text = notice,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = VaultColor.textStrong,
+                            modifier = Modifier.weight(1f),
+                            lineHeight = 18.sp
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = "DISMISS",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = VaultColor.textFaint,
+                            modifier = Modifier
+                                .clip(VaultShapes.chip)
+                                .clickable { viewModel.clearCsvImportNotice() }
                                 .padding(horizontal = 4.dp, vertical = 2.dp)
                         )
                     }

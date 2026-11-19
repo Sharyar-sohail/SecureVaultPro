@@ -37,8 +37,8 @@ def upload_to_gofile(file_path):
     raise RuntimeError(f"All servers failed for {file_path}")
 
 if __name__ == '__main__':
-    classic_path = "SECURE_VAULT_PRO_FINAL_DELIVERY/SecureVaultPro-Classic-v1.0-Fixed.apk"
-    nextgen_path = "SECURE_VAULT_PRO_FINAL_DELIVERY/SecureVaultPro-NextGen-v2.0-Flagship.apk"
+    classic_path = "SECURE_VAULT_PRO_FINAL_DELIVERY/SecureVaultPro-Classic-v2.0.apk"
+    nextgen_path = "SECURE_VAULT_PRO_FINAL_DELIVERY/SecureVaultPro-NextGen-v2.0.apk"
     
     print("--- Uploading Classic APK ---")
     classic_link = upload_to_gofile(classic_path)

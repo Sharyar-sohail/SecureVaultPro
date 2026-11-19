@@ -513,15 +513,20 @@ class GoogleDriveService @Inject constructor(
         account: GoogleSignInAccount? = lastSignedInAccount()
     ): Int = withContext(Dispatchers.IO) {
         val drive = driveFor(account)
-        val files = withTimeout(OPERATION_TIMEOUT_MS) {
-            drive.files().list()
-                .setSpaces(APP_DATA_FOLDER)
-                .setFields("files(id,name)")
-                .setPageSize(1000)
-                .execute()
-        }.files.orEmpty()
         var deleted = 0
-        files.forEach { file ->
+
+        // 1. Delete all files in private appDataFolder (primary envelope, XML mirror, snapshots, salt)
+        val appDataFiles = runCatching {
+            withTimeout(OPERATION_TIMEOUT_MS) {
+                drive.files().list()
+                    .setSpaces(APP_DATA_FOLDER)
+                    .setFields("files(id,name)")
+                    .setPageSize(1000)
+                    .execute()
+            }.files.orEmpty()
+        }.getOrDefault(emptyList())
+
+        appDataFiles.forEach { file ->
             val id = file.id.orEmpty()
             if (id.isNotBlank()) {
                 runCatching {
@@ -531,6 +536,73 @@ class GoogleDriveService @Inject constructor(
                 }.onSuccess { deleted++ }
             }
         }
+
+        // 2. Delete all archives and the archive folder itself (.SecureVaultPro-Archives)
+        runCatching {
+            val archiveFolders = withTimeout(OPERATION_TIMEOUT_MS) {
+                drive.files().list()
+                    .setQ("trashed = false and mimeType = 'application/vnd.google-apps.folder' and name = '$ARCHIVE_FOLDER'")
+                    .setFields("files(id)")
+                    .setPageSize(10)
+                    .execute()
+            }.files.orEmpty()
+
+            archiveFolders.forEach { folder ->
+                val fId = folder.id.orEmpty()
+                if (fId.isNotBlank()) {
+                    val archFiles = runCatching {
+                        withTimeout(OPERATION_TIMEOUT_MS) {
+                            drive.files().list()
+                                .setQ("'$fId' in parents and trashed = false")
+                                .setFields("files(id)")
+                                .setPageSize(500)
+                                .execute()
+                        }.files.orEmpty()
+                    }.getOrDefault(emptyList())
+
+                    archFiles.forEach { af ->
+                        val aId = af.id.orEmpty()
+                        if (aId.isNotBlank()) {
+                            runCatching {
+                                withTimeout(OPERATION_TIMEOUT_MS) {
+                                    drive.files().delete(aId).execute()
+                                }
+                            }.onSuccess { deleted++ }
+                        }
+                    }
+
+                    // Delete the folder itself
+                    runCatching {
+                        withTimeout(OPERATION_TIMEOUT_MS) {
+                            drive.files().delete(fId).execute()
+                        }
+                    }.onSuccess { deleted++ }
+                }
+            }
+        }
+
+        // 3. Delete any visible backup or enc files across the user's Google Drive
+        runCatching {
+            val strayBackups = withTimeout(OPERATION_TIMEOUT_MS) {
+                drive.files().list()
+                    .setQ("trashed = false and (name contains '.enc' or name contains 'SecureVault' or name contains 'SecureWallet' or name = '$PRIMARY_BACKUP')")
+                    .setFields("files(id,name)")
+                    .setPageSize(200)
+                    .execute()
+            }.files.orEmpty()
+
+            strayBackups.forEach { stray ->
+                val sId = stray.id.orEmpty()
+                if (sId.isNotBlank()) {
+                    runCatching {
+                        withTimeout(OPERATION_TIMEOUT_MS) {
+                            drive.files().delete(sId).execute()
+                        }
+                    }.onSuccess { deleted++ }
+                }
+            }
+        }
+
         deleted
     }
 

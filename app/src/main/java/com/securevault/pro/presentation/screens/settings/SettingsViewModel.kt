@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.securevault.pro.data.backup.BloggerThemeExporter
+import com.securevault.pro.data.repository.VaultRepository
 import com.securevault.pro.data.backup.BloggerThemeFile
 import com.securevault.pro.data.backup.CloudBackupFile
 import com.securevault.pro.data.remote.firebase.Keyring
@@ -103,7 +104,11 @@ data class SettingsUiState(
     val realtimePending: Int = 0,
     val realtimeError: String? = null,
     val realtimePassphrase: String = "",
-    val realtimeAttaching: Boolean = false
+    val realtimeAttaching: Boolean = false,
+
+    // ---- CSV import ----
+    val csvImportNotice: String? = null,
+    val csvImportIsError: Boolean = false
 )
 
 @HiltViewModel
@@ -115,7 +120,8 @@ class SettingsViewModel @Inject constructor(
     private val bloggerThemeExporter: BloggerThemeExporter,
     private val localWipeService: LocalWipeService,
     private val realtimeEngine: RealtimeEngine,
-    private val keyring: Keyring
+    private val keyring: Keyring,
+    private val repository: VaultRepository
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(
@@ -1202,6 +1208,36 @@ class SettingsViewModel @Inject constructor(
                 }
             )
         }
+    }
+
+    /** Import passwords from a Google Chrome / Bitwarden / Google Passwords CSV file. */
+    fun importCsv(csvContent: String) {
+        if (!ensureWritable()) return
+        viewModelScope.launch {
+            val result = repository.importCsvPasswords(csvContent)
+            result.fold(
+                onSuccess = { count ->
+                    _state.update {
+                        it.copy(
+                            csvImportNotice = "Successfully imported $count passwords from CSV!",
+                            csvImportIsError = false
+                        )
+                    }
+                },
+                onFailure = { error ->
+                    _state.update {
+                        it.copy(
+                            csvImportNotice = error.message ?: "Failed to import CSV.",
+                            csvImportIsError = true
+                        )
+                    }
+                }
+            )
+        }
+    }
+
+    fun clearCsvImportNotice() {
+        _state.update { it.copy(csvImportNotice = null, csvImportIsError = false) }
     }
 
 }

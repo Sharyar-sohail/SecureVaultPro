@@ -106,25 +106,6 @@ fun NextGenHomeScreen(
     val scope = rememberCoroutineScope()
     val searching = state.query.isNotBlank()
 
-    val csvPickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocument()
-    ) { uri ->
-        if (uri != null) {
-            scope.launch {
-                try {
-                    val content = context.contentResolver.openInputStream(uri)?.use { stream ->
-                        stream.bufferedReader(Charsets.UTF_8).readText()
-                    }
-                    if (!content.isNullOrBlank()) {
-                        viewModel.importCsv(content)
-                    }
-                } catch (e: Exception) {
-                    viewModel.importCsv("")
-                }
-            }
-        }
-    }
-
     val totalItems = state.counts.passwords + state.counts.totps + state.counts.cards +
         state.counts.notes + state.counts.contacts + state.counts.files
     val cryptoCount = state.categoryCounts["CRYPTO"] ?: 0
@@ -150,7 +131,6 @@ fun NextGenHomeScreen(
                 today = today,
                 syncRunning = state.syncRunning,
                 onToggleTheme = onToggleTheme,
-                onImportCsv = { csvPickerLauncher.launch(arrayOf("text/comma-separated-values", "text/csv", "text/plain", "*/*")) },
                 onSyncNow = viewModel::syncNow,
                 onLock = onLock,
                 onOpenSettings = { onNavigate(Routes.SETTINGS) }
@@ -209,7 +189,6 @@ fun NextGenHomeScreen(
                         cardsCount = state.counts.cards,
                         cryptoCount = cryptoCount,
                         onQuickAdd = { quickAddOpen = true },
-                        onImportCsv = { csvPickerLauncher.launch(arrayOf("text/comma-separated-values", "text/csv", "text/plain", "*/*")) },
                         onQuickScan = { onNavigate(Routes.SCAN_HUB) },
                         onSyncNow = viewModel::syncNow
                     )
@@ -429,12 +408,6 @@ fun NextGenHomeScreen(
                             quickAddOpen = false
                             onNavigate(route)
                         }
-                    },
-                    onImportCsv = {
-                        scope.launch { sheetState.hide() }.invokeOnCompletion {
-                            quickAddOpen = false
-                            csvPickerLauncher.launch(arrayOf("text/comma-separated-values", "text/csv", "text/plain", "*/*"))
-                        }
                     }
                 )
             }
@@ -482,7 +455,6 @@ private fun NextGenCommandIsland(
     today: String,
     syncRunning: Boolean,
     onToggleTheme: () -> Unit,
-    onImportCsv: () -> Unit,
     onSyncNow: () -> Unit,
     onLock: () -> Unit,
     onOpenSettings: () -> Unit
@@ -495,7 +467,7 @@ private fun NextGenCommandIsland(
             .fillMaxWidth()
             .padding(horizontal = 20.dp, vertical = 6.dp)
     ) {
-        // Upper status line: Brand Identity on Left, Circular Action Buttons on Right
+        // Upper status line: Brand Identity on Left, Exactly 4 Circular Action Buttons on Right
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -519,18 +491,11 @@ private fun NextGenCommandIsland(
                 )
             }
 
-            // Glass Action Cluster
+            // Exactly 4 buttons: Theme, Sync, Lock, Settings — PERFECT VISIBILITY & ACCESSIBILITY
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                NextGenCircleGlassButton(
-                    onClick = onImportCsv,
-                    iconGlyph = Glyph.fileUpload,
-                    contentDescription = "Import Passwords from CSV",
-                    tint = palette.mint
-                )
-
                 NextGenCircleGlassButton(
                     onClick = onToggleTheme,
                     iconGlyph = if (isLight) Glyph.lightMode else Glyph.darkMode,
@@ -570,67 +535,26 @@ private fun NextGenCommandIsland(
             }
         }
 
-        Spacer(modifier = Modifier.height(10.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
-        // Lower Greeting & Date with prominent "Import CSV" Action Pill
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = greeting,
-                    style = TextStyle(
-                        fontSize = 24.sp,
-                        fontWeight = FontWeight.Black,
-                        letterSpacing = (-0.5).sp,
-                        color = palette.textPrimary
-                    )
-                )
-                Text(
-                    text = today,
-                    style = TextStyle(
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = palette.textMuted
-                    )
-                )
-            }
-
-            Spacer(modifier = Modifier.width(10.dp))
-
-            // Prominent Header "Import CSV" Action Button
-            Row(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(if (isLight) palette.abyssSurface else palette.abyssElevated)
-                    .border(
-                        1.5.dp,
-                        if (isLight) palette.mint else palette.mint.copy(alpha = 0.6f),
-                        RoundedCornerShape(20.dp)
-                    )
-                    .clickable(onClick = onImportCsv)
-                    .padding(horizontal = 14.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                ThemedIcon(
-                    glyph = Glyph.fileUpload,
-                    contentDescription = "Import CSV",
-                    tint = palette.mint,
-                    size = 16.dp
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = "Import CSV",
-                    style = TextStyle(
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = palette.mint
-                    )
-                )
-            }
-        }
+        // Lower Greeting & Date: Full Width so it NEVER truncates!
+        Text(
+            text = greeting,
+            style = TextStyle(
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Black,
+                letterSpacing = (-0.5).sp,
+                color = palette.textPrimary
+            )
+        )
+        Text(
+            text = today,
+            style = TextStyle(
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium,
+                color = palette.textMuted
+            )
+        )
     }
 }
 
@@ -755,7 +679,6 @@ private fun NextGenNexusHeroCard(
     cardsCount: Int,
     cryptoCount: Int,
     onQuickAdd: () -> Unit,
-    onImportCsv: () -> Unit,
     onQuickScan: () -> Unit,
     onSyncNow: () -> Unit
 ) {
@@ -927,10 +850,10 @@ private fun NextGenNexusHeroCard(
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            // Action Buttons: Row 1 (Primary Action + CSV Import)
+            // Action Buttons: Exactly 3 clean balanced buttons
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 NextGenPillButton(
                     text = "New Record",
@@ -940,22 +863,6 @@ private fun NextGenNexusHeroCard(
                     modifier = Modifier.weight(1f)
                 )
 
-                NextGenPillButton(
-                    text = "Import CSV",
-                    icon = Glyph.fileUpload,
-                    isPrimary = false,
-                    onClick = onImportCsv,
-                    modifier = Modifier.weight(1f)
-                )
-            }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // Action Buttons: Row 2 (Scan QR + Sync Now)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
                 NextGenPillButton(
                     text = "Scan QR",
                     icon = Glyph.cameraAlt,
@@ -1314,8 +1221,7 @@ private fun NextGenBentoTile(
 @Composable
 private fun NextGenQuickAddSheet(
     onDismiss: () -> Unit,
-    onSelect: (String) -> Unit,
-    onImportCsv: () -> Unit
+    onSelect: (String) -> Unit
 ) {
     val palette = VaultPaletteController.current
 
@@ -1334,7 +1240,7 @@ private fun NextGenQuickAddSheet(
             )
         )
         Text(
-            text = "Select vault record type or import passwords",
+            text = "Select vault record type",
             style = TextStyle(
                 fontSize = 13.sp,
                 color = palette.textMuted
@@ -1342,50 +1248,6 @@ private fun NextGenQuickAddSheet(
         )
 
         Spacer(modifier = Modifier.height(18.dp))
-
-        // Featured CSV Import Row
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 6.dp)
-                .clip(RoundedCornerShape(14.dp))
-                .background(if (palette.isLight) palette.abyssElevated else palette.abyssSurface)
-                .border(1.2.dp, palette.cyan.copy(alpha = 0.6f), RoundedCornerShape(14.dp))
-                .clickable { onImportCsv() }
-                .padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            ThemedIcon(
-                glyph = Glyph.fileUpload,
-                contentDescription = null,
-                tint = palette.cyan,
-                modifier = Modifier.size(24.dp)
-            )
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Import Passwords from CSV",
-                    style = TextStyle(
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = palette.cyan
-                    )
-                )
-                Text(
-                    text = "Google Chrome, Google Passwords, Bitwarden",
-                    style = TextStyle(
-                        fontSize = 11.sp,
-                        color = palette.textSecondary
-                    )
-                )
-            }
-            ThemedIcon(
-                glyph = Glyph.chevronRight,
-                contentDescription = null,
-                tint = palette.cyan,
-                modifier = Modifier.size(14.dp)
-            )
-        }
 
         val options = listOf(
             Triple("New Password", Routes.entryEditor(), VaultModule.PASSWORDS),

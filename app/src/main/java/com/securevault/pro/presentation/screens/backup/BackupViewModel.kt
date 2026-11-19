@@ -4,6 +4,7 @@ import android.content.Intent
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.securevault.pro.data.backup.BackupPreview
+import com.securevault.pro.data.repository.VaultRepository
 import com.securevault.pro.data.backup.CloudBackupFile
 import com.securevault.pro.data.remote.google.CloudSyncManager
 import com.securevault.pro.data.remote.google.DriveStorageQuota
@@ -40,7 +41,9 @@ data class BackupUiState(
     val companionUrl: String = "",
     val companionEnabled: Boolean = false,
     val storageQuota: DriveStorageQuota? = null,
-    val deletingSnapshot: Boolean = false
+    val deletingSnapshot: Boolean = false,
+    val csvImportNotice: String? = null,
+    val csvImportIsError: Boolean = false
 ) {
     val selected: CloudBackupFile? get() = backups.firstOrNull { it.id == selectedId }
 }
@@ -57,7 +60,8 @@ class BackupViewModel @Inject constructor(
     private val cloudSyncManager: CloudSyncManager,
     private val driveService: GoogleDriveService,
     private val appLockManager: AppLockManager,
-    private val sessionManager: SessionManager
+    private val sessionManager: SessionManager,
+    private val repository: VaultRepository
 ) : ViewModel() {
 
     private companion object {
@@ -605,5 +609,34 @@ class BackupViewModel @Inject constructor(
 
     fun clearMessage() {
         _state.update { it.copy(message = null, warnings = emptyList()) }
+    }
+
+    /** Import passwords from a Google Chrome / Bitwarden / Google Passwords CSV file. */
+    fun importCsv(csvContent: String) {
+        viewModelScope.launch {
+            val result = repository.importCsvPasswords(csvContent)
+            result.fold(
+                onSuccess = { count ->
+                    _state.update {
+                        it.copy(
+                            csvImportNotice = "Successfully imported $count passwords from CSV!",
+                            csvImportIsError = false
+                        )
+                    }
+                },
+                onFailure = { error ->
+                    _state.update {
+                        it.copy(
+                            csvImportNotice = error.message ?: "Failed to import CSV.",
+                            csvImportIsError = true
+                        )
+                    }
+                }
+            )
+        }
+    }
+
+    fun clearCsvImportNotice() {
+        _state.update { it.copy(csvImportNotice = null, csvImportIsError = false) }
     }
 }

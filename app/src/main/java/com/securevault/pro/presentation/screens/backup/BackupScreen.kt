@@ -219,6 +219,27 @@ fun BackupScreen(
 
     }
 
+    val csvPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            scope.launch {
+                try {
+                    val content = context.contentResolver.openInputStream(uri)?.use { stream ->
+                        stream.bufferedReader(Charsets.UTF_8).readText()
+                    }
+                    if (!content.isNullOrBlank()) {
+                        viewModel.importCsv(content)
+                    } else {
+                        viewModel.importCsv("")
+                    }
+                } catch (e: Exception) {
+                    viewModel.importCsv("")
+                }
+            }
+        }
+    }
+
 
 
     GlassScaffold(
@@ -323,7 +344,16 @@ fun BackupScreen(
 
                 onPassphrase = viewModel::setPassphrase,
 
-                onPickFile = { encryptedPicker.launch(arrayOf("*/*")) }
+                onPickFile = { encryptedPicker.launch(arrayOf("*/*")) },
+
+                onImportCsv = {
+                    csvPicker.launch(arrayOf(
+                        "text/comma-separated-values",
+                        "text/csv",
+                        "text/plain",
+                        "*/*"
+                    ))
+                }
 
             )
 
@@ -877,6 +907,37 @@ fun BackupScreen(
 
                 }
 
+            }
+
+            state.csvImportNotice?.let { notice ->
+                val accent = if (state.csvImportIsError) VaultColor.warning else VaultColor.credit
+                GlassCard(borderColor = accent.copy(alpha = 0.32f), accent = accent) {
+                    Row(verticalAlignment = Alignment.Top) {
+                        ThemedIcon(
+                            glyph = if (state.csvImportIsError) Glyph.errorOutline else Glyph.checkCircle,
+                            contentDescription = null,
+                            tint = accent,
+                            modifier = Modifier.padding(top = 1.dp).size(19.dp)
+                        )
+                        Spacer(Modifier.width(10.dp))
+                        Text(
+                            text = notice,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = VaultColor.textStrong,
+                            modifier = Modifier.weight(1f),
+                            lineHeight = 18.sp
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        ThemedIcon(
+                            glyph = Glyph.close,
+                            contentDescription = "Dismiss notice",
+                            tint = VaultColor.textFaint,
+                            modifier = Modifier
+                                .size(16.dp)
+                                .clickable { viewModel.clearCsvImportNotice() }
+                        )
+                    }
+                }
             }
 
 
@@ -1725,7 +1786,9 @@ private fun ImportCard(
 
     onPassphrase: (String) -> Unit,
 
-    onPickFile: () -> Unit
+    onPickFile: () -> Unit,
+
+    onImportCsv: () -> Unit
 
 ) {
 
@@ -1824,6 +1887,36 @@ private fun ImportCard(
             modifier = Modifier.fillMaxWidth(),
 
             onClick = onPickFile
+
+        )
+
+        Spacer(Modifier.height(10.dp))
+
+        GradientButton(
+
+            text = "Import passwords from CSV",
+
+            icon = Glyph.fileUpload,
+
+            enabled = !cloudActive,
+
+            modifier = Modifier.fillMaxWidth(),
+
+            onClick = onImportCsv
+
+        )
+
+        Spacer(Modifier.height(4.dp))
+
+        Text(
+
+            text = "Import Chrome, Google Passwords, Bitwarden (.csv)",
+
+            style = MaterialTheme.typography.labelSmall,
+
+            color = VaultColor.textFaint,
+
+            lineHeight = 14.sp
 
         )
 
