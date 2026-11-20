@@ -1164,11 +1164,12 @@ private fun NextGenToolPill(
         Text(
             text = title,
             style = TextStyle(
-                fontSize = 10.5.sp,
+                fontSize = 10.sp,
                 fontWeight = FontWeight.Bold,
                 color = palette.textPrimary
             ),
-            maxLines = 1
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
         )
     }
 }
