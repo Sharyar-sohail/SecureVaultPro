@@ -285,12 +285,9 @@ data class VaultPalette(
 object VaultPalettes {
     // The owner's handset runs ColorOS, and Aqua Tint is the one theme whose layout
     // grammar actually matches it, so an unknown or retired id lands there.
-    val DEFAULT_ID: String
-        get() = if (com.securevault.pro.BuildConfig.IS_NEXTGEN) "hyperion" else "aqua"
-    val DEFAULT_LIGHT_ID: String
-        get() = if (com.securevault.pro.BuildConfig.IS_NEXTGEN) "aurora" else "solstice"
-    val DEFAULT_DARK_ID: String
-        get() = if (com.securevault.pro.BuildConfig.IS_NEXTGEN) "hyperion" else "dark"
+    const val DEFAULT_ID: String = "aqua"
+    const val DEFAULT_LIGHT_ID: String = "solstice"
+    const val DEFAULT_DARK_ID: String = "dark"
 
     /**
      * NextGen Edition flagship themes designed strictly with Antigravity Design Expert principles:
@@ -1312,7 +1309,7 @@ object VaultPalettes {
     )
 
     val all: List<VaultPalette>
-        get() = if (com.securevault.pro.BuildConfig.IS_NEXTGEN) nextGenPalettes else classicPalettes
+        get() = classicPalettes
 
     /**
      * Retired theme ids mapped onto the closest surviving theme. A theme id lives in
@@ -1404,6 +1401,7 @@ object VaultPalettes {
         val normalized = id?.trim()?.lowercase()
         return all.firstOrNull { it.id == normalized }
             ?: legacyAliases[normalized]?.let { alias -> all.firstOrNull { it.id == alias } }
+            ?: nextGenPalettes.firstOrNull { it.id == normalized }
             ?: all.first { it.id == DEFAULT_ID }
     }
 }
