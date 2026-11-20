@@ -56,7 +56,7 @@ class GoogleDriveService @Inject constructor(
 ) {
     companion object {
         private const val APP_NAME = "Secure Wallet Pro"
-        private const val OPERATION_TIMEOUT_MS = 45_000L
+        private const val OPERATION_TIMEOUT_MS = 120_000L
         private const val IDENTITY_TIMEOUT_MS = 20_000L
         /** Google's own "the user walked away" code - the only one allowed to read as a cancellation. */
         private const val CODE_CANCELED = 12501

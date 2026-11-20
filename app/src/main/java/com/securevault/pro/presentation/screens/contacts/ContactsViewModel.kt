@@ -3,6 +3,7 @@ package com.securevault.pro.presentation.screens.contacts
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.securevault.pro.data.contacts.DeviceContactsImporter
+import com.securevault.pro.data.remote.google.AutoSyncManager
 import com.securevault.pro.data.repository.VaultRepository
 import com.securevault.pro.domain.model.ContactCategories
 import com.securevault.pro.domain.model.SecureContact
@@ -47,7 +48,8 @@ data class ContactsUiState(
 class ContactsViewModel @Inject constructor(
     private val repository: VaultRepository,
     private val importer: DeviceContactsImporter,
-    private val sessionManager: SessionManager
+    private val sessionManager: SessionManager,
+    private val autoSyncManager: AutoSyncManager
 ) : ViewModel() {
 
     private val query = MutableStateFlow("")
@@ -168,6 +170,7 @@ class ContactsViewModel @Inject constructor(
                             )
                         }
                     }
+                    autoSyncManager.markDirty()
                     importState.value = ContactImportState(
                         status = ContactImportStatus.DONE,
                         message = "Imported ${summary.imported} new contacts · merged ${summary.merged} · skipped ${summary.skipped}.",

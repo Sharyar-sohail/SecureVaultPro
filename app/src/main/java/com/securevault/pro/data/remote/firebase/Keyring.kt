@@ -173,7 +173,7 @@ class Keyring @Inject constructor(
     fun hasDeviceKey(): Boolean = cachedKey != null || !prefs.getString(KEY_VAULT_WRAPPED, null).isNullOrBlank()
 
     /** Stores [material] as this device's copy and zeroes the caller's buffer. */
-    private fun adoptDeviceKey(material: ByteArray): Boolean {
+    internal fun adoptDeviceKey(material: ByteArray): Boolean {
         if (material.size != KeyringCodec.KEY_BYTES) {
             material.fill(0)
             return false

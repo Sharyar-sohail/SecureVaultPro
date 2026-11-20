@@ -279,6 +279,17 @@ class CloudSyncManager @Inject constructor(
                     throw CloudSyncException(jsonOutcome.reason)
                 }
                 writeSlot(XML_BACKUP_NAME, xmlBytes, secret)
+                // Mirror the vault key to Google Drive appDataFolder so any fresh device or re-installation of this account can decrypt and restore without losing records
+                keyring.deviceVaultKey()?.let { vKey ->
+                    runCatching {
+                        val existingKeyFile = driveService.findBackupByName("vault_key.bin")
+                        if (existingKeyFile != null) {
+                            driveService.upload("vault_key.bin", vKey.bytes, existingKeyFile.id)
+                        } else {
+                            driveService.upload("vault_key.bin", vKey.bytes)
+                        }
+                    }
+                }
                 appLockManager.markBackupComplete()
                 Result.success(
                     QuietSyncOutcome(
@@ -438,6 +449,16 @@ class CloudSyncManager @Inject constructor(
         email: String = "",
         passphrase: String? = null
     ): Result<RestoreOutcome> {
+        // Before walking candidates, if this device does not yet have a matching device key, retrieve vault_key.bin from appDataFolder
+        runCatching {
+            val keyFile = driveService.findBackupByName("vault_key.bin")
+            if (keyFile != null) {
+                val keyBytes = withTimeout(30_000L) { driveService.download(keyFile.id) }
+                if (keyBytes.size == com.securevault.pro.data.remote.firebase.KeyringCodec.KEY_BYTES) {
+                    keyring.adoptDeviceKey(keyBytes)
+                }
+            }
+        }
         val files = listCloudBackups().getOrElse {
             return Result.failure(
                 CloudSyncException("Drive is connected, but its backups could not be listed. ${it.message}".trim())
@@ -685,6 +706,15 @@ class CloudSyncManager @Inject constructor(
         val email = account.email?.trim().orEmpty()
         if (email.isNotBlank()) {
             appLockManager.setCloudEmail(email)
+            runCatching {
+                val keyFile = driveService.findBackupByName("vault_key.bin")
+                if (keyFile != null) {
+                    val keyBytes = withTimeout(30_000L) { driveService.download(keyFile.id) }
+                    if (keyBytes.size == com.securevault.pro.data.remote.firebase.KeyringCodec.KEY_BYTES) {
+                        keyring.adoptDeviceKey(keyBytes)
+                    }
+                }
+            }
             onDriveConnectedListener?.invoke()
         }
         return email.ifBlank { null }

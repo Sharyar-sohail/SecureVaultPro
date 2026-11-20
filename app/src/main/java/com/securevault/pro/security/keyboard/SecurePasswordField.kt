@@ -309,7 +309,7 @@ private fun SecureFieldChrome(
         modifier = modifier
             .clip(VaultShapes.input)
             .background(
-                if (engaged) VaultColor.elevated.copy(alpha = 0.85f) else VaultColor.elevated.copy(alpha = 0.55f),
+                androidx.compose.ui.graphics.Color.Transparent,
                 VaultShapes.input
             )
             .border(
