@@ -743,17 +743,24 @@ fun Modifier.vaultShadow(
     accent: Color,
     lifted: Boolean = false
 ): Modifier {
-    val glow = palette.glow
-    val base = if (palette.cardShadow > 0.dp) palette.cardShadow else 4.dp
-    val elevation = if (lifted) (base + 6.dp).coerceAtLeast(10.dp) else base
+    // In dark themes, black ambient shadows cause muddy/shaded rectangular halos on AMOLED/dark canvas.
+    // We only use subtle glow when enabled, eliminating all dark smudge artifacts across the app.
+    if (!palette.isLight && !palette.glow && palette.cardShadow <= 0.dp) {
+        return this
+    }
+    val elevation = if (palette.isLight) {
+        if (lifted) 6.dp else 2.dp
+    } else {
+        if (palette.glow) (if (lifted) 6.dp else 2.dp) else 0.dp
+    }
+    if (elevation <= 0.dp) return this
+
     return shadow(
         elevation = elevation,
         shape = shape,
-        // The plate layer clips itself right after this; the shadow is left free so the card's own
-        // drop shadow is not stuffed inside its silhouette.
         clip = false,
-        ambientColor = if (palette.isLight) Color.Black.copy(alpha = 0.08f) else Color.Black.copy(alpha = 0.40f),
-        spotColor = accent.copy(alpha = if (glow) 0.38f else (if (palette.isLight) 0.12f else 0.24f))
+        ambientColor = if (palette.isLight) Color.Black.copy(alpha = 0.05f) else Color.Transparent,
+        spotColor = if (palette.isLight) Color.Black.copy(alpha = 0.08f) else accent.copy(alpha = if (palette.glow) 0.25f else 0.0f)
     )
 }
 
@@ -1917,9 +1924,12 @@ fun VaultSearchField(
         null
     }
     val dockedSearch = reachableSecureKeyboardDock() != null
+    val searchShape = RoundedCornerShape(24.dp)
     val searchModifier = modifier
         .fillMaxWidth()
-        .vaultShadow(palette = palette, shape = palette.inputShape, accent = VaultColor.accent)
+        .clip(searchShape)
+        .background(if (palette.isLight) Color.Black.copy(alpha = 0.04f) else Color.White.copy(alpha = 0.04f))
+        .border(1.dp, if (filled) VaultColor.accent.copy(alpha = 0.5f) else VaultColor.hairline.copy(alpha = 0.35f), searchShape)
     if (board == null) {
         OutlinedTextField(
             value = query,
@@ -1930,7 +1940,7 @@ fun VaultSearchField(
             trailingIcon = trailingSlot,
             singleLine = true,
             textStyle = MaterialTheme.typography.bodyLarge,
-            shape = palette.inputShape,
+            shape = searchShape,
             colors = fieldColors
         )
     } else {
@@ -1950,7 +1960,7 @@ fun VaultSearchField(
                 singleLine = true,
                 readOnly = true,
                 textStyle = MaterialTheme.typography.bodyLarge,
-                shape = palette.inputShape,
+                shape = searchShape,
                 colors = fieldColors
             )
             if (board.isEngaged && !dockedSearch) {
@@ -2314,8 +2324,9 @@ fun formatShortDate(timestamp: Long): String {
 
 fun formatBytes(bytes: Long): String {
     if (bytes <= 0) return "0 B"
+    if (bytes < 1024) return "$bytes B"
     val kb = bytes / 1024.0
-    if (kb < 1024) return "${kb.roundToInt()} KB"
+    if (kb < 1024) return String.format(java.util.Locale.US, "%.1f KB", kb)
     val mb = kb / 1024.0
     return if (mb < 1024) String.format(java.util.Locale.US, "%.1f MB", mb)
     else String.format(java.util.Locale.US, "%.2f GB", mb / 1024.0)

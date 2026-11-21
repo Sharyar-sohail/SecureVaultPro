@@ -282,6 +282,9 @@ class BackupViewModel @Inject constructor(
                             previewError = if (selected?.id == current.selectedId) current.previewError else null
                         )
                     }
+                    if (_state.value.selected != null && _state.value.preview == null && !_state.value.previewing) {
+                        previewSelected()
+                    }
                 },
                 onFailure = { error ->
                     _state.update {

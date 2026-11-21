@@ -608,10 +608,10 @@ private fun NextGenSearchCapsule(
         modifier = modifier
             .fillMaxWidth()
             .height(48.dp)
-            .shadow(if (palette.isLight) 0.dp else 6.dp, RoundedCornerShape(24.dp))
+            .shadow(if (palette.isLight) 2.dp else 0.dp, RoundedCornerShape(24.dp))
             .clip(RoundedCornerShape(24.dp))
-            .background(palette.abyssSurface.copy(alpha = 0.9f))
-            .border(1.dp, palette.abyssElevated, RoundedCornerShape(24.dp))
+            .background(if (palette.isLight) Color(0xFFF8FAFC) else palette.abyssSurface.copy(alpha = 0.95f))
+            .border(1.dp, if (palette.isLight) Color(0xFFE2E8F0) else palette.abyssElevated, RoundedCornerShape(24.dp))
             .padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -696,7 +696,7 @@ private fun NextGenInfographicTelemetryCard(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(if (isLight) 1.dp else 8.dp, RoundedCornerShape(18.dp))
+            .shadow(if (isLight) 2.dp else 0.dp, RoundedCornerShape(18.dp))
             .clip(RoundedCornerShape(18.dp))
             .background(palette.abyssSurface)
             .border(
@@ -986,7 +986,7 @@ private fun NextGenWideCard(
         modifier = Modifier
             .fillMaxWidth()
             .scale(scale)
-            .shadow(if (palette.isLight) 0.dp else 10.dp, RoundedCornerShape(20.dp))
+            .shadow(if (palette.isLight) 2.dp else 0.dp, RoundedCornerShape(20.dp))
             .clip(RoundedCornerShape(20.dp))
             .background(palette.abyssSurface)
             .border(1.2.dp, if (palette.isLight) Color(0xFFE2E8F0) else palette.abyssElevated, RoundedCornerShape(20.dp))
@@ -1076,7 +1076,7 @@ private fun NextGenBentoTile(
     Column(
         modifier = modifier
             .scale(scale)
-            .shadow(if (isLight) 2.dp else 4.dp, RoundedCornerShape(16.dp))
+            .shadow(if (isLight) 2.dp else 0.dp, RoundedCornerShape(16.dp))
             .clip(RoundedCornerShape(16.dp))
             .background(palette.abyssSurface)
             .border(1.dp, if (isLight) Color(0xFFE2E8F0) else palette.abyssElevated, RoundedCornerShape(16.dp))

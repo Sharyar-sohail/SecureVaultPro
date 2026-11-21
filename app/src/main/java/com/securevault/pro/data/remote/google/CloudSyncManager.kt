@@ -201,7 +201,7 @@ class CloudSyncManager @Inject constructor(
             driveError = driveMessage(e)
         }
         if (uploaded) {
-            update("Updating the second copy", "Same records, XML format", 76)
+            update("Saving offline recovery copy", "Local encrypted mirror", 76)
             runCatching {
                 val xmlBytes = createEnvelope(
                     BackupXmlSerializer.serialize(payload),
@@ -209,10 +209,7 @@ class CloudSyncManager @Inject constructor(
                     3
                 )
                 writeOfflineCopy(xmlBytes, XML_BACKUP_NAME)
-                writeSlot(XML_BACKUP_NAME, xmlBytes, secret)
             }
-            update("Archiving cloud snapshot", "Keeping a dated copy of this snapshot", 84)
-            runCatching { uploadSnapshot(envelopeBytes) }
         }
         val finalCounts = backupEngine.countAll()
         vaultRepository.reloadVaultState()
@@ -278,7 +275,6 @@ class CloudSyncManager @Inject constructor(
                 if (jsonOutcome is BackupSlotGuard.Outcome.Held) {
                     throw CloudSyncException(jsonOutcome.reason)
                 }
-                writeSlot(XML_BACKUP_NAME, xmlBytes, secret)
                 // Mirror the vault key to Google Drive appDataFolder so any fresh device or re-installation of this account can decrypt and restore without losing records
                 keyring.deviceVaultKey()?.let { vKey ->
                     runCatching {

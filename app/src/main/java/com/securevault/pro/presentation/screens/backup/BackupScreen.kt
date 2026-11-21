@@ -134,7 +134,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 import com.securevault.pro.presentation.theme.VaultColor
-
+import com.securevault.pro.presentation.theme.VaultPaletteController
 import com.securevault.pro.presentation.theme.VaultShapes
 
 import com.securevault.pro.presentation.components.Glyph
@@ -1492,23 +1492,15 @@ private fun CloudFileRow(
 @Composable
 
 private fun SelectedBackupCard(
-
     file: CloudBackupFile,
-
     state: BackupUiState,
-
     cloudStateOperation: CloudOperation?,
-
     cloudActive: Boolean,
-
     onInspect: () -> Unit,
-
     onRestore: () -> Unit,
-
     onDelete: () -> Unit
-
 ) {
-
+    val palette = VaultPaletteController.current
     GlassCard(borderColor = VaultColor.accent.copy(alpha = 0.28f), accent = VaultColor.accent) {
 
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1600,57 +1592,64 @@ private fun SelectedBackupCard(
             }
 
             state.preview != null -> {
-
                 val preview = state.preview
-
                 Row(verticalAlignment = Alignment.CenterVertically) {
-
                     TagChip(
-
                         text = if (preview.encrypted) "ENCRYPTED" else "PLAIN",
-
                         accent = if (preview.encrypted) VaultColor.credit else VaultColor.warning
-
                     )
-
                     Spacer(Modifier.width(8.dp))
-
                     TagChip(text = "READY TO RESTORE", accent = VaultColor.accent)
-
+                    Spacer(Modifier.width(8.dp))
+                    TagChip(text = "${preview.counts.total} RECORDS", accent = palette.cyan)
                 }
 
                 Spacer(Modifier.height(10.dp))
 
-                Text(
-
-                    text = previewCountsLabel(preview.counts),
-
-                    style = MaterialTheme.typography.bodySmall,
-
-                    color = VaultColor.textStrong,
-
-                    lineHeight = 18.sp
-
-                )
-
-                preview.warnings.take(3).forEach { warning ->
-
-                    Spacer(Modifier.height(4.dp))
-
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(VaultShapes.card)
+                        .background(palette.surfaceOverlay.copy(alpha = 0.04f))
+                        .padding(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
                     Text(
-
-                        text = "• $warning",
-
-                        style = MaterialTheme.typography.labelSmall,
-
-                        color = VaultColor.textFaint,
-
-                        lineHeight = 14.sp
-
+                        text = "BACKUP BREAKDOWN",
+                        style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.sp),
+                        color = VaultColor.accent,
+                        fontWeight = FontWeight.Bold
                     )
-
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Logins: ${preview.counts.entries}", style = MaterialTheme.typography.bodySmall, color = VaultColor.textStrong)
+                        Text("2FA: ${preview.counts.totps}", style = MaterialTheme.typography.bodySmall, color = VaultColor.textStrong)
+                        Text("Cards: ${preview.counts.cards}", style = MaterialTheme.typography.bodySmall, color = VaultColor.textStrong)
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Contacts: ${preview.counts.contacts}", style = MaterialTheme.typography.bodySmall, color = VaultColor.textStrong)
+                        Text("Notes: ${preview.counts.notes}", style = MaterialTheme.typography.bodySmall, color = VaultColor.textStrong)
+                        Text("Files: ${preview.counts.files}", style = MaterialTheme.typography.bodySmall, color = VaultColor.textStrong)
+                    }
+                    if (preview.counts.wallets > 0) {
+                        Text("Crypto Wallets: ${preview.counts.wallets}", style = MaterialTheme.typography.bodySmall, color = VaultColor.textStrong)
+                    }
                 }
 
+                preview.warnings.take(3).forEach { warning ->
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = "• $warning",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = VaultColor.textFaint,
+                        lineHeight = 14.sp
+                    )
+                }
             }
 
             state.previewError != null -> {
@@ -1991,24 +1990,15 @@ private fun ImportStep(number: Int, text: String) {
 
 
 private fun previewCountsLabel(counts: BackupCounts): String {
-
     val parts = buildList {
-
         if (counts.entries > 0) add("${counts.entries} logins")
-
         if (counts.contacts > 0) add("${counts.contacts} contacts")
-
         if (counts.totps > 0) add("${counts.totps} 2FA")
-
         if (counts.notes > 0) add("${counts.notes} notes")
-
         if (counts.cards > 0) add("${counts.cards} cards")
-
+        if (counts.wallets > 0) add("${counts.wallets} wallets")
         if (counts.files > 0) add("${counts.files} files")
-
     }
-
     return if (parts.isEmpty()) "This backup has no records in it." else parts.joinToString(" · ")
-
 }
 

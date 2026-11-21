@@ -300,11 +300,21 @@ class GoogleDriveService @Inject constructor(
                 allFiles.asSequence()
                     .filter { it.name?.endsWith(".enc", ignoreCase = true) == true || it.name?.endsWith(".zip", ignoreCase = true) == true }
                     .filter { it.name != "vault_salt.json" }
+                    // Filter out duplicate XML mirror files so the user only sees unified backups
+                    .filter { !it.name.orEmpty().endsWith(".xml.enc", ignoreCase = true) }
                     .map { file ->
+                        val baseSize: Long = (file.size ?: 0L).toLong()
+                        val resolvedSize: Long = if (baseSize > 0L) {
+                            baseSize
+                        } else {
+                            (file.get("size") as? Number)?.toLong()
+                                ?: (file.get("quotaBytesUsed") as? Number)?.toLong()
+                                ?: 0L
+                        }
                         CloudBackupFile(
                             id = file.id.orEmpty(),
                             name = file.name ?: "backup.enc",
-                            size = (file.size ?: 0L).toLong(),
+                            size = resolvedSize,
                             modifiedTime = file.modifiedTime?.value?.toLong() ?: 0L,
                             isPrimary = file.name == PRIMARY_BACKUP
                         )
