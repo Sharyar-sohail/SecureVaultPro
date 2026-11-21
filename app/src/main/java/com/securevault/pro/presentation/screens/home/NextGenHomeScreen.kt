@@ -1,5 +1,6 @@
 package com.securevault.pro.presentation.screens.home
 
+import android.content.Context
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.LinearEasing
@@ -46,6 +47,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -75,6 +77,7 @@ import com.securevault.pro.presentation.components.ThemedIcon
 import com.securevault.pro.presentation.components.VaultModule
 import com.securevault.pro.presentation.components.greetingForHour
 import com.securevault.pro.presentation.navigation.Routes
+import com.securevault.pro.presentation.theme.VaultPalette
 import com.securevault.pro.presentation.theme.VaultPaletteController
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -115,6 +118,13 @@ fun NextGenHomeScreen(
     val totalItems = state.counts.passwords + state.counts.totps + state.counts.cards +
         state.counts.notes + state.counts.contacts + state.counts.files
     val cryptoCount = state.categoryCounts["CRYPTO"] ?: 0
+
+    val layoutModeKey = "home_layout_style"
+    val prefs = remember { context.getSharedPreferences("home_prefs", Context.MODE_PRIVATE) }
+    var layoutStyle by rememberSaveable {
+        val saved = prefs.getString(layoutModeKey, HomeLayoutStyle.BENTO.name)
+        mutableStateOf(runCatching { HomeLayoutStyle.valueOf(saved ?: "") }.getOrDefault(HomeLayoutStyle.BENTO))
+    }
 
     val isLight = palette.isLight
     val bgBase = palette.abyssDark
@@ -199,156 +209,42 @@ fun NextGenHomeScreen(
                         filesCount = state.counts.files
                     )
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
 
                     // -------------------------------------------------------------
-                    // B. COMPACT BENTO GRID: ALL 8 CORE MODULES ON ONE SCREEN
+                    // B. LAYOUT SWITCHER (Bento | Stream | Compact)
                     // -------------------------------------------------------------
-                    NextGenSectionHeader(
-                        title = "VAULT MODULES",
-                        subtitle = "Zero-knowledge encrypted categories",
-                        badge = "LIVE"
+                    NextGenLayoutSwitcher(
+                        currentStyle = layoutStyle,
+                        onStyleSelected = { newStyle ->
+                            layoutStyle = newStyle
+                            prefs.edit().putString(layoutModeKey, newStyle.name).apply()
+                        }
                     )
-                    Spacer(modifier = Modifier.height(6.dp))
 
-                    // Row 1: Passwords & Logins + 2FA Authenticator
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        NextGenBentoTile(
-                            title = "Passwords",
-                            description = "Credentials & logins",
-                            countText = "${state.counts.passwords}",
-                            module = VaultModule.PASSWORDS,
-                            modifier = Modifier.weight(1f),
-                            onClick = { onNavigate(Routes.vault("ALL")) }
-                        )
-
-                        NextGenBentoTile(
-                            title = "2FA Tokens",
-                            description = "TOTP authenticator",
-                            countText = "${state.counts.totps}",
-                            module = VaultModule.TWO_FA,
-                            modifier = Modifier.weight(1f),
-                            onClick = { onNavigate(Routes.AUTH) }
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(6.dp))
-
-                    // Row 2: Payment Cards + Crypto Wallets
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        NextGenBentoTile(
-                            title = "Payment Cards",
-                            description = "Credit & debit cards",
-                            countText = "${state.counts.cards}",
-                            module = VaultModule.CARDS,
-                            modifier = Modifier.weight(1f),
-                            onClick = { onNavigate(Routes.WALLET) }
-                        )
-
-                        NextGenBentoTile(
-                            title = "Crypto Wallets",
-                            description = "Seed phrases & keys",
-                            countText = "$cryptoCount",
-                            module = VaultModule.CRYPTO,
-                            modifier = Modifier.weight(1f),
-                            onClick = { onNavigate(Routes.CRYPTO) }
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(6.dp))
-
-                    // Row 3: Secure Notes + Secret Image
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        NextGenBentoTile(
-                            title = "Secure Notes",
-                            description = "Encrypted memos",
-                            countText = "${state.counts.notes}",
-                            module = VaultModule.NOTES,
-                            modifier = Modifier.weight(1f),
-                            onClick = { onNavigate(Routes.NOTES) }
-                        )
-
-                        NextGenBentoTile(
-                            title = "Secret Image",
-                            description = "Stego hidden media",
-                            countText = "Stego",
-                            module = VaultModule.STEGO,
-                            modifier = Modifier.weight(1f),
-                            onClick = { onNavigate(Routes.STEGO) }
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(6.dp))
-
-                    // Row 4: File Vault + Secure Contacts
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        NextGenBentoTile(
-                            title = "File Vault",
-                            description = "Private documents",
-                            countText = "${state.counts.files}",
-                            module = VaultModule.FILES,
-                            modifier = Modifier.weight(1f),
-                            onClick = { onNavigate(Routes.FILES) }
-                        )
-
-                        NextGenBentoTile(
-                            title = "Secure Contacts",
-                            description = "Private address book",
-                            countText = "${state.counts.contacts}",
-                            module = VaultModule.CONTACTS,
-                            modifier = Modifier.weight(1f),
-                            onClick = { onNavigate(Routes.CONTACTS) }
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
 
                     // -------------------------------------------------------------
-                    // C. SYSTEM TOOLS STRIP (Restored Core Functionality)
+                    // C. SELECTED DYNAMIC VAULT MODULES LAYOUT
                     // -------------------------------------------------------------
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        NextGenToolPill(
-                            title = "Security",
-                            icon = Glyph.shield,
-                            accent = palette.mint,
-                            modifier = Modifier.weight(1f),
-                            onClick = { onNavigate(Routes.HEALTH) }
+                    when (layoutStyle) {
+                        HomeLayoutStyle.BENTO -> NextGenBentoLayout(
+                            state = state,
+                            cryptoCount = cryptoCount,
+                            palette = palette,
+                            onNavigate = onNavigate
                         )
-                        NextGenToolPill(
-                            title = "Cloud Sync",
-                            icon = Glyph.cloud,
-                            accent = palette.cyan,
-                            modifier = Modifier.weight(1f),
-                            onClick = { onNavigate(Routes.SYNC_CENTER) }
+                        HomeLayoutStyle.STREAM -> NextGenStreamLayout(
+                            state = state,
+                            cryptoCount = cryptoCount,
+                            palette = palette,
+                            onNavigate = onNavigate
                         )
-                        NextGenToolPill(
-                            title = "Backup",
-                            icon = Glyph.fileDownload,
-                            accent = palette.indigo,
-                            modifier = Modifier.weight(1f),
-                            onClick = { onNavigate(Routes.BACKUP) }
-                        )
-                        NextGenToolPill(
-                            title = "Tools",
-                            icon = Glyph.security,
-                            accent = palette.amber,
-                            modifier = Modifier.weight(1f),
-                            onClick = { onNavigate(Routes.SECURITY_TOOLS) }
+                        HomeLayoutStyle.COMPACT -> NextGenCompactLayout(
+                            state = state,
+                            cryptoCount = cryptoCount,
+                            palette = palette,
+                            onNavigate = onNavigate
                         )
                     }
 
@@ -967,93 +863,584 @@ private fun NextGenSectionHeader(
     }
 }
 
+enum class HomeLayoutStyle(val label: String, val icon: Glyph) {
+    BENTO("Bento", Glyph.gridOn),
+    STREAM("Stream", Glyph.notes),
+    COMPACT("Compact", Glyph.bolt)
+}
+
 @Composable
-private fun NextGenWideCard(
+private fun NextGenLayoutSwitcher(
+    currentStyle: HomeLayoutStyle,
+    onStyleSelected: (HomeLayoutStyle) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val palette = VaultPaletteController.current
+    val isLight = palette.isLight
+
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(if (isLight) Color(0xFFE2E8F0) else palette.abyssSurface)
+            .border(1.dp, if (isLight) Color(0xFFCBD5E1) else palette.cyan.copy(alpha = 0.2f), RoundedCornerShape(14.dp))
+            .padding(3.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        HomeLayoutStyle.entries.forEach { style ->
+            val isSelected = currentStyle == style
+            val bg = if (isSelected) {
+                if (isLight) Color.White else palette.abyssElevated
+            } else Color.Transparent
+            val border = if (isSelected) {
+                palette.cyan.copy(alpha = 0.5f)
+            } else Color.Transparent
+            val tint = if (isSelected) palette.cyan else palette.textMuted
+
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(32.dp)
+                    .clip(RoundedCornerShape(11.dp))
+                    .background(bg)
+                    .then(if (isSelected) Modifier.border(1.dp, border, RoundedCornerShape(11.dp)) else Modifier)
+                    .clickable { onStyleSelected(style) },
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                ThemedIcon(
+                    glyph = style.icon,
+                    contentDescription = style.label,
+                    tint = tint,
+                    size = 14.dp
+                )
+                Spacer(modifier = Modifier.width(5.dp))
+                Text(
+                    text = style.label,
+                    style = TextStyle(
+                        fontSize = 11.sp,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                        color = if (isSelected) palette.textPrimary else palette.textMuted
+                    )
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun NextGenBentoLayout(
+    state: HomeUiState,
+    cryptoCount: Int,
+    palette: VaultPalette,
+    onNavigate: (String) -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        NextGenSectionHeader(
+            title = "VAULT MODULES",
+            subtitle = "Zero-knowledge encrypted categories",
+            badge = "LIVE"
+        )
+        Spacer(modifier = Modifier.height(2.dp))
+
+        // Row 1: Passwords & 2FA
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            NextGenBentoTile(
+                title = "Passwords",
+                description = "Credentials & logins",
+                countText = "${state.counts.passwords}",
+                module = VaultModule.PASSWORDS,
+                modifier = Modifier.weight(1f),
+                onClick = { onNavigate(Routes.vault("ALL")) }
+            )
+            NextGenBentoTile(
+                title = "2FA Tokens",
+                description = "TOTP authenticator",
+                countText = "${state.counts.totps}",
+                module = VaultModule.TWO_FA,
+                modifier = Modifier.weight(1f),
+                onClick = { onNavigate(Routes.AUTH) }
+            )
+        }
+
+        // Row 2: Cards & Crypto
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            NextGenBentoTile(
+                title = "Payment Cards",
+                description = "Credit & debit cards",
+                countText = "${state.counts.cards}",
+                module = VaultModule.CARDS,
+                modifier = Modifier.weight(1f),
+                onClick = { onNavigate(Routes.WALLET) }
+            )
+            NextGenBentoTile(
+                title = "Crypto Wallets",
+                description = "Seed phrases & keys",
+                countText = "$cryptoCount",
+                module = VaultModule.CRYPTO,
+                modifier = Modifier.weight(1f),
+                onClick = { onNavigate(Routes.CRYPTO) }
+            )
+        }
+
+        // Row 3: Notes & Stego
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            NextGenBentoTile(
+                title = "Secure Notes",
+                description = "Encrypted memos",
+                countText = "${state.counts.notes}",
+                module = VaultModule.NOTES,
+                modifier = Modifier.weight(1f),
+                onClick = { onNavigate(Routes.NOTES) }
+            )
+            NextGenBentoTile(
+                title = "Secret Image",
+                description = "Stego hidden media",
+                countText = "Stego",
+                module = VaultModule.STEGO,
+                modifier = Modifier.weight(1f),
+                onClick = { onNavigate(Routes.STEGO) }
+            )
+        }
+
+        // Row 4: File Vault & Contacts
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            NextGenBentoTile(
+                title = "File Vault",
+                description = "Private documents",
+                countText = "${state.counts.files}",
+                module = VaultModule.FILES,
+                modifier = Modifier.weight(1f),
+                onClick = { onNavigate(Routes.FILES) }
+            )
+            NextGenBentoTile(
+                title = "Secure Contacts",
+                description = "Private address book",
+                countText = "${state.counts.contacts}",
+                module = VaultModule.CONTACTS,
+                modifier = Modifier.weight(1f),
+                onClick = { onNavigate(Routes.CONTACTS) }
+            )
+        }
+
+        Spacer(modifier = Modifier.height(4.dp))
+        NextGenToolsStrip(palette = palette, onNavigate = onNavigate)
+    }
+}
+
+@Composable
+private fun NextGenStreamLayout(
+    state: HomeUiState,
+    cryptoCount: Int,
+    palette: VaultPalette,
+    onNavigate: (String) -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(7.dp)
+    ) {
+        NextGenSectionHeader(
+            title = "SECURE STREAMS",
+            subtitle = "Linear zero-knowledge encrypted vaults",
+            badge = "STREAM"
+        )
+        Spacer(modifier = Modifier.height(2.dp))
+
+        NextGenStreamCard(
+            title = "Passwords & Logins",
+            subtitle = "Websites, apps & system credentials",
+            count = state.counts.passwords,
+            icon = Glyph.key,
+            accent = palette.amber,
+            onClick = { onNavigate(Routes.vault("ALL")) }
+        )
+        NextGenStreamCard(
+            title = "2FA Authenticator",
+            subtitle = "Time-based OTP & security tokens",
+            count = state.counts.totps,
+            icon = Glyph.shield,
+            accent = palette.cyan,
+            onClick = { onNavigate(Routes.AUTH) }
+        )
+        NextGenStreamCard(
+            title = "Payment Cards",
+            subtitle = "Encrypted credit, debit & banking cards",
+            count = state.counts.cards,
+            icon = Glyph.creditCard,
+            accent = palette.mint,
+            onClick = { onNavigate(Routes.WALLET) }
+        )
+        NextGenStreamCard(
+            title = "Crypto Wallets",
+            subtitle = "Seed phrases, private keys & blockchain wallets",
+            count = cryptoCount,
+            icon = Glyph.currencyBitcoin,
+            accent = Color(0xFFF59E0B),
+            onClick = { onNavigate(Routes.CRYPTO) }
+        )
+        NextGenStreamCard(
+            title = "Secure Notes",
+            subtitle = "AES-256 sealed memos & sensitive documents",
+            count = state.counts.notes,
+            icon = Glyph.notes,
+            accent = Color(0xFF8B5CF6),
+            onClick = { onNavigate(Routes.NOTES) }
+        )
+        NextGenStreamCard(
+            title = "Secret Image Steganography",
+            subtitle = "Pixel-embedded hidden stego media",
+            countText = "STEGO",
+            icon = Glyph.image,
+            accent = Color(0xFFEC4899),
+            onClick = { onNavigate(Routes.STEGO) }
+        )
+        NextGenStreamCard(
+            title = "Private File Vault",
+            subtitle = "Hardware-sealed PDF, scans & secret documents",
+            count = state.counts.files,
+            icon = Glyph.folder,
+            accent = Color(0xFF0EA5E9),
+            onClick = { onNavigate(Routes.FILES) }
+        )
+        NextGenStreamCard(
+            title = "Secure Contacts",
+            subtitle = "Confidential directory & private address book",
+            count = state.counts.contacts,
+            icon = Glyph.contacts,
+            accent = palette.coral,
+            onClick = { onNavigate(Routes.CONTACTS) }
+        )
+
+        Spacer(modifier = Modifier.height(4.dp))
+        NextGenToolsStrip(palette = palette, onNavigate = onNavigate)
+    }
+}
+
+@Composable
+private fun NextGenStreamCard(
     title: String,
-    description: String,
-    countText: String,
-    badgeText: String,
-    badgeIsWarning: Boolean,
-    module: VaultModule,
+    subtitle: String,
+    count: Int? = null,
+    countText: String? = null,
+    icon: Glyph,
+    accent: Color,
     onClick: () -> Unit
 ) {
     val palette = VaultPaletteController.current
-    val interactionSource = remember { MutableInteractionSource() }
-    val isPressed by interactionSource.collectIsPressedAsState()
-    val scale by animateFloatAsState(if (isPressed) 0.97f else 1f, label = "wideScale")
+    val isLight = palette.isLight
+    val interaction = remember { MutableInteractionSource() }
+    val isPressed by interaction.collectIsPressedAsState()
+    val scale by animateFloatAsState(if (isPressed) 0.98f else 1f, label = "streamScale")
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .scale(scale)
-            .shadow(if (palette.isLight) 2.dp else 0.dp, RoundedCornerShape(20.dp))
-            .clip(RoundedCornerShape(20.dp))
+            .shadow(if (isLight) 2.dp else 0.dp, RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(16.dp))
             .background(palette.abyssSurface)
-            .border(1.2.dp, if (palette.isLight) Color(0xFFE2E8F0) else palette.abyssElevated, RoundedCornerShape(20.dp))
-            .clickable(interactionSource = interactionSource, indication = null, onClick = onClick)
-            .padding(16.dp),
+            .border(1.dp, if (isLight) Color(0xFFE2E8F0) else palette.abyssElevated, RoundedCornerShape(16.dp))
+            .clickable(interactionSource = interaction, indication = null, onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        BrandModuleIcon(
-            module = module,
-            size = 42.dp
-        )
-        Spacer(modifier = Modifier.width(14.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = title,
-                    style = TextStyle(
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = palette.textPrimary
+        Box(
+            modifier = Modifier
+                .size(38.dp)
+                .clip(RoundedCornerShape(11.dp))
+                .background(
+                    Brush.linearGradient(
+                        listOf(accent.copy(alpha = 0.22f), accent.copy(alpha = 0.06f))
                     )
                 )
-                Spacer(modifier = Modifier.width(8.dp))
-                val badgeBg = if (badgeIsWarning) palette.coral.copy(alpha = 0.16f) else palette.mint.copy(alpha = 0.16f)
-                val badgeColor = if (badgeIsWarning) palette.coral else palette.mint
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(badgeBg)
-                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                ) {
-                    Text(
-                        text = badgeText,
-                        style = TextStyle(
-                            fontSize = 9.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = badgeColor
-                        )
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.height(2.dp))
+                .border(1.dp, accent.copy(alpha = 0.45f), RoundedCornerShape(11.dp)),
+            contentAlignment = Alignment.Center
+        ) {
+            ThemedIcon(
+                glyph = icon,
+                contentDescription = title,
+                tint = accent,
+                size = 19.dp
+            )
+        }
+
+        Spacer(modifier = Modifier.width(12.dp))
+
+        Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = description,
+                text = title,
                 style = TextStyle(
-                    fontSize = 11.sp,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = palette.textPrimary
+                )
+            )
+            Spacer(modifier = Modifier.height(1.dp))
+            Text(
+                text = subtitle,
+                style = TextStyle(
+                    fontSize = 10.5.sp,
                     color = palette.textMuted
                 ),
-                maxLines = 2,
+                maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-            Spacer(modifier = Modifier.height(4.dp))
+        }
+
+        Spacer(modifier = Modifier.width(8.dp))
+
+        val text = countText ?: "${count ?: 0}"
+        Box(
+            modifier = Modifier
+                .clip(RoundedCornerShape(8.dp))
+                .background(accent.copy(alpha = 0.12f))
+                .border(0.8.dp, accent.copy(alpha = 0.35f), RoundedCornerShape(8.dp))
+                .padding(horizontal = 8.dp, vertical = 3.dp)
+        ) {
             Text(
-                text = countText,
+                text = text,
                 style = TextStyle(
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = palette.cyan
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = accent
                 )
             )
         }
-        Spacer(modifier = Modifier.width(8.dp))
+
+        Spacer(modifier = Modifier.width(6.dp))
+
         ThemedIcon(
             glyph = Glyph.chevronRight,
             contentDescription = null,
             tint = palette.textMuted.copy(alpha = 0.6f),
-            size = 18.dp
+            size = 14.dp
+        )
+    }
+}
+
+@Composable
+private fun NextGenCompactLayout(
+    state: HomeUiState,
+    cryptoCount: Int,
+    palette: VaultPalette,
+    onNavigate: (String) -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        NextGenSectionHeader(
+            title = "TACTICAL HUD MATRIX",
+            subtitle = "Zero-scroll high-density cyber modules",
+            badge = "HUD"
+        )
+        Spacer(modifier = Modifier.height(2.dp))
+
+        // Row 1 (4 items)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            NextGenTacticalTile(
+                title = "Passwords",
+                count = state.counts.passwords,
+                icon = Glyph.key,
+                accent = palette.amber,
+                modifier = Modifier.weight(1f),
+                onClick = { onNavigate(Routes.vault("ALL")) }
+            )
+            NextGenTacticalTile(
+                title = "2FA Auth",
+                count = state.counts.totps,
+                icon = Glyph.shield,
+                accent = palette.cyan,
+                modifier = Modifier.weight(1f),
+                onClick = { onNavigate(Routes.AUTH) }
+            )
+            NextGenTacticalTile(
+                title = "Cards",
+                count = state.counts.cards,
+                icon = Glyph.creditCard,
+                accent = palette.mint,
+                modifier = Modifier.weight(1f),
+                onClick = { onNavigate(Routes.WALLET) }
+            )
+            NextGenTacticalTile(
+                title = "Crypto",
+                count = cryptoCount,
+                icon = Glyph.currencyBitcoin,
+                accent = Color(0xFFF59E0B),
+                modifier = Modifier.weight(1f),
+                onClick = { onNavigate(Routes.CRYPTO) }
+            )
+        }
+
+        // Row 2 (4 items)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            NextGenTacticalTile(
+                title = "Notes",
+                count = state.counts.notes,
+                icon = Glyph.notes,
+                accent = Color(0xFF8B5CF6),
+                modifier = Modifier.weight(1f),
+                onClick = { onNavigate(Routes.NOTES) }
+            )
+            NextGenTacticalTile(
+                title = "Stego",
+                countText = "IMG",
+                icon = Glyph.image,
+                accent = Color(0xFFEC4899),
+                modifier = Modifier.weight(1f),
+                onClick = { onNavigate(Routes.STEGO) }
+            )
+            NextGenTacticalTile(
+                title = "Files",
+                count = state.counts.files,
+                icon = Glyph.folder,
+                accent = Color(0xFF0EA5E9),
+                modifier = Modifier.weight(1f),
+                onClick = { onNavigate(Routes.FILES) }
+            )
+            NextGenTacticalTile(
+                title = "Contacts",
+                count = state.counts.contacts,
+                icon = Glyph.contacts,
+                accent = palette.coral,
+                modifier = Modifier.weight(1f),
+                onClick = { onNavigate(Routes.CONTACTS) }
+            )
+        }
+
+        Spacer(modifier = Modifier.height(4.dp))
+        NextGenToolsStrip(palette = palette, onNavigate = onNavigate)
+    }
+}
+
+@Composable
+private fun NextGenTacticalTile(
+    title: String,
+    count: Int? = null,
+    countText: String? = null,
+    icon: Glyph,
+    accent: Color,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    val palette = VaultPaletteController.current
+    val isLight = palette.isLight
+    val interaction = remember { MutableInteractionSource() }
+    val isPressed by interaction.collectIsPressedAsState()
+    val scale by animateFloatAsState(if (isPressed) 0.94f else 1f, label = "tacticalScale")
+
+    Column(
+        modifier = modifier
+            .scale(scale)
+            .shadow(if (isLight) 2.dp else 0.dp, RoundedCornerShape(14.dp))
+            .clip(RoundedCornerShape(14.dp))
+            .background(palette.abyssSurface)
+            .border(1.dp, if (isLight) Color(0xFFE2E8F0) else palette.abyssElevated, RoundedCornerShape(14.dp))
+            .clickable(interactionSource = interaction, indication = null, onClick = onClick)
+            .padding(horizontal = 4.dp, vertical = 9.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .size(34.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(accent.copy(alpha = 0.14f))
+                .border(0.8.dp, accent.copy(alpha = 0.4f), RoundedCornerShape(10.dp)),
+            contentAlignment = Alignment.Center
+        ) {
+            ThemedIcon(
+                glyph = icon,
+                contentDescription = title,
+                tint = accent,
+                size = 18.dp
+            )
+        }
+
+        Spacer(modifier = Modifier.height(5.dp))
+
+        Text(
+            text = title,
+            style = TextStyle(
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                color = palette.textPrimary
+            ),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+
+        Spacer(modifier = Modifier.height(2.dp))
+
+        Text(
+            text = countText ?: "${count ?: 0}",
+            style = TextStyle(
+                fontSize = 9.5.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = accent
+            ),
+            maxLines = 1
+        )
+    }
+}
+
+@Composable
+private fun NextGenToolsStrip(
+    palette: VaultPalette,
+    onNavigate: (String) -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        NextGenToolPill(
+            title = "Security",
+            icon = Glyph.shield,
+            accent = palette.mint,
+            modifier = Modifier.weight(1f),
+            onClick = { onNavigate(Routes.HEALTH) }
+        )
+        NextGenToolPill(
+            title = "Cloud Sync",
+            icon = Glyph.cloud,
+            accent = palette.cyan,
+            modifier = Modifier.weight(1f),
+            onClick = { onNavigate(Routes.SYNC_CENTER) }
+        )
+        NextGenToolPill(
+            title = "Backup",
+            icon = Glyph.fileDownload,
+            accent = palette.indigo,
+            modifier = Modifier.weight(1f),
+            onClick = { onNavigate(Routes.BACKUP) }
+        )
+        NextGenToolPill(
+            title = "Tools",
+            icon = Glyph.security,
+            accent = palette.amber,
+            modifier = Modifier.weight(1f),
+            onClick = { onNavigate(Routes.SECURITY_TOOLS) }
         )
     }
 }

@@ -302,18 +302,13 @@ fun NeonBackground(
                     )
                 }
                 VaultBackdrop.HARD_GRID -> {
-                    val ink = palette.textPrimary.copy(alpha = 0.075f * intensity)
-                    val step = 28.dp.toPx()
-                    val dot = 1.4.dp.toPx()
-                    var x = 0f
-                    while (x < size.width) {
-                        var y = 0f
-                        while (y < size.height) {
-                            drawCircle(ink, dot, Offset(x, y))
-                            y += step
-                        }
-                        x += step
-                    }
+                    // Pristine clean background without dot-grid squares
+                    backdropGlow(
+                        palette.cyan,
+                        0.06f * intensity,
+                        Offset(size.width * 0.85f, size.height * 0.08f),
+                        size.width * 0.9f
+                    )
                 }
                 VaultBackdrop.SOFT_CLAY -> {
                     backdropGlow(
@@ -373,16 +368,7 @@ fun NeonBackground(
 }
 
 private fun DrawScope.backdropGrid(color: Color, step: Float, strokeWidth: Float = 1f) {
-    var x = 0f
-    while (x < size.width) {
-        drawLine(color, Offset(x, 0f), Offset(x, size.height), strokeWidth)
-        x += step
-    }
-    var y = 0f
-    while (y < size.height) {
-        drawLine(color, Offset(0f, y), Offset(size.width, y), strokeWidth)
-        y += step
-    }
+    // Grid squares disabled across app to ensure spotless, clean, smudge-free spatial dark background
 }
 
 private fun DrawScope.backdropGlow(

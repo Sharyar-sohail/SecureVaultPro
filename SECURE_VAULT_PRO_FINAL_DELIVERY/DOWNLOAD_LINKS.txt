@@ -1,2 +1,32 @@
-Secure Vault Pro - Classic v1.0 (Fixed): https://gofile.io/d/TCjqqOCL
-Secure Vault Pro - NextGen v2.0 (Flagship): https://gofile.io/d/lJ4CFCuh
+========================================================================================
+SECURE VAULT PRO 2.0 - LATEST PRODUCTION RELEASE DOWNLOAD LINKS
+========================================================================================
+
+1. SecureVaultPro NextGen Flagship Release APK (All UI Enhancements + Scanner Upgrade):
+   Direct Download Link: https://gofile.io/d/6KZSVKPA
+   File: SecureVaultPro-NextGen-v2.0.apk (~80.6 MB)
+
+2. SecureVaultPro Classic Clean Release APK:
+   Direct Download Link: https://gofile.io/d/7Evfs1ah
+   File: SecureVaultPro-Classic-v2.0.apk (~80.6 MB)
+
+========================================================================================
+WHAT WAS UPGRADED IN THIS RELEASE:
+========================================================================================
+1. Complete Eradication of Background Smudge Squares / Rectangles:
+   - Full opacity (100% solid) set on modal dialog overlays (CloudSyncOverlay, FileUploadOverlay),
+     eliminating underlying card bleed-through.
+   - Disabled canvas grid lines in NeonBackground, removing faint background squares across all screens.
+
+2. Three Dynamic Selectable Home Screen Layouts:
+   - Bento Grid (Default): Infographic telemetry donut gauge + 2-column rich module cards.
+   - Linear Stream: Full-width glass cards with modern duo-tone rounded icon capsules, subtitles, and badges.
+   - Tactical Compact HUD: 4-column x 2-row zero-scroll cyber matrix for immediate one-thumb access.
+   - Persistent quick switcher pill bar to toggle between layouts anytime.
+
+3. CamScanner (CS Scanner) Standard Document Scanner:
+   - Automatic perspective rectification and document corner alignment.
+   - True CamScanner B&W adaptive thresholding (crisp deep-black text on pure white paper).
+   - High-fidelity Magic Color filter option.
+   - Default auto-conversion to clean B&W document scan.
+========================================================================================

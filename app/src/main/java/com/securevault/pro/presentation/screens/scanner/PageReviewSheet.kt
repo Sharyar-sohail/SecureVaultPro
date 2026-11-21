@@ -77,7 +77,7 @@ internal fun PageReviewSheet(
     var source by remember { mutableStateOf<Bitmap?>(null) }
     var handles by remember { mutableStateOf(capture.quad?.copyOf() ?: insetQuad()) }
     var cropEnabled by remember { mutableStateOf(true) }
-    var filter by remember { mutableStateOf(ScanFilter.Enhanced) }
+    var filter by remember { mutableStateOf(ScanFilter.Greyscale) }
     var preview by remember { mutableStateOf<Bitmap?>(null) }
     var ready by remember { mutableStateOf(false) }
     var working by remember { mutableStateOf(false) }
@@ -89,6 +89,18 @@ internal fun PageReviewSheet(
             failure = "That photo could not be opened. Retake the page."
         } else {
             source = bitmap
+            // Auto document alignment & perspective rectification if not already provided
+            if (capture.quad == null) {
+                withContext(Dispatchers.Default) {
+                    val detected = detectDocumentQuad(bitmap)
+                    if (detected != null && detected.size == 8) {
+                        val norm = pixelsToNormalized(detected, bitmap.width.toFloat(), bitmap.height.toFloat())
+                        withContext(Dispatchers.Main) {
+                            handles = norm
+                        }
+                    }
+                }
+            }
         }
         ready = true
     }

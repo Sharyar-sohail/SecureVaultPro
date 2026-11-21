@@ -73,7 +73,7 @@ fun CloudOperationOverlay(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(VaultColor.background.copy(alpha = 0.97f))
+                .background(VaultColor.background)
                 .statusBarsPadding()
                 .navigationBarsPadding()
                 .verticalScroll(rememberScrollState())

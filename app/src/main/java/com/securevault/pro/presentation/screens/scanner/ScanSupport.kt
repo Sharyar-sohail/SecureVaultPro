@@ -78,20 +78,31 @@ internal fun normalizedBitmap(bytes: ByteArray, maxDimension: Int = 2200): Bitma
 private const val DETECTION_PROBE = 640
 
 internal enum class ScanFilter(val label: String) {
-    Enhanced("Enhance"),
+    Enhanced("Magic Color"),
     Original("Original"),
     Greyscale("B & W")
 }
 
 internal fun applyScanFilter(source: Bitmap, filter: ScanFilter): Bitmap = when (filter) {
-    ScanFilter.Enhanced -> enhanceDocument(source)
+    ScanFilter.Enhanced -> {
+        runCatching {
+            val plane = ScanBitmaps.argbOf(source)
+            ScanBitmaps.toBitmap(Filters.magicColour(plane))
+        }.getOrElse { enhanceDocument(source) }
+    }
     ScanFilter.Original -> source
-    ScanFilter.Greyscale -> greyscaleDocument(source)
+    ScanFilter.Greyscale -> {
+        // True CamScanner adaptive B&W: crisp paper white with deep pitch-black ink
+        runCatching {
+            val plane = ScanBitmaps.argbOf(source)
+            ScanBitmaps.toBitmap(Filters.blackWhite(plane, adaptiveWhenSlopeAbove = 10.0))
+        }.getOrElse { greyscaleDocument(source) }
+    }
 }
 
 /** The page finish the pure core uses for the same choice the chips show. */
 private fun lookOf(filter: ScanFilter): ScanLook = when (filter) {
-    ScanFilter.Enhanced -> ScanLook.ENHANCE
+    ScanFilter.Enhanced -> ScanLook.MAGIC
     ScanFilter.Original -> ScanLook.ORIGINAL
     ScanFilter.Greyscale -> ScanLook.BLACK_WHITE
 }
@@ -309,7 +320,7 @@ private const val MAX_CORE_PIXELS = 6_000_000L
  * original when no confident document outline is found.
  */
 internal fun prepareDocument(bytes: ByteArray, maxDimension: Int = 2200): Bitmap? =
-    prepareDocument(bytes, maxDimension, null, ScanFilter.Enhanced)
+    prepareDocument(bytes, maxDimension, null, ScanFilter.Greyscale)
 
 /**
  * Same pipeline, but the live viewfinder can hand down the quad it already found

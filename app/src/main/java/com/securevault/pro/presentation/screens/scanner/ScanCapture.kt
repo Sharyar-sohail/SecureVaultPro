@@ -253,3 +253,14 @@ internal fun normalizedToPixels(quad: FloatArray, width: Float, height: Float): 
     }
     return mapped
 }
+
+/** Converts concrete bitmap pixel coordinates into fractions (0..1). */
+internal fun pixelsToNormalized(quad: FloatArray, width: Float, height: Float): FloatArray {
+    val mapped = FloatArray(8)
+    if (width <= 0f || height <= 0f) return mapped
+    for (corner in 0 until 4) {
+        mapped[corner * 2] = (quad[corner * 2] / width).coerceIn(0f, 1f)
+        mapped[corner * 2 + 1] = (quad[corner * 2 + 1] / height).coerceIn(0f, 1f)
+    }
+    return mapped
+}
